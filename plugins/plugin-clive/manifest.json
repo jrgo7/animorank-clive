@@ -1,0 +1,9 @@
+{
+  "id": "clive",
+  "manifestVersion": "0",
+  "name": "CLive Plugin",
+  "author": "Ang, et. al.",
+  "version": "1.0.0",
+  "description": "CLive tutoring system",
+  "category": ["tutor"]
+}
