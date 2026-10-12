@@ -1,0 +1,154 @@
+id: phase.algorithm_design
+version: 10
+phase: algorithm_design
+label: Design
+order: 3
+layout: steps
+created: 2026-08-20
+changelog: >
+  v10: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over.
+
+  v9: Only the algorithm steps, written in a doc-style outline (`kind: steps`, a list of
+  {text, level} the judge reads as a numbered, indented outline), after first-year
+  students found the page overwhelming and Design slow (2026-10-02 proposed changes).
+  The `state` and `output_step` boxes are removed; their criteria are merged or
+  dropped (rubric v5). The example uses a Design-only sample problem with a loop and a
+  running total. Wording is a draft for the author to revise.
+
+  v8: The `state` hint lists "totals, counters, flags" instead of "totals,
+  counters, arrays". The prototype is scoped to CCPROG1, which does not cover
+  arrays or structs.
+  v7: `task_description` cut to one sentence; its instructions now sit in the
+  `hint` of the field each is about -- no C in `steps`, starting values and the
+  no-gaps rule in `state`, exact output form in `output_step`. See
+  phase.problem_definition v7 for why (Interview 4) and why verdicts are unaffected.
+
+  v6: Judge model `deepseek-chat` -> `deepseek-flash`, and `max_output_tokens`
+  4000 -> 32000. DeepSeek calls now always run with thinking on so the reasoning
+  can be logged; `deepseek-chat` was the same model with thinking off, which is
+  why 4000 was ample. Reasoning is paid for out of the same cap. Measured on
+  synthetic pilot artifacts, a judge call used 272-19,015 reasoning tokens
+  (median about 3,000; the same artifact ranged 1,198-19,015), so 4000 would have
+  truncated 8 of 18 calls and 8000 would have truncated 3. A cap only bounds the
+  worst case: typical calls use far less. Verdicts recorded before this change
+  came from non-thinking flash and are not directly comparable.
+
+  v5: STUDENT ARTIFACT now renders a blank field as truly empty instead of the
+  literal string "(not provided)", which the judge could otherwise quote back as
+  `evidence` for a criterion the student left blank. See phase.problem_definition
+  v5 for the full rationale -- the same template pattern, the same fix.
+
+  v4: Judge model moved from `deepseek-v4-pro` back to `deepseek-chat` (flash) to
+  cut cost -- every judged phase now runs on flash. `max_output_tokens` lowered
+  8000 -> 4000 to match `problem_definition` and `case_design`: flash runs no
+  reasoning pass, so the 8-criterion verdict list sits well inside 4000. The
+  trade-off is recorded in docs/artifact-fields-pilot-results.md -- flash is a
+  weaker arithmetic checker, which on this phase mainly exposes the advisory
+  `covers_own_edge_cases` (tracing the student's cases through their own steps).
+
+  v3: Judge model moved from `claude-opus-5` to `deepseek-v4-pro`, so this phase
+  runs off `DEEPSEEK_API_KEY` like `problem_definition` and `case_design` rather
+  than needing an Anthropic key. `judge()` now routes the provider from
+  `model.id` (a `deepseek-*` id reaches DeepSeek even when `CLIVE_PROVIDER` is
+  unset), so no other config changes. `max_output_tokens` raised 4000 -> 8000:
+  the artifact-fields pilot showed `deepseek-v4-pro` truncating the 5-criterion
+  verdict list at 4000 on this phase.
+
+  v2: Added `task_description` (student-facing instructions, shown at the top of a
+  Sandbox session) and an optional EARLIER PHASES block driven by `prior_artifacts`.
+  The block is guarded by `{% if prior_artifacts %}`, so a caller that passes nothing
+  renders exactly what v1 rendered. Carry-forward matters here for `inputs_are_consumed`
+  and `state_is_named`: whether a step is a gap depends on what the student already
+  committed to reading in Problem. One system-prompt rule covers the risk -- prior-phase
+  work is this student's own writing, so it is context and never evidence.
+
+  v1: Initial definition. The "D" of PCDIT — the student writes a plan a human
+  could follow, before any code exists. Adds one phase-specific instruction to the
+  shared judging contract: a design that is merely inelegant still passes, because
+  this phase judges whether the plan is followable, not whether it is optimal.
+
+model:
+  id: deepseek-flash
+  effort: medium
+  thinking: adaptive
+  max_output_tokens: 32000
+  response_format: json_schema
+  schema: base/output_schema.json
+
+task_description: |
+  Plan the solution in plain English without using C yet.
+example_problem: |
+  Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.
+artifact_fields:
+  - id: steps
+    label: Algorithm steps
+    kind: steps
+    prompt: What sequence of steps would solve the problem?
+    hint: Place one action per step. You may use indentation to express conditional or repeating statements.
+    example:
+      - {text: Read n., level: 0}
+      - {text: Set the total to 0 and the counter to 1., level: 0}
+      - {text: "While the counter is at most n:", level: 0}
+      - {text: Add the counter to the total., level: 1}
+      - {text: Add 1 to the counter., level: 1}
+      - {text: Print the total., level: 0}
+
+system_prompt: |
+  You are evaluating one student artifact from one phase of a structured problem-solving process. You are not holding a conversation, and you are not teaching C.
+
+  In this phase the student is writing an algorithm as a plan in plain language, before writing any code, as a numbered outline: a nested step belongs to the step above it, such as the body of a repeat or the branch of a condition. You are judging whether the plan is followable, not whether it is the best plan.
+
+  You judge the artifact against a fixed list of criteria. For each criterion you return exactly one verdict.
+
+  Rules:
+  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE. Never merge, skip, split, or invent a criterion id.
+  - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion; do not let a verdict on one criterion pull the others with it.
+  - Judge only what the artifact actually says. Do not credit the student for something a competent reader would infer but the artifact does not state.
+  - Inefficiency is not a failure. A design that is correct but clumsy — an extra pass, a redundant variable, a needless sort — passes every criterion it otherwise satisfies. Judge only what the criteria ask.
+  - Read the steps in the order given and check they can actually be executed in that order. A step that uses a value no earlier step produced is a gap, however obvious the fix.
+  - Quote evidence verbatim from the student artifact — copy the exact span, do not paraphrase, correct, or reformat it. If nothing in the artifact bears on the criterion, return an empty evidence string and FAIL.
+  - The problem statement and public test cases are context for judging. Never quote them as evidence; evidence must come from the student artifact.
+  - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases, which makes it tempting to quote -- do not. Evidence must come from the STUDENT ARTIFACT section, and a criterion is failed if only the earlier work satisfies it.
+  - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous or the criterion is a borderline call.
+
+user_template: |
+  PROBLEM STATEMENT
+  {{ problem.statement }}
+
+  {% if problem.public_test_cases %}
+  PUBLIC TEST CASES
+  {% for case in problem.public_test_cases %}
+  - input: {{ case.input | tojson }} output: {{ case.output | tojson }}
+  {% endfor %}
+  {% endif %}
+  {% if prior_artifacts %}
+  EARLIER PHASES
+  This student's work from earlier phases, for context. Never quote it as evidence.
+  {% for p in prior_artifacts %}
+  {{ p.label }}:
+  {% for f in p.fields %}
+  - {{ f.label }}: {{ f.value }}
+  {% endfor %}
+  {% endfor %}
+  {% endif %}
+
+  STUDENT ARTIFACT
+  {% for f in artifact_fields %}
+
+  {{ f.label }}:
+  {{ artifact[f.id] | default("", true) }}
+  {% endfor %}
+
+  CRITERIA TO JUDGE
+  Return exactly one verdict for each of the following {{ criteria_to_judge | length }} criteria, using the id in brackets.
+  {% for c in criteria_to_judge %}
+  - [{{ c.id }}] {{ c.text }}
+    {{ c.guidance | trim | indent(2) }}
+  {% endfor %}
+
+  ATTEMPT
+  This is submission {{ attempt }} for this phase.
+
+# todo
+examples:
+  -

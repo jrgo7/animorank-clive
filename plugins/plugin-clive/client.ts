@@ -2,11 +2,14 @@ import type { ClientAnimoRankAPI } from '$lib/api/client';
 import { ClientPlugin } from '$lib/plugin/clientPlugin';
 import type { SolveWindowContext } from '../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import { SolveWindowRegistry } from '../../src/routes/problem/[problem_id]/[session_id]/windowRegistry';
+import type { ProblemEditorWindowContext } from '../../src/routes/edit/[slug]/context.svelte';
+import { ProblemEditorWindowRegistry } from '../../src/routes/edit/[slug]/windowRegistry';
 import { PhaseTrackWindow } from './windows/PhaseTrackWindow.window';
 import { ProblemWindow } from './windows/ProblemWindow.window';
 import { CaseDesignWindow } from './windows/CaseDesignWindow.window';
 import { AlgorithmDesignWindow } from './windows/AlgorithmDesignWindow.window';
 import { ImplementWindow } from './windows/ImplementWindow.window';
+import { ReferenceSolutionWindow } from './windows/ReferenceSolutionWindow.window';
 import { PHASES } from './windows/phase';
 
 export default class CLivePlugin extends ClientPlugin {
@@ -20,6 +23,11 @@ export default class CLivePlugin extends ClientPlugin {
     registrar.register(PHASES[1].phase, CaseDesignWindow);
     registrar.register(PHASES[2].phase, AlgorithmDesignWindow);
     registrar.register(PHASES[3].phase, ImplementWindow);
+
+    // CLive's per-problem reference solution, authored on the problem editor.
+    api.clientRegistryProviderRegistrar
+      .getRegistrar(ProblemEditorWindowRegistry)
+      .register('reference_solution', ReferenceSolutionWindow);
   }
 
   public async onSolvePageLoad(context: SolveWindowContext): Promise<void> {
@@ -45,5 +53,11 @@ export default class CLivePlugin extends ClientPlugin {
       await context.openWindow(`clive:${phase}`, { direction: 'within', referencePanel: first });
     }
     await context.openWindow(first);
+  }
+
+  public async onProblemEditorLoad(context: ProblemEditorWindowContext): Promise<void> {
+    // Registered by `init`; opened here so the box sits beside Starter Code
+    // without the editor's default layout having to know about this plugin.
+    await context.openWindow('clive:reference_solution', { direction: 'below', referencePanel: 'starter_code' });
   }
 }

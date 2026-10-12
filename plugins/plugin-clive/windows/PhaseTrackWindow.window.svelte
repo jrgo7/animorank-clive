@@ -1,27 +1,13 @@
 <script lang="ts">
-  import Button from '$lib/components/ui/buttons/Button.svelte';
   import { cliveSessionFor } from './cliveSession.svelte';
   import { PHASES } from './phase';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
   let { context }: { context: SolveWindowContext } = $props();
 
-  let session = $derived.by(() => cliveSessionFor(context.practiceSession.id, context.editorState.code));
+  let session = $derived(cliveSessionFor(context));
 
-  let anyLocked = $derived(session.phases.some((p) => !p.unlocked));
-
-  /**
-   * Force-unlocks a phase and jumps to its tab, so `PhaseWindowContent` shows
-   * the real form instead of its locked placeholder. A stand-in for real
-   * navigation until phases can actually be passed (server.ts is still a
-   * stub): remove once judging is wired up and the tiles above unlock for
-   * real, through `session.pass`.
-   */
-  async function preview(i: number): Promise<void> {
-    session.phases[i].unlocked = true;
-    session.open(i);
-    await context.openWindow(`clive:${PHASES[i].phase}`);
-  }
+  let anyPassed = $derived(session.phases.some((p) => p.passed));
 
   function statusText(i: number): string {
     const st = session.phases[i];
@@ -36,8 +22,6 @@
     session.open(i);
     context.openWindow(`clive:${PHASES[i].phase}`);
   }
-
-  let anyPassed = $derived(session.phases.some((p) => p.passed));
 
   function tileClass(current: boolean, unlocked: boolean, clickable: boolean): string {
     const base = current
@@ -104,23 +88,5 @@
     <p class="text-xs text-base-content/60">
       Passed phases stay open. Click one to reread or change it. Changes carry into later phases and never lock you out.
     </p>
-  {/if}
-  {#if anyLocked}
-    <div class="flex flex-col gap-1.5 border-t border-base-content/10 pt-3">
-      <span class="text-xs text-base-content/50">
-        Preview (skips the phase gates — for checking the UI before judging is wired up):
-      </span>
-      <div class="flex flex-wrap gap-1.5">
-        {#each PHASES as p, i (p.phase)}
-          {#if i > 0}
-            <Button
-              class="btn-ghost btn-xs"
-              type="button"
-              onclick={() => preview(i)}>{p.label}</Button
-            >
-          {/if}
-        {/each}
-      </div>
-    </div>
   {/if}
 </div>

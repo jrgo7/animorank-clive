@@ -1,0 +1,139 @@
+id: phase.case_design
+version: 12
+phase: case_design
+label: Cases
+order: 2
+layout: steps
+judge: per_step
+created: 2026-08-20
+changelog: |
+  v12: Cases 3-5 (`case_3`..`case_5`, `added: true`): a student who has passed Cases 1 and 2 may add up to three more, each judged, none required, through a "ready to move on?" question on the student page (2026-10-05 consultation; spec 2026-10-06-more-cases-design.md). Same prompt, hint and example as Case 2.
+  v11: Two cases asked for the same way ("Case 1", "Case 2", same question and hint) instead of a typical and an edge case; Justin's call after the wording round, where "edge case" kept leading students to input the problem forbids (which still fails). The "break it" draft wording is not used for the same reason. Rubric v7 drops `edge_is_boundary`. The page refuses a Case 2 whose input repeats Case 1's. Field ids are unchanged so logs and the Design carry-forward line up. Wording is a draft for the author to revise.
+  v10: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over.
+  v9: The edge-case hint no longer suggests "zero, or a tie": for a problem like Grade Average, zero students is input the problem forbids, so the hint led a novice straight into a rejection (walkthrough, 2026-10-05). It now says the smallest or largest value the problem allows. The typical-case hint says to type the input as it would be typed into the program. "centimeters" spelled as in the Problem phase. Wording is a draft for the author to revise.
+  v8: Each step's hint now defines its term -- "A typical case is…", "An edge case sits right at a limit…" -- after the thesis adviser warned that first-year students may not know the difference. The sample problem gains a stated range (whole numbers from 1 to 100), so the example edge case is visibly the smallest value allowed. Wording is a draft for the author to revise.
+  v7: One typical case, then one edge case, each judged on its own as it is submitted (`layout: steps`, `judge: per_step`), after first-year students found the page overwhelming (2026-10-02 proposed changes). Each `cases` field holds exactly one case in a stepped phase; labels become "Typical case" and "Edge case"; ids are unchanged so logs and the Design phase's carry-forward still line up. `reasoning` ("Why these cases") removed: the edge case now says which limit it tests. Examples use the rectangle sample problem. Wording is a draft for the author to revise.
+  v6: `task_description` cut to two sentences; the ordinary-case and boundary-case instructions now sit in the `hint` of `normal_cases` and `edge_cases`. See phase.problem_definition v7 for why (Interview 4) and why verdicts are unaffected.
+  v5: `normal_cases` and `edge_cases` become `kind: cases` -- a row per case with Input, Expected output and How I got it -- so `outputs_are_correct` can be computed by running each row through the problem's `reference_solution` instead of asking the judge to trace the problem by hand (Sessions 3-4, T1: the judge ruled a correct Crowley's Path case wrong on that gating criterion and a session ended behind an override). Every template still reads the fields as text: `prompts.field_text` renders the rows as numbered "Case n" blocks before Jinja sees them, so the template is unchanged. The examples are rows now, shown as the placeholder of each card.
+  v4: Judge model `deepseek-chat` -> `deepseek-flash`, and `max_output_tokens` 4000 -> 32000. DeepSeek calls now always run with thinking on so the reasoning can be logged; `deepseek-chat` was the same model with thinking off, which is why 4000 was ample. Reasoning is paid for out of the same cap. Measured on synthetic pilot artifacts, a judge call used 272-19,015 reasoning tokens (median about 3,000; the same artifact ranged 1,198-19,015), so 4000 would have truncated 8 of 18 calls and 8000 would have truncated 3. A cap only bounds the worst case: typical calls use far less. Verdicts recorded before this change came from non-thinking flash and are not directly comparable.
+  v3: STUDENT ARTIFACT now renders a blank field as truly empty instead of the literal string "(not provided)", which the judge could otherwise quote back as `evidence` for a criterion the student left blank. See phase.problem_definition v5 for the full rationale -- the same template pattern, the same fix.
+  v2: Added `task_description` (student-facing instructions, shown at the top of a Sandbox session) and an optional EARLIER PHASES block driven by `prior_artifacts`. The block is guarded by `{% if prior_artifacts %}`, so a caller that passes nothing renders exactly what v1 rendered. This phase gains the most from carry-forward: the cases a student designs are only judgeable against the inputs and constraints they claimed in Problem, and without it the judge has to re-derive them from the statement. One system-prompt rule covers the risk it introduces — prior-phase work is this student's own writing, so it must be context and never evidence.
+  v1: Initial definition. The "C" of PCDIT — the student works concrete examples by hand before an algorithm exists. The judging contract is inherited from phase.problem_definition, with one addition specific to this phase: the judge must compute each case itself before ruling on correctness, because a plausible but wrong expected output is the failure this phase exists to catch.
+model:
+  id: deepseek-flash
+  effort: medium
+  thinking: adaptive
+  max_output_tokens: 32000
+  response_format: json_schema
+  schema: base/output_schema.json
+task_description: |
+  Work out two examples of the problem by hand.
+example_problem: |
+  Read the length and width of a rectangle, each a whole number of centimeters from 1 to
+  100. Print the area.
+artifact_fields:
+- id: normal_cases
+  label: Case 1
+  kind: cases
+  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  example:
+  - input: 4 6
+    output: '24'
+    working: 4 * 6 = 24.
+- id: edge_cases
+  label: Case 2
+  kind: cases
+  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  example:
+  - input: 1 1
+    output: '1'
+    working: The smallest length and width allowed are 1 and 1. 1 * 1 = 1.
+- id: case_3
+  label: Case 3
+  added: true
+  kind: cases
+  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  example:
+  - input: 1 1
+    output: '1'
+    working: The smallest length and width allowed are 1 and 1. 1 * 1 = 1.
+- id: case_4
+  label: Case 4
+  added: true
+  kind: cases
+  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  example:
+  - input: 1 1
+    output: '1'
+    working: The smallest length and width allowed are 1 and 1. 1 * 1 = 1.
+- id: case_5
+  label: Case 5
+  added: true
+  kind: cases
+  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  example:
+  - input: 1 1
+    output: '1'
+    working: The smallest length and width allowed are 1 and 1. 1 * 1 = 1.
+system_prompt: |
+  You are evaluating one student artifact from one phase of a structured problem-solving process. You are not holding a conversation, and you are not teaching C.
+
+  In this phase the student designs test cases by hand, before writing any algorithm, and submits them one at a time: the artifact below holds a single case. The work you are judging is the tracing, not the presentation.
+
+  You judge the artifact against a fixed list of criteria. For each criterion you return exactly one verdict.
+
+  Rules:
+  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE. Never merge, skip, split, or invent a criterion id.
+  - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion; do not let a verdict on one criterion pull the others with it.
+  - Judge only what the artifact actually says. Do not credit the student for something a competent reader would infer but the artifact does not state.
+  - Before judging any criterion about correctness, work each case out yourself from the problem statement, including its output format. Do not assume a stated output is right because it looks plausible.
+  - A case copied verbatim from the PUBLIC TEST CASES is not a case the student designed. It may be quoted as evidence that copying occurred, but it cannot by itself satisfy a criterion asking for a case.
+  - Quote evidence verbatim from the student artifact — copy the exact span, do not paraphrase, correct, or reformat it. If nothing in the artifact bears on the criterion, return an empty evidence string and FAIL.
+  - The problem statement and public test cases are context for judging. Never quote them as evidence; evidence must come from the student artifact.
+  - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases, which makes it tempting to quote -- do not. Evidence must come from the STUDENT ARTIFACT section, and a criterion is failed if only the earlier work satisfies it.
+  - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous or the criterion is a borderline call.
+user_template: |
+  PROBLEM STATEMENT
+  {{ problem.statement }}
+
+  {% if problem.public_test_cases %}
+  PUBLIC TEST CASES
+  These were given to the student. A case reproduced from this list is not one the student designed.
+  {% for case in problem.public_test_cases %}
+  - input: {{ case.input | tojson }} output: {{ case.output | tojson }}
+  {% endfor %}
+  {% endif %}
+  {% if prior_artifacts %}
+  EARLIER PHASES
+  This student's work from earlier phases, for context. Never quote it as evidence.
+  {% for p in prior_artifacts %}
+  {{ p.label }}:
+  {% for f in p.fields %}
+  - {{ f.label }}: {{ f.value }}
+  {% endfor %}
+  {% endfor %}
+  {% endif %}
+
+  STUDENT ARTIFACT
+  {% for f in artifact_fields %}
+
+  {{ f.label }}:
+  {{ artifact[f.id] | default("", true) }}
+  {% endfor %}
+
+  CRITERIA TO JUDGE
+  Return exactly one verdict for each of the following {{ criteria_to_judge | length }} criteria, using the id in brackets.
+  {% for c in criteria_to_judge %}
+  - [{{ c.id }}] {{ c.text }}
+    {{ c.guidance | trim | indent(2) }}
+  {% endfor %}
+
+  ATTEMPT
+  This is submission {{ attempt }} for this phase.
+examples:
+- null

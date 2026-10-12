@@ -1,0 +1,98 @@
+# Criteria for phase.case_design (the "C" of PCDIT).
+#
+# The student is working concrete examples BY HAND, before any algorithm exists.
+# The point of this phase is that tracing a case yourself is what exposes the
+# rule you are about to encode -- so these criteria reward shown work, not
+# well-formatted input/output tables.
+#
+#   gate  `gating` is the bare minimum this phase demands: a FAIL holds the student
+#         here for another attempt. `advisory` is the deeper understanding the phase
+#         is trying to build -- judged and reported exactly like any other criterion,
+#         but a FAIL never blocks advancement. An omitted gate is read as `gating`.
+#         Keep advisory criteria genuinely optional: anything the next phase cannot
+#         be attempted without belongs in `gating`, not here.
+#
+#   check `reference` means the criterion is computed, not judged: `outputs_are_correct`
+#         runs each case row through the problem's `reference_solution` (see
+#         src/clive/reference_check.py). Its guidance is only read when a problem has no
+#         reference or it cannot run -- and then the judge rules on it as advisory.
+#
+#   fields  The step(s) a criterion is judged on. This phase is judged one case at a
+#           time (`judge: per_step`): submitting a step judges only the criteria that
+#           name it, against that case alone, so a criterion may name both steps. Since v7
+#           the two steps are two equal cases and every criterion names both
+#           (`edge_is_boundary` was removed).
+#           v8: every criterion also names Cases 3-5 (`case_3`..`case_5`), which a student
+#           adds on request; an added case is judged by exactly the same rules.
+
+id: criteria.case_design
+phase: case_design
+version: 8
+
+criteria:
+  - id: case_is_concrete
+    text: The case has a real input and a real expected output.
+    gate: gating
+    fields: [normal_cases, edge_cases, case_3, case_4, case_5]
+    not_met: This case is missing a real input or a real expected output.
+    explain: >-
+      Give actual input values and the output you expect -- not a description, and not
+      one of the examples you were given.
+    guidance: |
+      PASS if the case's input and expected output are both literal values a program could
+      actually be run against.
+      FAIL if either is described only in the abstract ('a list of scores', 'the
+      average'), if the expected output is missing, or if the case is copied verbatim from
+      the PUBLIC TEST CASES -- restating a given example is not designing a case.
+
+  - id: work_is_shown
+    text: You show how you got the expected output.
+    gate: gating
+    fields: [normal_cases, edge_cases, case_3, case_4, case_5]
+    not_met: This case does not show how you got the expected output.
+    explain: >-
+      Under How I got it, show the steps -- the arithmetic, the running total -- not only
+      the answer.
+    guidance: |
+      PASS if How I got it shows the intermediate work that produces the output -- a
+      running total, a comparison, a per-step trace, an arithmetic expression with the
+      case's values in it.
+      FAIL if it only restates the answer, or gives a formula with no values substituted
+      into it.
+
+  - id: outputs_are_correct
+    text: The expected output is right for the input.
+    gate: gating
+    check: reference
+    fields: [normal_cases, edge_cases, case_3, case_4, case_5]
+    not_met: The expected output is not right for this input.
+    explain: >-
+      The expected output has to be the right value for the input. Work it out again
+      against the problem's rule.
+    guidance: |
+      Compute the case yourself against the problem statement before judging. Judge the
+      value the student is claiming, not how they wrote it down.
+      PASS if the claimed value is the right one for its input.
+      FAIL only if the claimed value is actually wrong -- a different number, a sign
+      error -- or if the input is one the problem statement does not allow. Quote the
+      case as evidence.
+      Precision, rounding, units, and casing are judged separately by
+      `output_format_matches_statement` and must never fail this criterion.
+
+  # ---- Advisory: extra understanding, never blocking -------------------------
+
+  - id: output_format_matches_statement
+    text: The expected output is written exactly as the program prints it.
+    gate: advisory
+    fields: [normal_cases, edge_cases, case_3, case_4, case_5]
+    explain: >-
+      Write the expected value in the exact form the problem prints it -- 55.50 rather
+      than 55.5 if it asks for two decimal places.
+    guidance: |
+      PASS if, wherever the problem statement fixes a format -- decimal places, rounding,
+      units, casing -- the stated value matches it exactly: "63.33", not "63.3", if the
+      statement asks for two decimal places. If the statement fixes no format, PASS.
+      FAIL if the value is right but its precision, rounding, units, or casing drifts from
+      what the statement fixes.
+      Never fail a case for being written in prose; fail it only for the wrong number of
+      decimal places, wrong units, or wrong rounding.

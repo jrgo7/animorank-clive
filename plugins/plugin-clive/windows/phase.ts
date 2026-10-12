@@ -1,3 +1,18 @@
+/**
+ * The four PCDIT phases, in the order CLive gates them (Problem, Cases, Design,
+ * Implement -- `case_design` runs before `algorithm_design` despite the name
+ * order, per each phase's own `order`).
+ *
+ * A hand-port of `plugins/plugin-clive/content/phases/*.yaml` for the *display*:
+ * labels, fields, hints, examples and task descriptions. The server judges from
+ * the YAML itself; `contentAgreement.test.ts` pins the two to agree on field
+ * metadata, since a field id the server does not know means a submitted artifact
+ * key means nothing to the judge.
+ *
+ * This module is plain TypeScript (no Svelte, no YAML) so the browser and the
+ * tests can both import it.
+ */
+
 /** One row of a `cases`-kind artifact field: an input, its expected output, and how the student got it. */
 export interface CaseRow {
   input: string;
@@ -5,16 +20,28 @@ export interface CaseRow {
   working: string;
 }
 
-export type ArtifactFieldKind = 'text' | 'cases' | 'code';
+/** One row of a `steps`-kind artifact field: a step's text and its nesting depth (0-2). */
+export interface OutlineRow {
+  text: string;
+  level: number;
+}
+
+export type ArtifactValue = string | CaseRow[] | OutlineRow[];
+
+export type ArtifactFieldKind = 'text' | 'cases' | 'code' | 'steps';
 
 export interface ArtifactField {
   id: string;
   label: string;
   kind: ArtifactFieldKind;
+  /** The question heading a stepped phase shows above the field. */
+  prompt?: string;
   hint?: string;
-  /** A worked example shown under the field. A `cases` field's example is itself a list of rows. */
-  example?: string | CaseRow[];
+  /** A worked example shown under the field. A `cases` field's example is a list of rows. */
+  example?: string | CaseRow[] | OutlineRow[];
   rows?: number;
+  /** An optional extra case (Cases 3-5), offered only after every required case has passed. */
+  added?: boolean;
   language?: string;
 }
 
@@ -28,60 +55,225 @@ export interface PhaseConfig {
   label: string;
   order: number;
   taskDescription: string;
+  /** The sample problem every field's example answers, shown above the example. */
+  exampleProblem?: string;
   artifactFields: ArtifactField[];
   references?: PhaseReference[];
+  /** A phase that shows one field at a time (`layout: steps`). */
+  layout?: 'steps';
+  /** A phase submitted one field at a time, each judged on its own. */
+  judge?: 'per_step';
+}
+
+/** Nesting a Design outline may express. */
+export const STEP_LEVELS = 3;
+
+const ROMAN = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+
+const CASE_ROW_KEYS = ['input', 'output', 'working'] as const;
+
+export function blankRow(): CaseRow {
+  return { input: '', output: '', working: '' };
+}
+
+function rowFilled(row: CaseRow | undefined): boolean {
+  return !!row && CASE_ROW_KEYS.some((key) => String(row[key] || '').trim());
+}
+
+/** A `cases` value as rows; a legacy free-text value keeps its writing as one row's working. */
+export function rowsOf(value: unknown): CaseRow[] {
+  if (Array.isArray(value) && value.length) {
+    return (value as Record<string, unknown>[]).map((r) => ({
+      input: String(r?.input ?? ''),
+      output: String(r?.output ?? ''),
+      working: String(r?.working ?? '')
+    }));
+  }
+  if (typeof value === 'string' && value.trim()) return [{ ...blankRow(), working: value }];
+  return [blankRow()];
+}
+
+export function isOutline(value: unknown): value is OutlineRow[] {
+  return Array.isArray(value) && value.every((r) => r && typeof r === 'object' && 'text' in r);
+}
+
+/** Whether a field's value holds anything a phase can be judged on. */
+export function isFilled(value: unknown): boolean {
+  if (isOutline(value)) return value.some((r) => String(r.text || '').trim());
+  if (Array.isArray(value)) return value.some((r) => rowFilled(r as CaseRow));
+  return String(value ?? '').trim() !== '';
+}
+
+/** A `steps` value with levels made valid: first 0, each at most one deeper than the last. */
+export function normaliseOutline(rows: OutlineRow[]): OutlineRow[] {
+  let prev = -1;
+  for (const row of rows) {
+    row.level = Math.max(0, Math.min(row.level || 0, prev + 1, STEP_LEVELS - 1));
+    prev = row.level;
+  }
+  return rows;
 }
 
 /**
- * The four PCDIT phases, in the order CLive gates them (Problem, Cases, Design,
- * Implement -- `case_design` runs before `algorithm_design` despite the name
- * order, per each phase file's own `order` field).
- *
- * Ported from `clive-userflow/prompts/phases/*.yaml` (the non-versioned ones --
- * `list_phases()`/`load_phase()` build this same shape server-side from those
- * files). Hardcoded here until the plugin has a `/plugin-api/clive/boot` route
- * to serve it; see `windows/api.ts` for the seam that will replace this with a
- * fetch once the native judge port lands.
+ * Outline rows from text: one step per non-blank line, one leading marker
+ * stripped, the level read from indentation relative to the lines around it.
+ * The same rules as the server's `parseOutline`.
  */
+export function parseOutline(text: string): OutlineRow[] {
+  const rows: OutlineRow[] = [];
+  const widths: number[] = [];
+  for (const line of String(text ?? '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')) {
+    if (!line.trim()) continue;
+    const lead = line.slice(0, line.length - line.trimStart().length);
+    const width = (lead.match(/ /g)?.length ?? 0) + 4 * (lead.match(/\t/g)?.length ?? 0);
+    while (widths.length && widths[widths.length - 1] > width) widths.pop();
+    if (!widths.length || widths[widths.length - 1] < width) widths.push(width);
+    const body = line.trim();
+    const stripped = body.replace(/^(?:(?:\d+|[a-z]|[ivx]{1,4})[.)]|[-*])\s+/i, '');
+    rows.push({ text: stripped || body, level: widths.length - 1 });
+  }
+  return normaliseOutline(rows);
+}
+
+/**
+ * Each row's marker -- `1.` / `a.` / `i.` -- restarting under each parent. Blank
+ * rows get one too while editing, so the student sees where the next step lands.
+ */
+export function markersFor(rows: OutlineRow[]): string[] {
+  const counts = [0, 0, 0];
+  return rows.map((row) => {
+    counts[row.level] += 1;
+    for (let deeper = row.level + 1; deeper < STEP_LEVELS; deeper++) counts[deeper] = 0;
+    const n = counts[row.level];
+    if (row.level === 0) return `${n}.`;
+    if (row.level === 1) return `${'abcdefghijklmnopqrstuvwxyz'[(n - 1) % 26]}.`;
+    return `${ROMAN[n - 1] || n}.`;
+  });
+}
+
+/** An outline as the indented, numbered text a model reads. */
+export function outlineText(rows: OutlineRow[]): string {
+  const kept = normaliseOutline(rows.filter((r) => String(r.text || '').trim()).map((r) => ({ ...r })));
+  const marks = markersFor(kept);
+  return kept.map((row, i) => `${'   '.repeat(row.level)}${marks[i]} ${row.text.trim()}`).join('\n');
+}
+
+export function isStepped(config: PhaseConfig): boolean {
+  return config.layout === 'steps';
+}
+
+export function isPerStep(config: PhaseConfig): boolean {
+  return config.judge === 'per_step';
+}
+
+/** The fields a student is working on: every field, less the added cases not yet added. */
+export function inPlay(config: PhaseConfig, added: number): ArtifactField[] {
+  let left = added || 0;
+  return config.artifactFields.filter((field) => !field.added || left-- > 0);
+}
+
+/** How many optional cases a phase offers. */
+export function maxAdded(config: PhaseConfig): number {
+  return config.artifactFields.filter((field) => field.added).length;
+}
+
+/** A field's starting value. */
+export function blankValueFor(field: ArtifactField, startingCode: string): ArtifactValue {
+  if (field.kind === 'code') return startingCode;
+  if (field.kind === 'cases') return [blankRow()];
+  if (field.kind === 'steps') return [{ text: '', level: 0 }];
+  return '';
+}
+
+/**
+ * Whether a step holds enough to judge: every box of a case card (input may be
+ * empty -- an empty line is a real case for a problem that reads text), any text
+ * for the others.
+ */
+export function stepComplete(field: ArtifactField, value: unknown): boolean {
+  if (field.kind === 'cases') {
+    const row = rowsOf(value)[0] ?? blankRow();
+    return ['output', 'working'].every((key) => String(row[key as 'output' | 'working'] || '').trim());
+  }
+  return isFilled(value);
+}
+
+/**
+ * The earlier in-play case field whose input this one repeats, or `null`. The
+ * same input twice passes every check and teaches nothing, so Submit waits for a
+ * new one. Whitespace is ignored: "2 80 90" and "2\n80 90" are the same input.
+ */
+export function duplicateOf(
+  config: PhaseConfig,
+  artifact: Record<string, ArtifactValue>,
+  field: ArtifactField,
+  added: number
+): ArtifactField | null {
+  if (config.judge !== 'per_step' || field.kind !== 'cases') return null;
+  const norm = (value: unknown) =>
+    String((rowsOf(value)[0] || {}).input || '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .join(' ');
+  const mine = norm(artifact[field.id]);
+  if (!mine) return null;
+  const fields = inPlay(config, added);
+  return (
+    fields
+      .slice(0, fields.indexOf(field))
+      .find((other) => other.kind === 'cases' && norm(artifact[other.id]) === mine) ?? null
+  );
+}
+
+const RECTANGLE =
+  'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.';
+
+const CASE_PROMPT =
+  'Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?';
+const CASE_HINT = 'Type the input as you would in the program, then work out the output by hand and show how.';
+
+const NORMAL_EXAMPLE: CaseRow[] = [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }];
+const EDGE_EXAMPLE: CaseRow[] = [
+  { input: '1 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
+];
+
 export const PHASES: readonly PhaseConfig[] = [
   {
     phase: 'problem_definition',
     label: 'Problem',
     order: 1,
-    taskDescription:
-      'Before you write any code, restate this problem in your own words — two or three sentences ' +
-      'explaining the task to a classmate who has not read the statement. Then list every input in the ' +
-      'order the program reads it, giving each a definite C type (`int`, `float`, an array of a stated ' +
-      'size) along with whatever the statement guarantees about its values — range, sign, count, ' +
-      'ordering — or saying explicitly that it guarantees nothing. Finally, state what the program ' +
-      'prints and in exactly what form, including any fixed decimal places, rounding, or wording; you ' +
-      'are not solving the problem yet, so no algorithm and no code.',
+    layout: 'steps',
+    taskDescription: 'Describe the problem in your own words, without writing any code yet.',
+    exampleProblem: RECTANGLE,
     artifactFields: [
       {
         id: 'summary',
         label: 'Summary',
         kind: 'text',
-        rows: 4,
-        hint: 'Restate the task in your own words.',
-        example:
-          'Example, for a different problem — The program checks whether a single word reads the same ' +
-          'forwards and backwards. It reads one word and prints whether it is a palindrome.'
+        prompt: 'In your own words, what is the program supposed to do?',
+        hint: "Please write around 2-3 sentences, as if explaining to a classmate who hasn't read the problem.",
+        example: "The program asks for a rectangle's length and width and prints its area.",
+        rows: 4
       },
       {
         id: 'inputs',
         label: 'Inputs',
         kind: 'text',
-        rows: 3,
-        hint: 'What the program reads, of what type, and what the statement guarantees about it.',
-        example: 'Example — one word: a string of lowercase letters, 1 to 100 characters long, with no spaces'
+        prompt: 'What should the program ask for?',
+        hint: 'List each value in the order the program reads it. Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so.',
+        example: '1. length: an int from 1 to 100.\n2. width: an int from 1 to 100.\nLength is read first, then width.',
+        rows: 4
       },
       {
         id: 'outputs',
         label: 'Outputs',
         kind: 'text',
-        rows: 3,
-        hint: 'What the program prints, and in what form — one line or many, whatever the problem actually asks for.',
-        example: 'Example — exactly "Yes" if the word is a palindrome, exactly "No" otherwise'
+        prompt: 'What should the program display?',
+        hint: 'If it prints a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough.',
+        example: 'The area as an int, for example, 24.',
+        rows: 3
       }
     ]
   },
@@ -89,52 +281,53 @@ export const PHASES: readonly PhaseConfig[] = [
     phase: 'case_design',
     label: 'Cases',
     order: 2,
-    taskDescription:
-      'Work the problem by hand before you plan a solution. Write out at least one ordinary case — a ' +
-      'concrete input, the output you worked out yourself, and the steps that got you there — then at ' +
-      'least one boundary case, the smallest or largest or otherwise extreme input the constraints ' +
-      'allow, saying what makes it a boundary. Explain what each case is meant to expose; a case copied ' +
-      'from the examples you were given does not count, because the point is to find the ones nobody ' +
-      'handed you.',
+    layout: 'steps',
+    judge: 'per_step',
+    taskDescription: 'Work out two examples of the problem by hand.',
+    exampleProblem: RECTANGLE,
     artifactFields: [
       {
         id: 'normal_cases',
-        label: 'Typical cases',
+        label: 'Case 1',
         kind: 'cases',
-        hint: 'An ordinary input, the output you worked out, and how you got it. Add a case for each one.',
-        example: [
-          {
-            input: 'level',
-            output: 'Yes',
-            working: 'reading the word back to front still spells "level", so it matches.'
-          },
-          { input: 'hello', output: 'No', working: 'reversed it spells "olleh", which does not match "hello".' }
-        ]
+        prompt: CASE_PROMPT,
+        hint: CASE_HINT,
+        example: NORMAL_EXAMPLE
       },
       {
         id: 'edge_cases',
-        label: 'Edge cases',
+        label: 'Case 2',
         kind: 'cases',
-        hint: 'Inputs at the boundaries — smallest, largest, zero, ties. Say what each one tests.',
-        example: [
-          { input: 'a', output: 'Yes', working: 'a single letter is trivially the same reversed, so it counts.' },
-          {
-            input: 'noon',
-            output: 'Yes',
-            working: "the longest case here, checking the comparison doesn't stop partway."
-          }
-        ]
+        prompt: CASE_PROMPT,
+        hint: CASE_HINT,
+        example: EDGE_EXAMPLE
       },
       {
-        id: 'reasoning',
-        label: 'Why these cases',
-        kind: 'text',
-        rows: 4,
-        hint: 'What each case is meant to expose about the problem.',
-        example:
-          'Example — the typical cases confirm the ordinary comparison works both ways; the edge cases ' +
-          'check the smallest possible input and a longer one, to make sure the check runs to completion ' +
-          'instead of stopping early.'
+        id: 'case_3',
+        label: 'Case 3',
+        kind: 'cases',
+        added: true,
+        prompt: CASE_PROMPT,
+        hint: CASE_HINT,
+        example: EDGE_EXAMPLE
+      },
+      {
+        id: 'case_4',
+        label: 'Case 4',
+        kind: 'cases',
+        added: true,
+        prompt: CASE_PROMPT,
+        hint: CASE_HINT,
+        example: EDGE_EXAMPLE
+      },
+      {
+        id: 'case_5',
+        label: 'Case 5',
+        kind: 'cases',
+        added: true,
+        prompt: CASE_PROMPT,
+        hint: CASE_HINT,
+        example: EDGE_EXAMPLE
       }
     ]
   },
@@ -142,49 +335,24 @@ export const PHASES: readonly PhaseConfig[] = [
     phase: 'algorithm_design',
     label: 'Design',
     order: 3,
-    taskDescription:
-      'Write the plan a person could follow to solve this, in plain language rather than C — numbered ' +
-      'steps, in the order they happen, with no semicolons, printf calls, or type declarations. Say what ' +
-      'the algorithm keeps track of as it runs: the totals, counters, or arrays that carry between ' +
-      'steps, and what each one holds to begin with. Finish with the step that produces the output in ' +
-      'the exact form the problem requires; a step that uses a value no earlier step created is a gap, ' +
-      'however obvious the fix looks.',
+    layout: 'steps',
+    taskDescription: 'Plan the solution in plain English without using C yet.',
+    exampleProblem: 'Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.',
     artifactFields: [
       {
         id: 'steps',
         label: 'Algorithm steps',
-        kind: 'text',
-        rows: 8,
-        hint: 'Numbered steps, in plain language. Not C. A step can return a value from a function as easily as it can print one.',
-        example:
-          'Example, for a different problem —\n' +
-          '1. Read the word the user typed.\n' +
-          '2. Compare the first remaining letter to the last remaining letter.\n' +
-          '3. If they differ, the word is not a palindrome — skip to step 6.\n' +
-          '4. Move one letter in from each end and repeat step 2, until the two positions meet or cross.\n' +
-          '5. If every pair matched, the word is a palindrome.\n' +
-          '6. Print "Yes" if it is a palindrome, "No" otherwise.'
-      },
-      {
-        id: 'state',
-        label: 'What you keep track of',
-        kind: 'text',
-        rows: 4,
-        hint: 'The values carried between steps — totals, counters, arrays — and what each holds.',
-        example:
-          'Example — two positions, one starting at the front of the word and one at the back, both ' +
-          'moving toward the middle; and a flag that starts true and turns false the moment a pair of ' +
-          "letters doesn't match."
-      },
-      {
-        id: 'output_step',
-        label: 'Producing the output',
-        kind: 'text',
-        rows: 3,
-        hint: 'How the final answer is produced, in the format the problem requires — printed directly, or returned from a function, whichever your solution actually does.',
-        example:
-          'Example — once the flag is settled, print "Yes" if it is still true or "No" if it was set to ' +
-          'false, exactly as the problem asks.'
+        kind: 'steps',
+        prompt: 'What sequence of steps would solve the problem?',
+        hint: 'Place one action per step. You may use indentation to express conditional or repeating statements.',
+        example: [
+          { text: 'Read n.', level: 0 },
+          { text: 'Set the total to 0 and the counter to 1.', level: 0 },
+          { text: 'While the counter is at most n:', level: 0 },
+          { text: 'Add the counter to the total.', level: 1 },
+          { text: 'Add 1 to the counter.', level: 1 },
+          { text: 'Print the total.', level: 0 }
+        ]
       }
     ]
   },
@@ -193,28 +361,18 @@ export const PHASES: readonly PhaseConfig[] = [
     label: 'Implement',
     order: 4,
     taskDescription:
-      'Write the C program that carries out the plan you designed. Read from standard input and print ' +
-      'to standard output, exactly in the format the problem asks for — nothing else, no prompts like ' +
-      '"Enter a number:".\n\n' +
-      'Run checks your program against the examples you were given, as often as you like and at no ' +
-      'cost. Submit runs it against those and against cases you have not seen.\n\n' +
-      'Your program has to compile with warnings treated as errors, so an unused variable will stop the ' +
-      'build. Once every case passes, your code is compared with your Design plan — not to find bugs, ' +
-      'but to point out where the two differ. Your plan stays open: click Design in the phase bar above ' +
-      'to change it at any time.\n\n' +
-      'Hints here are about your plan, not about C syntax. For syntax, use the C reference linked below, ' +
-      'or search the web for documentation. Do not use AI assistants (ChatGPT, Copilot, Claude and the ' +
-      'like) during this phase.',
+      'Write the C program for your plan. Press Run to test it on the examples. Press Submit when ' +
+      "it works for a final check against test cases you haven't seen. Print only what the problem " +
+      'asks for, with no extra messages like "Enter a number:". Don\'t use AI tools like ChatGPT.',
     artifactFields: [
       {
         id: 'code',
         label: 'Your C program',
         kind: 'code',
         language: 'c',
-        rows: 20,
-        hint: 'A complete program. Read from standard input, print to standard output.'
+        hint: 'Write your whole program here.',
+        rows: 20
       }
-    ],
-    references: [{ label: 'C reference (cppreference.com)', url: 'https://en.cppreference.com/w/c' }]
+    ]
   }
 ];

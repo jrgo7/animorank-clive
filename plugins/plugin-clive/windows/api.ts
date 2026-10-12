@@ -19,23 +19,20 @@ export interface JudgeContext {
   artifact: Record<string, ArtifactValue>;
   attempt: number;
   priorArtifacts: { label: string; fields: { label: string; value: ArtifactValue }[] }[];
+  /** The field id a per-step phase is submitting. */
+  step?: string;
+  /** The current code, for the Implement phase's plan-vs-code judge. */
+  code?: string;
 }
 
 /**
  * These mirror CLive's own `/api/student/{hint,submit}` one for one -- only
- * the transport changes, from the standalone Flask app to this plugin's
- * Fastify routes under `/plugin-api/clive`. There is no `run` here: compiling
- * and running the Implement phase's code is AnimoRank's own native Submit
- * flow, not this plugin's -- `submitPhase` for the `implement` phase is the
- * plan-vs-code judge call that runs *after* AnimoRank's own tests pass, not a
- * replacement for them.
- *
- * `server.ts` does not implement either route yet (it still only answers
- * `GET /` with "clive" -- see the plugin's README/notes on the native
- * TypeScript port). Every call here will 404 until it does; that failure
- * surfaces through `CliveSession.error` like any other, which is the point:
- * the UI already exercises the real request path end to end, and only this
- * module needs to change once the judge/hint/nudge logic is ported.
+ * the transport changes, from the standalone Python app to this plugin's
+ * Fastify routes under `/plugin-api/clive` (see `../server/routes.ts`). There is
+ * no `run` here: compiling and running the Implement phase's code is
+ * AnimoRank's own native Submit flow, not this plugin's -- `submitPhase` for the
+ * `implement` phase is the plan-vs-code judge call that runs *after* AnimoRank's
+ * own tests pass, not a replacement for them.
  */
 export async function askHint(ctx: JudgeContext & { history: { role: 'hint'; text: string }[] }): Promise<HintEntry> {
   return call('/hint', ctx);

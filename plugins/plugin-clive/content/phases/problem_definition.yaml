@@ -1,0 +1,127 @@
+# Phase definition: Problem (the "P" of PCDIT).
+#
+# Notes that used to sit inline next to the keys they describe now live up here,
+# because only the leading comment block survives a save from CLive Studio.
+#
+#   model      No `temperature`. Sampling parameters were removed on Sonnet 5 /
+#              Opus 5 / 4.7 / 4.8 and return HTTP 400; buy depth with `effort`
+#              plus adaptive thinking instead. Thinking tokens are drawn from
+#              `max_output_tokens`, so a budget that looks generous for a verdict
+#              list can still truncate it.
+#
+#   artifact_fields
+#              What the student submits. Each entry becomes a form field in the
+#              Studio and a labelled block in the STUDENT ARTIFACT loop below.
+#              Order matters: it is the order the student fills them in.
+#              `prompt` is the question heading in a stepped phase (`layout: steps`).
+#
+#   EARLIER PHASES
+#              Rendered only when the caller passes `prior_artifacts` (the
+#              Sandbox carry-forward toggle). With it absent the block vanishes
+#              and the prompt is byte-identical to v3.
+id: phase.problem_definition
+version: 12
+phase: problem_definition
+label: Problem
+order: 1
+layout: steps
+created: 2026-08-18
+changelog: |
+  v12: The Outputs hint and example name a C type for a single printed value, and say text or a pattern of several values only needs describing (no example format: one would be a problem's answer), to match `output_types` v7 (criteria v7, 2026-10-06). The example had said "a whole number", which the rule did not accept. Wording is a draft for the author to revise.
+  v11: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over.
+  v10: The sample rectangle problem is now the same as in the Cases phase (whole numbers of centimeters from 1 to 100), and the Inputs and Outputs examples follow it; the two phases had shown the same rectangle with different rules (walkthrough, 2026-10-05). Wording is a draft for the author to revise.
+  v9: Stepped layout (`layout: steps`): the student page shows one field at a time and judges at the end, after first-year students found the page overwhelming (2026-10-02 proposed changes). Each field gains a `prompt`, the question shown as its heading; `label` stays as the short button name. `example_problem` adds one sample problem whose answer each field's `example` shows, replacing a palindrome example that used strings. `task_description` cut to one line. Wording is a draft for the author to revise. The judge's template is unchanged and renders none of these keys.
+  v8: The `inputs` hint names CCPROG1 types (int, float, double, char) instead of "an array of a stated size". The prototype is scoped to CCPROG1, which does not cover arrays or structs.
+  v7: `task_description` cut to two sentences; each instruction it carried now sits in the `hint` under the field it is about. A participant spent "a ridiculous amount of time understanding what the whole paragraph in Problem meant" (Interview 4). Nothing was removed: the hint, nudge and persona prompts render every field's hint beside the description, and the judge prompt renders neither, so verdicts are unaffected.
+  v6: Judge model `deepseek-chat` -> `deepseek-flash`, and `max_output_tokens` 4000 -> 32000. DeepSeek calls now always run with thinking on so the reasoning can be logged; `deepseek-chat` was the same model with thinking off, which is why 4000 was ample. Reasoning is paid for out of the same cap. Measured on synthetic pilot artifacts, a judge call used 272-19,015 reasoning tokens (median about 3,000; the same artifact ranged 1,198-19,015), so 4000 would have truncated 8 of 18 calls and 8000 would have truncated 3. A cap only bounds the worst case: typical calls use far less. Verdicts recorded before this change came from non-thinking flash and are not directly comparable.
+  v5: STUDENT ARTIFACT now renders a blank field as truly empty instead of the literal string "(not provided)". That string was sitting in the prompt looking like real content, and the judge would sometimes quote it back as `evidence` for a criterion the student had simply left blank -- caught by the evidence audit as not found in the artifact (correctly, since it is not student writing), but shown to the student as a quoted, flagged-suspicious blockquote instead of the plain "you didn't address this" the system prompt already asks the judge to report via an empty evidence string. Prompted by a 2026-09-11 interview finding: non-code-phase feedback was hardest to act on exactly where nothing was quoted or the quote was misleading.
+  v4: Added `task_description` (the student-facing instructions, shown at the top of a Sandbox session) and an optional EARLIER PHASES block driven by `prior_artifacts`. The block is guarded by `{% if prior_artifacts %}`, so every existing caller — the notebook included — renders exactly what v3 rendered. Added one system-prompt rule covering it: prior-phase work is context, never evidence, since it is student writing and would otherwise be quotable.
+  Also restored the v3/v2 changelog and the original `summary, inputs, outputs` field order, both lost in a Studio save that wrote an empty changelog field.
+  v3: Added `label`/`order` (how the phase is presented in CLive Studio), `model.id` (the model was previously hardcoded in the notebook), and `artifact_fields` — the declaration of what the student submits for this phase. The STUDENT ARTIFACT block of the template now loops over `artifact_fields` instead of naming summary/inputs/outputs literally, so adding a field in the Studio flows into the prompt without a template edit.
+  v2: Removed `temperature` (rejected with HTTP 400 on claude-sonnet-5 and every other current model); depth is now controlled by `effort` + adaptive thinking. Raised max_output_tokens, since thinking tokens count against the same budget. The CRITERIA TO JUDGE loop now emits each criterion's text and guidance rather than its bare id. Expanded the system prompt into an explicit judging contract.
+model:
+  id: deepseek-flash
+  effort: medium
+  thinking: adaptive
+  max_output_tokens: 32000
+  response_format: json_schema
+  schema: base/output_schema.json
+task_description: |
+  Describe the problem in your own words, without writing any code yet.
+example_problem: |
+  Read the length and width of a rectangle, each a whole number of centimeters from 1 to
+  100. Print the area.
+artifact_fields:
+- id: summary
+  label: Summary
+  prompt: In your own words, what is the program supposed to do?
+  hint: Please write around 2-3 sentences, as if explaining to a classmate who hasn't read the problem.
+  example: The program asks for a rectangle's length and width and prints its area.
+  rows: 4
+- id: inputs
+  label: Inputs
+  prompt: What should the program ask for?
+  hint: List each value in the order the program reads it. Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so.
+  example: |-
+    1. length: an int from 1 to 100.
+    2. width: an int from 1 to 100.
+    Length is read first, then width.
+  rows: 4
+- id: outputs
+  label: Outputs
+  prompt: What should the program display?
+  hint: "If it prints a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough."
+  example: "The area as an int, for example, 24."
+  rows: 3
+system_prompt: |
+  You are evaluating one student artifact from one phase of a structured problem-solving process. You are not holding a conversation, and you are not teaching C.
+
+  You judge the artifact against a fixed list of criteria. For each criterion you return exactly one verdict.
+
+  Rules:
+  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE. Never merge, skip, split, or invent a criterion id.
+  - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion; do not let a verdict on one criterion pull the others with it.
+  - Judge only what the artifact actually says. Do not credit the student for something a competent reader would infer but the artifact does not state.
+  - Quote evidence verbatim from the student artifact — copy the exact span, do not paraphrase, correct, or reformat it. If nothing in the artifact bears on the criterion, return an empty evidence string and FAIL.
+  - The problem statement and public test cases are context for judging. Never quote them as evidence; evidence must come from the student artifact.
+  - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases, which makes it tempting to quote — do not. Evidence must come from the STUDENT ARTIFACT section, and a criterion is failed if only the earlier work satisfies it.
+  - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous or the criterion is a borderline call.
+user_template: |
+  PROBLEM STATEMENT
+  {{ problem.statement }}
+
+  {% if problem.public_test_cases %}
+  PUBLIC TEST CASES
+  {% for case in problem.public_test_cases %}
+  - input: {{ case.input | tojson }} output: {{ case.output | tojson }}
+  {% endfor %}
+  {% endif %}
+  {% if prior_artifacts %}
+  EARLIER PHASES
+  This student's work from earlier phases, for context. Never quote it as evidence.
+  {% for p in prior_artifacts %}
+  {{ p.label }}:
+  {% for f in p.fields %}
+  - {{ f.label }}: {{ f.value }}
+  {% endfor %}
+  {% endfor %}
+  {% endif %}
+
+  STUDENT ARTIFACT
+  {% for f in artifact_fields %}
+
+  {{ f.label }}:
+  {{ artifact[f.id] | default("", true) }}
+  {% endfor %}
+
+  CRITERIA TO JUDGE
+  Return exactly one verdict for each of the following {{ criteria_to_judge | length }} criteria, using the id in brackets.
+  {% for c in criteria_to_judge %}
+  - [{{ c.id }}] {{ c.text }}
+    {{ c.guidance | trim | indent(2) }}
+  {% endfor %}
+
+  ATTEMPT
+  This is submission {{ attempt }} for this phase.
+examples:
+- null

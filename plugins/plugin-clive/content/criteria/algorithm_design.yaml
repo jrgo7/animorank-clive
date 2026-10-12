@@ -1,0 +1,108 @@
+# Criteria for phase.algorithm_design (the "D" of PCDIT).
+#
+# The student is writing a plan a human could follow, not code. Criteria here
+# guard against the two usual failure modes: skipping straight to C, and writing
+# steps so vague that they restate the problem instead of solving it.
+#
+#   gate  `gating` is the bare minimum this phase demands: a FAIL holds the student
+#         here for another attempt. `advisory` is the deeper understanding the phase
+#         is trying to build -- judged and reported exactly like any other criterion,
+#         but a FAIL never blocks advancement. An omitted gate is read as `gating`.
+#         Keep advisory criteria genuinely optional: anything the next phase cannot
+#         be attempted without belongs in `gating`, not here.
+#
+#   fields  Design is one outline field, `steps`; every criterion names it. v5 trimmed the
+#           rubric for first-year students: `ordered_steps` went (the outline makes order
+#           explicit) and `state_is_named` + `initialisation_is_explicit` merged into the
+#           advisory `values_are_tracked`.
+
+id: criteria.algorithm_design
+phase: algorithm_design
+version: 5
+
+criteria:
+  - id: not_c_code
+    text: The steps are written in plain words, not C.
+    gate: gating
+    fields: [steps]
+    not_met: Some steps are written in C instead of plain words.
+    explain: >-
+      Describe each step in plain words. The C comes in the Implement phase.
+    guidance: |
+      PASS if a reader who does not know C could follow the steps.
+      FAIL if the artifact is C source or near-source -- semicolon-terminated
+      statements, `for (i = 0; i < n; i++)`, `printf`/`scanf` calls, type
+      declarations, braces used as blocks. Naming a variable, or writing an ordinary
+      arithmetic expression such as 'total / n', is not C code and does not fail.
+  - id: inputs_are_consumed
+    text: The steps say how every input is read.
+    gate: gating
+    fields: [steps]
+    not_met: Your steps do not say how every input is read.
+    explain: >-
+      Include a step that reads each input the program takes.
+    guidance: |
+      PASS if the design accounts for reading each input the problem supplies,
+      including repetition where the count is read at runtime ('repeat n times:
+      read the next score').
+      FAIL if the steps begin from data that has appeared out of nowhere, or if a
+      variable-length input is treated as a single read.
+  - id: output_is_produced
+    text: A step produces the answer in the form the problem asks for.
+    gate: gating
+    fields: [steps]
+    not_met: No step produces the answer in the form the problem asks for.
+    explain: >-
+      Include a step that prints (or returns) the answer, in the exact form the problem
+      asks for.
+    guidance: |
+      PASS if some step states what is emitted and it matches the output format the
+      problem statement fixes (rounding, decimal places, ordering, wording). The step need
+      not be the last one.
+      FAIL if the plan computes an answer but never says it is output, or outputs
+      something in a shape the statement does not ask for.
+
+  # ---- Advisory: extra understanding, never blocking -------------------------
+
+  - id: values_are_tracked
+    text: The values your steps keep track of are named and given starting values.
+    gate: advisory
+    fields: [steps]
+    explain: >-
+      Name each value the plan keeps track of, such as a running total or a counter, and
+      give it a starting value before any step changes it.
+    guidance: |
+      PASS if every value carried across steps -- a total, a counter, a best-so-far, a
+      flag -- is named and given a starting value before any step updates it. PASS a plan
+      that carries no value across steps.
+      FAIL if a step updates or uses a value ('add it to the total') that no earlier step
+      introduced or started.
+
+  - id: covers_own_edge_cases
+    text: Your steps handle the edge case you wrote in Cases.
+    gate: advisory
+    fields: [steps]
+    explain: >-
+      Walk the edge case you wrote in Cases through your steps. The plan should handle it.
+    guidance: |
+      If an EARLIER PHASES section gives this student's edge case from Cases, trace it
+      through the steps. PASS if the plan would produce the right output for it, by a step
+      that treats it specially or by a general step that plainly covers it.
+      FAIL if it would fall through the steps, repeat the wrong number of times, or reach
+      a step that does not apply to it; quote that step as evidence (never the earlier
+      phase, which is context only).
+      PASS if no earlier edge case is given.
+
+  - id: termination_is_clear
+    text: Every repeat says what ends it.
+    gate: advisory
+    fields: [steps]
+    explain: >-
+      For every loop or repeated step, say what makes it stop.
+    guidance: |
+      PASS if each repeated step states its bound -- a count read from input, the
+      length of a collection, a condition that the steps themselves make false.
+      FAIL if a step repeats 'until done' or 'for each' with nothing establishing what
+      done means or what is being walked.
+      PASS a design with no repetition in it; a straight-line algorithm satisfies this
+      criterion vacuously and must not be marked down for having nothing to terminate.
