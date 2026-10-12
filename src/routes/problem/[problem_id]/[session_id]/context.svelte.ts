@@ -14,6 +14,7 @@ import {
 } from '$lib/practiceSession/api';
 import type { AddPanelPositionOptions } from 'dockview-core';
 import type { WindowSizing } from '$lib/window/dockviewWindowManager';
+import { Subscribable } from '$lib/utils/subscription';
 
 /**
  * Shown when an attempt is abandoned because the code could not be persisted.
@@ -37,6 +38,9 @@ export type OpenWindow = (
 
 /** Closes every open window whose key is not named. */
 export type CloseWindowsExcept = (_keep: readonly string[]) => void;
+
+/** Closes a window in the dockview by key; a key that is not open is a no-op. */
+export type CloseWindow = (_key: string) => void;
 
 export interface SolveWindowContextInitial {
   problem: Problem;
@@ -82,6 +86,11 @@ export class SolveWindowContext {
   public readonly useSlots: boolean;
   public readonly slots: Slot[];
   public readonly editorState: SolveEditorState;
+
+  private readonly executionObservable = new Subscribable<{
+    run: { code: SolveEditorState; results: TestRunResponse };
+    submit: { code: SolveEditorState; results: TestRunResponse };
+  }>();
 
   public testCaseResults: TestRunResponse = $state({ results: [], success: false });
   public lastTestType: 'run' | 'submit' = $state('run');
@@ -134,6 +143,11 @@ export class SolveWindowContext {
    * the same one back.
    */
   public closeWindowsExcept: CloseWindowsExcept = () => {};
+  /**
+   * Closes a window in the dockview, releasing its panel and tab. Wired by the
+   * page alongside `openWindow`; reopening restores the window's state.
+   */
+  public closeWindow: CloseWindow = () => {};
 
   /**
    * Build a context for a solve page. The telemetry service is a client-registry
@@ -199,6 +213,7 @@ export class SolveWindowContext {
         return;
       }
       const results = await runTestCases(this.practiceSession.id, this.problem);
+      this.executionObservable.fire('run', { code: this.editorState, results });
       this.testCaseResults = results;
       this.lastTestType = 'run';
       this.testSubmitted = false;
@@ -224,6 +239,7 @@ export class SolveWindowContext {
         return;
       }
       const results = await submit(this.practiceSession.id, this.problem);
+      this.executionObservable.fire('submit', { code: this.editorState, results });
       this.testCaseResults = results;
       this.lastTestType = 'submit';
 
