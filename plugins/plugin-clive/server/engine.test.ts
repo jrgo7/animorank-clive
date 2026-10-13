@@ -1,19 +1,20 @@
 /**
  * The engine's behavior, with a fake provider and a fake executor — no network,
  * no Judge0. Ported contract-by-contract from the prototype's `judge.py`,
- * `nudge.py`, `hint.py`, `reference_check.py` and `steps.py`.
+ * `nudge.py`, `stuck.py`, `reference_check.py`, `grade.py` and `steps.py`.
  */
 import { describe, expect, it } from 'vitest';
 import { CodeExecutor } from '$lib/executor';
 import type { ExecutionRequest, ExecutionResult } from '$lib/executor/types';
 import { phaseDoc, rubricDoc } from './content/load';
 import { JudgeError } from './content/errors';
-import { hint } from './hint';
 import { judge } from './judge';
 import { nudge } from './nudge';
 import type { Provider } from './providers';
+import { publicTestRun } from './publicTests';
 import { check, judgeWithChecks, outputsMatch } from './referenceCheck';
 import { cut, isPerStep } from './steps';
+import { stuck } from './stuck';
 import type { ProblemForPrompt } from './content/templates';
 
 const PROBLEM: ProblemForPrompt = {
@@ -138,26 +139,95 @@ describe('nudge', () => {
   });
 });
 
-describe('hint', () => {
-  const phase = phaseDoc('problem_definition');
-  const criteria = rubricDoc('problem_definition').criteria;
+describe('stuck', () => {
+  const phase = phaseDoc('case_design');
 
-  it('points at an advisory criterion and returns its text', async () => {
-    const provider = fakeProvider({ criterion_id: 'input_order_stated', diagnosis: 'd', hint: 'h' });
-    const result = await hint(phase, PROBLEM, {}, criteria, 1, [], [], provider);
-    expect(result.criterion_text).toBe(criteria.find((c) => c.id === 'input_order_stated')?.text);
-  });
-
-  it('rejects a criterion id that is not advisory', async () => {
-    const provider = fakeProvider({ criterion_id: 'novel_wording', diagnosis: 'd', hint: 'h' });
-    await expect(hint(phase, PROBLEM, {}, criteria, 1, [], [], provider)).rejects.toThrow(/was not offered/);
-  });
-
-  it('rejects a phase with no advisory criteria', async () => {
-    const gatingOnly = criteria.filter((c) => c.gate === 'gating');
-    await expect(hint(phase, PROBLEM, {}, gatingOnly, 1, [], [], fakeProvider({}))).rejects.toThrow(
-      /no advisory criteria/
+  it('returns the feedback for the student and the diagnosis for the researcher', async () => {
+    const provider = fakeProvider({
+      diagnosis: 'Does not connect “leftover” with a remainder.',
+      feedback: 'How many fit?\nWhat is left over?'
+    });
+    const result = await stuck(
+      phase,
+      PROBLEM,
+      CASES_ARTIFACT,
+      'I do not get the leftover.',
+      undefined,
+      [],
+      [],
+      undefined,
+      provider
     );
+
+    expect(result.feedback).toBe('How many fit?\nWhat is left over?');
+    expect(result.diagnosis).toBe('Does not connect “leftover” with a remainder.');
+  });
+
+  it('passes the public test results and earlier asks into the prompt', async () => {
+    let seen = '';
+    const provider: Provider = {
+      ...fakeProvider({ diagnosis: 'd', feedback: 'f' }),
+      judgeJson: async (options) => {
+        seen = options.user;
+        return { parsed: { diagnosis: 'd', feedback: 'f' }, model: 'fake-model', inputTokens: 0, outputTokens: 0 };
+      }
+    };
+    const tests = {
+      compiled: true,
+      cases: [{ input: '3', expected: '6', actual: '7', passed: false, status: 'ok' }],
+      all_public_passed: false
+    };
+    const field = phase.artifact_fields.find((f) => f.id === 'normal_cases');
+    await stuck(
+      phase,
+      PROBLEM,
+      CASES_ARTIFACT,
+      'I am stuck on the output.',
+      field,
+      [],
+      [{ statement: 'Is my input right?', feedback: 'Which value first?' }],
+      tests,
+      provider
+    );
+
+    expect(seen).toContain('PUBLIC TEST RESULTS');
+    expect(seen).toContain('printed "7" — FAIL');
+    expect(seen).toContain('STUDENT IS ON');
+    expect(seen).toContain('- student: Is my input right?');
+    expect(seen).toContain('STUDENT SAYS');
+  });
+});
+
+describe('public test run', () => {
+  const cases = [
+    { input: '3', output: '6' },
+    { input: '1', output: '1' }
+  ];
+
+  it('passes each case whose output matches, ignoring trailing whitespace', async () => {
+    const run = await publicTestRun('x', cases, new FakeExecutor(() => execution(0, 0, '6\n')));
+    expect(run.compiled).toBe(true);
+    expect(run.cases.map((c) => c.passed)).toEqual([true, false]);
+    expect(run.all_public_passed).toBe(false);
+  });
+
+  it('says every public case passes when they all do', async () => {
+    const run = await publicTestRun('x', [cases[0]], new FakeExecutor(() => execution(0, 0, '6  \n')));
+    expect(run.all_public_passed).toBe(true);
+  });
+
+  it('does not forgive leading whitespace, as the app’s own grading does not', async () => {
+    const run = await publicTestRun('x', [cases[0]], new FakeExecutor(() => execution(0, 0, ' 6\n')));
+    expect(run.all_public_passed).toBe(false);
+  });
+
+  it('reports a program that did not compile, and a run that was stopped', async () => {
+    const broken = await publicTestRun('x', cases, new FakeExecutor(() => execution(1, 0, '')));
+    expect(broken).toMatchObject({ compiled: false, cases: [] });
+
+    const stopped = await publicTestRun('x', [cases[0]], new FakeExecutor(() => execution(0, undefined as never, '')));
+    expect(stopped.cases[0].status).toBe('timeout');
+    expect(stopped.all_public_passed).toBe(false);
   });
 });
 

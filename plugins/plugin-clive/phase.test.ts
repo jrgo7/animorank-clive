@@ -5,6 +5,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  CLIVE_WINDOW_KEYS,
+  IMPLEMENT_PHASE,
+  IMPLEMENT_WINDOW_KEY,
+  IMPLEMENT_WINDOW_KEYS,
+  PHASES,
+  blankValueFor,
   duplicateOf,
   inPlay,
   isFilled,
@@ -14,9 +20,8 @@ import {
   outlineText,
   parseOutline,
   rowsOf,
+  solveLayoutKeys,
   stepComplete,
-  blankValueFor,
-  PHASES,
   type ArtifactField,
   type CaseRow,
   type PhaseConfig
@@ -115,5 +120,21 @@ describe('steps', () => {
     const artifact = { summary: 'x', inputs: 'y', outputs: 'z' };
     expect(duplicateOf(problem, artifact, problem.artifactFields[0], 0)).toBeNull();
     expect(duplicateOf(case_design as PhaseConfig, {}, text('summary'), 0)).toBeNull();
+  });
+});
+
+describe('solve-page layout', () => {
+  it('keeps only CLive’s own windows outside the Implement phase', () => {
+    expect(solveLayoutKeys('problem_definition')).toEqual(CLIVE_WINDOW_KEYS);
+    expect(solveLayoutKeys('case_design')).toEqual(CLIVE_WINDOW_KEYS);
+    expect(CLIVE_WINDOW_KEYS).toContain('clive:track');
+    expect(CLIVE_WINDOW_KEYS).toContain('clive:implement');
+    expect(CLIVE_WINDOW_KEYS).not.toContain('code_editor');
+  });
+
+  it('keeps the editor and the test-case results only in the Implement phase', () => {
+    expect(solveLayoutKeys(IMPLEMENT_PHASE)).toEqual([...CLIVE_WINDOW_KEYS, ...IMPLEMENT_WINDOW_KEYS]);
+    expect(IMPLEMENT_WINDOW_KEYS).toEqual(['code_editor', 'test_cases']);
+    expect(IMPLEMENT_WINDOW_KEY).toBe('clive:implement');
   });
 });

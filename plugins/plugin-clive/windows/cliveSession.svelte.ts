@@ -1,5 +1,7 @@
+import { untrack } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { JsonValue } from '@zenstackhq/orm';
+import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -16,16 +18,20 @@ import {
 
 export type { ArtifactValue };
 
-export interface HintEntry {
-  diagnosis: string;
-  hint: string;
-  criterion_text: string;
+/** One ask in a phase: what the student said was hard, and the reply they read. */
+export interface StuckEntry {
+  statement: string;
+  feedback: string;
+  /** The field the student was on, when the phase showed exactly one. */
+  fieldId: string | null;
   attempt: number;
 }
 
 export interface Verdict {
   criterion_id: string;
   criterion_text?: string;
+  /** The line the student reads for this requirement: what to do, in the criterion's own words. */
+  not_met?: string;
   verdict: 'PASS' | 'FAIL';
   gate: 'gating' | 'advisory';
   explain?: string;
@@ -37,6 +43,8 @@ export interface NudgeResult {
   nudge: string;
   reason: string;
   focus_id: string;
+  /** The focused requirement's `not_met`, the line the student sees just above the nudge. */
+  focus_not_met?: string;
   failing: { id: string; text: string }[];
 }
 
@@ -60,6 +68,8 @@ export interface StepResult {
 interface PersistedState {
   version: 1;
   current: number;
+  /** Whether the walkthrough has been offered (and dismissed) for this practice session. */
+  tutorialSeen: boolean;
   phases: {
     artifact: Record<string, ArtifactValue>;
     attempt: number;
@@ -70,7 +80,11 @@ interface PersistedState {
     added: number;
     stepResults: Record<string, StepResult>;
     result: JudgeResult | null;
-    hints: HintEntry[];
+    stuck: StuckEntry[];
+    /** The ask the student was part-way through typing. */
+    stuckDraft: string;
+    /** Whether the phase's opening was left behind (a problem opens on its statement alone). */
+    read: boolean;
   }[];
 }
 
@@ -94,7 +108,17 @@ export class PhaseState {
   result: JudgeResult | null = $state(null);
   /** Each step's own result, for a per-step phase. */
   stepResults: Record<string, StepResult> = $state({});
-  hints: HintEntry[] = $state([]);
+  /** Every stuck ask in this phase and its reply, newest first. */
+  stuck: StuckEntry[] = $state([]);
+  /** The ask the student is typing, kept across a reload. */
+  stuckDraft: string = $state('');
+  /** Whether the ask box is open; not persisted, it is a moment in the page. */
+  stuckOpen: boolean = $state(false);
+  /**
+   * Whether the phase's opening has been left behind. A problem opens on its
+   * statement alone, with Next to the first question.
+   */
+  read: boolean = $state(false);
 
   constructor(config: PhaseConfig, startingCode: string, unlocked: boolean) {
     this.artifact = Object.fromEntries(config.artifactFields.map((f) => [f.id, blankValueFor(f, startingCode)]));
@@ -114,20 +138,31 @@ export class PhaseState {
 export class CliveSession {
   readonly phases: PhaseState[];
   current: number = $state(0);
-  /** `'run'` never appears: the Implement phase's compiling and running is AnimoRank's own submit flow. */
-  busy: 'hint' | 'submit' | null = $state(null);
+  /**
+   * What the plugin is waiting on. `'run'` never appears here: the Implement
+   * phase's compiling and running is AnimoRank's own submit flow (see
+   * `PhaseWindowContent.svelte`), not something this plugin's UI does itself.
+   */
+  busy: 'stuck' | 'submit' | null = $state(null);
   busySince: number | null = $state(null);
   error: string | null = $state(null);
   /** Whether a model provider is configured; the Hint button is disabled when not. */
   hasApiKey: boolean = $state(true);
+  /** Whether the walkthrough has been offered (and dismissed) for this practice session. */
+  tutorialSeen: boolean = $state(false);
+  /** Whether saved CLive work was found for this session, for `CLIVE_PROBLEM_LOAD`. */
+  public readonly restored: boolean;
 
   private readonly sessionId: string;
+  /** The session's telemetry sink; the entries CLive records are flushed with its saves. */
+  private readonly telemetry: TelemetryService;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(context: SolveWindowContext) {
     this.sessionId = context.practiceSession.id;
+    this.telemetry = context.telemetry;
     this.phases = PHASES.map((config, i) => new PhaseState(config, context.editorState.code, i === 0));
-    this.restore(context.practiceSession.extension_data);
+    this.restored = this.restore(context.practiceSession.extension_data);
     void this.refreshBoot();
   }
 
@@ -140,13 +175,15 @@ export class CliveSession {
     }
   }
 
-  private restore(extensionData: unknown): void {
+  private restore(extensionData: unknown): boolean {
     const stored = extensionData as { clive?: PersistedState } | null | undefined;
     const persisted = stored?.clive;
     if (!persisted || persisted.version !== PERSIST_VERSION || persisted.phases?.length !== PHASES.length) {
-      return;
+      return false;
     }
     this.current = persisted.current ?? 0;
+    // A session saved before the walkthrough existed has not seen it.
+    this.tutorialSeen = persisted.tutorialSeen === true;
     persisted.phases.forEach((saved, i) => {
       const phase = this.phases[i];
       Object.assign(phase, {
@@ -159,15 +196,20 @@ export class CliveSession {
         added: saved.added,
         stepResults: saved.stepResults ?? {},
         result: saved.result,
-        hints: saved.hints ?? []
+        stuck: saved.stuck ?? [],
+        stuckDraft: typeof saved.stuckDraft === 'string' ? saved.stuckDraft : '',
+        // A session saved before a problem opened on its statement alone has already started.
+        read: typeof saved.read === 'boolean' ? saved.read : true
       });
     });
+    return true;
   }
 
   private snapshot(): JsonValue {
     const state: PersistedState = {
       version: PERSIST_VERSION,
       current: this.current,
+      tutorialSeen: this.tutorialSeen,
       phases: this.phases.map((phase) => ({
         artifact: $state.snapshot(phase.artifact) as Record<string, ArtifactValue>,
         attempt: phase.attempt,
@@ -178,7 +220,9 @@ export class CliveSession {
         added: phase.added,
         stepResults: $state.snapshot(phase.stepResults) as Record<string, StepResult>,
         result: $state.snapshot(phase.result) as JudgeResult | null,
-        hints: $state.snapshot(phase.hints) as HintEntry[]
+        stuck: $state.snapshot(phase.stuck) as StuckEntry[],
+        stuckDraft: phase.stuckDraft,
+        read: phase.read
       }))
     };
     // The shape is a plain JSON object; `PersistedState` only documents it for restore,
@@ -190,15 +234,22 @@ export class CliveSession {
    * Persist the session, debounced. A failed save surfaces through
    * {@link error} but never blocks judging: the work is still in memory, and
    * the PUT route merges top-level keys so no other extension's data is touched.
+   *
+   * The session's telemetry is flushed alongside the save, as the code editor's
+   * own save does: the entries CLive recorded are already buffered, and a student
+   * who works only in CLive's panels never touches the editor that otherwise
+   * flushes them.
    */
   persist(): void {
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       void savePracticeSession(this.sessionId, {
         extension_data: { [PERSIST_KEY]: this.snapshot() }
-      }).catch((cause: unknown) => {
-        this.error = cause instanceof Error ? cause.message : String(cause);
-      });
+      })
+        .then(() => this.telemetry.flush())
+        .catch((cause: unknown) => {
+          this.error = cause instanceof Error ? cause.message : String(cause);
+        });
     }, SAVE_DEBOUNCE_MS);
   }
 
@@ -294,12 +345,21 @@ const sessions = new SvelteMap<string, CliveSession>();
  * Lives for the page's lifetime, not any one window's -- closing and reopening a
  * CLive panel does not lose progress. Progress past a reload is restored from
  * `PracticeSession.extension_data.clive`.
+ *
+ * Creating the session writes state (the map it is registered in, and the
+ * `$state` fields of a new instance), and a component may call this while a
+ * `$derived` is evaluating -- which Svelte forbids as `state_unsafe_mutation`.
+ * The lookup is therefore untracked: obtaining the session is a lookup, not a
+ * reactive computation, and callers read the returned object's `$state` to stay
+ * reactive.
  */
 export function cliveSessionFor(context: SolveWindowContext): CliveSession {
-  let session = sessions.get(context.practiceSession.id);
-  if (!session) {
-    session = new CliveSession(context);
-    sessions.set(context.practiceSession.id, session);
-  }
-  return session;
+  return untrack(() => {
+    let session = sessions.get(context.practiceSession.id);
+    if (!session) {
+      session = new CliveSession(context);
+      sessions.set(context.practiceSession.id, session);
+    }
+    return session;
+  });
 }

@@ -18,14 +18,14 @@
 
 id: criteria.algorithm_design
 phase: algorithm_design
-version: 5
+version: 6
 
 criteria:
   - id: not_c_code
     text: The steps are written in plain words, not C.
     gate: gating
     fields: [steps]
-    not_met: Some steps are written in C instead of plain words.
+    not_met: "You should rewrite any step that uses C in plain words."
     explain: >-
       Describe each step in plain words. The C comes in the Implement phase.
     guidance: |
@@ -38,7 +38,7 @@ criteria:
     text: The steps say how every input is read.
     gate: gating
     fields: [steps]
-    not_met: Your steps do not say how every input is read.
+    not_met: "You should add a step that reads each input."
     explain: >-
       Include a step that reads each input the program takes.
     guidance: |
@@ -51,7 +51,7 @@ criteria:
     text: A step produces the answer in the form the problem asks for.
     gate: gating
     fields: [steps]
-    not_met: No step produces the answer in the form the problem asks for.
+    not_met: "You should add a step that gives the answer in the form the problem asks for."
     explain: >-
       Include a step that prints (or returns) the answer, in the exact form the problem
       asks for.
@@ -68,6 +68,7 @@ criteria:
     text: The values your steps keep track of are named and given starting values.
     gate: advisory
     fields: [steps]
+    not_met: "You could also name each value your steps keep track of and give it a starting value."
     explain: >-
       Name each value the plan keeps track of, such as a running total or a counter, and
       give it a starting value before any step changes it.
@@ -79,24 +80,27 @@ criteria:
       introduced or started.
 
   - id: covers_own_edge_cases
-    text: Your steps handle the edge case you wrote in Cases.
+    text: Your steps handle each case you worked out in Cases.
     gate: advisory
     fields: [steps]
+    not_met: "You could also walk each of your cases through your steps."
     explain: >-
-      Walk the edge case you wrote in Cases through your steps. The plan should handle it.
+      Walk each case you worked out in Cases through your steps. The plan should give the
+      output you worked out for it.
     guidance: |
-      If an EARLIER PHASES section gives this student's edge case from Cases, trace it
+      If an EARLIER PHASES section gives this student's cases from Cases, trace each one
       through the steps. PASS if the plan would produce the right output for it, by a step
       that treats it specially or by a general step that plainly covers it.
       FAIL if it would fall through the steps, repeat the wrong number of times, or reach
       a step that does not apply to it; quote that step as evidence (never the earlier
       phase, which is context only).
-      PASS if no earlier edge case is given.
+      PASS if no earlier case is given.
 
   - id: termination_is_clear
     text: Every repeat says what ends it.
     gate: advisory
     fields: [steps]
+    not_met: "You could also say what makes each repeated step stop."
     explain: >-
       For every loop or repeated step, say what makes it stop.
     guidance: |

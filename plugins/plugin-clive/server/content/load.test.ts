@@ -2,7 +2,7 @@
  * The YAML content loads and normalises as the prototype's readers do.
  */
 import { describe, expect, it } from 'vitest';
-import { HINT_DOC, JUDGE_JSON_SCHEMA, NUDGE_DOC, phaseDoc, rubricDoc } from './load';
+import { NUDGE_DOC, STUCK_DOC, JUDGE_JSON_SCHEMA, phaseDoc, rubricDoc } from './load';
 
 describe('CLive content loading', () => {
   it('reads the four phase documents with their authored shape', () => {
@@ -42,9 +42,10 @@ describe('CLive content loading', () => {
     expect(problem.criteria.filter((c) => c.gate === 'advisory')).toHaveLength(2);
   });
 
-  it('reads the shared hint and nudge documents', () => {
-    expect(HINT_DOC.system_prompt.length).toBeGreaterThan(0);
-    expect(HINT_DOC.user_template).toContain('CRITERIA YOU MAY POINT AT');
+  it('reads the shared nudge and stuck documents', () => {
+    expect(STUCK_DOC.system_prompt.length).toBeGreaterThan(0);
+    expect(STUCK_DOC.user_template).toContain('STUDENT SAYS');
+    expect(STUCK_DOC.user_template).toContain('PUBLIC TEST RESULTS');
     expect(NUDGE_DOC.user_template).toContain('WHAT DID NOT PASS');
   });
 

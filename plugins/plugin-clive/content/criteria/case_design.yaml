@@ -34,7 +34,7 @@ criteria:
     text: The case has a real input and a real expected output.
     gate: gating
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: This case is missing a real input or a real expected output.
+    not_met: "You should give this case a real input and the exact output the program would print for it."
     explain: >-
       Give actual input values and the output you expect -- not a description, and not
       one of the examples you were given.
@@ -49,7 +49,7 @@ criteria:
     text: You show how you got the expected output.
     gate: gating
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: This case does not show how you got the expected output.
+    not_met: "You should show, step by step, how you got the expected output."
     explain: >-
       Under How I got it, show the steps -- the arithmetic, the running total -- not only
       the answer.
@@ -65,7 +65,7 @@ criteria:
     gate: gating
     check: reference
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: The expected output is not right for this input.
+    not_met: "You should work out the expected output for this input again."
     explain: >-
       The expected output has to be the right value for the input. Work it out again
       against the problem's rule.
@@ -85,6 +85,7 @@ criteria:
     text: The expected output is written exactly as the program prints it.
     gate: advisory
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
+    not_met: "You could also write the expected output exactly as the program would print it."
     explain: >-
       Write the expected value in the exact form the problem prints it -- 55.50 rather
       than 55.5 if it asks for two decimal places.

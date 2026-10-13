@@ -11,12 +11,13 @@
 
 id: criteria.implement
 phase: implement
-version: 3
+version: 4
 
 criteria:
   - id: follows_own_design
-    text: The program carries out the steps of the student's own Design, in that order.
+    text: Your program carries out the steps of your own Design, in that order.
     gate: advisory
+    not_met: "You could also make your program follow your design's steps in order."
     explain: >-
       The program should carry out the steps you planned in Design, in the same order.
     guidance: |
@@ -29,8 +30,9 @@ criteria:
       plan -- a plan is meant to be less specific than the program.
 
   - id: state_matches_design
-    text: The variables correspond to the state the student said the algorithm keeps.
+    text: Your variables match the values your Design said it keeps track of.
     gate: advisory
+    not_met: "You could also match your variables to the values your design keeps track of."
     explain: >-
       The variables in the program should match the values your Design said it keeps
       track of.
@@ -43,23 +45,24 @@ criteria:
       local to one step is not state and does not fail this.
 
   - id: handles_own_edge_cases
-    text: The edge cases the student invented in Cases are handled deliberately.
+    text: Your program handles each case you worked out in Cases on purpose, not by accident.
     gate: advisory
+    not_met: "You could also check that something in your program is written for each of your cases."
     explain: >-
-      Each edge case you wrote in Cases should have something in the code written for
+      Each case you worked out in Cases should have something in the code written for
       it.
     guidance: |
-      PASS if, for each edge case the student wrote in the Cases phase, the code contains
-      something that addresses it -- a guard, a branch, an initialisation, or a loop
-      structure that plainly covers it.
-      FAIL if an edge case the student themselves identified works only by accident, with
-      nothing in the program written for it. Say which case. If the Cases phase named no
-      edge cases, FAIL with an empty evidence string: the gap is real and worth reporting,
-      even though it is not this phase's doing.
+      PASS if, for each case the student worked out in the Cases phase, the code contains
+      something that addresses it -- the main calculation, a guard, a branch, an
+      initialisation, or a loop structure that plainly covers it.
+      FAIL if a case the student themselves worked out gives the right output only by
+      accident, with nothing in the program written for it. Say which case. PASS if no
+      earlier case is given.
 
   - id: readable
-    text: The program can be followed by a person reading it once.
+    text: Your program can be followed by someone reading it once.
     gate: advisory
+    not_met: "You could also make your program easier to follow on a first read."
     explain: >-
       Someone reading the code once should be able to follow it -- names that say what
       they hold, logic that is not tangled.

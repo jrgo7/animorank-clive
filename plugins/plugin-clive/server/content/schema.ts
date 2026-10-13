@@ -27,16 +27,16 @@ export const NudgeSchema = z.object({
   nudge: z.string()
 });
 
-export const HintSchema = z.object({
-  criterion_id: z.string(),
+export const StuckSchema = z.object({
+  /** The idea the student lacks, for the researcher: `student.stuck` logs it and the page never gets it. */
   diagnosis: z.string(),
-  hint: z.string()
+  feedback: z.string()
 });
 
 export type ModelVerdict = z.infer<typeof VerdictSchema>;
 export type ModelJudgeResult = z.infer<typeof JudgeResultSchema>;
 export type ModelNudge = z.infer<typeof NudgeSchema>;
-export type ModelHint = z.infer<typeof HintSchema>;
+export type ModelStuck = z.infer<typeof StuckSchema>;
 
 /** The JSON Schema text for a reply shape, for a provider told the shape in its system message. */
 export function jsonSchemaText(schema: z.ZodType<unknown>): string {

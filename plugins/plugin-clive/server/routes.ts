@@ -1,24 +1,30 @@
 /**
- * The plugin's HTTP surface: `POST /submit`, `POST /hint` and `GET /boot`,
+ * The plugin's HTTP surface: `POST /submit`, `POST /stuck` and `GET /boot`,
  * served under `/plugin-api/clive` (the plugin's id; see `src/lib/server/index.ts`).
  *
- * These are the counterpart of the prototype's `/api/student/{submit,hint}` in
+ * These are the counterpart of the prototype's `/api/student/{submit,stuck}` in
  * `clive-userflow/src/clive/studio/student.py`. The rubric reaches the browser
- * only attached to a verdict here, and the reference check's row detail (which
- * holds the reference's own output) is never put in a response.
+ * only attached to a verdict here, the reference check's row detail (which holds
+ * the reference's own output) is never put in a response, and the stuck call's
+ * diagnosis — which often names the answer — goes to the log instead.
  */
 import { ServerAPI } from '$lib/server/serverAPI';
 import type { FastifyPluginCallback, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { JudgeError } from './content/errors';
 import { phaseDoc, rubricDoc, type CriterionDoc } from './content/load';
-import { hint } from './hint';
+import type { PublicTestRun } from './content/templates';
 import { judge, type JudgeOutcome, type Verdict } from './judge';
 import { nudge } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
+import { publicTestRun } from './publicTests';
 import { judgeWithChecks } from './referenceCheck';
 import { cut, isPerStep } from './steps';
+import { stuck } from './stuck';
+
+/** The longest statement the model is handed; the page caps its box at the same length. */
+const STATEMENT_MAX = 1000;
 
 const artifactSchema = z.record(z.string(), z.unknown());
 const priorArtifactsSchema = z.array(
@@ -27,7 +33,6 @@ const priorArtifactsSchema = z.array(
     fields: z.array(z.object({ label: z.string(), value: z.unknown() }))
   })
 );
-const historySchema = z.array(z.object({ role: z.literal('hint'), text: z.string() }));
 
 const submitSchema = z.object({
   phase: z.string(),
@@ -39,18 +44,25 @@ const submitSchema = z.object({
   code: z.string().optional()
 });
 
-const hintSchema = z.object({
+const stuckSchema = z.object({
   phase: z.string(),
   problemId: z.string(),
   artifact: artifactSchema.default({}),
   attempt: z.number().int().positive().default(1),
   priorArtifacts: priorArtifactsSchema.default([]),
-  history: historySchema.default([])
+  statement: z.string().default(''),
+  /** The field the student is on, when the phase shows exactly one. */
+  fieldId: z.string().nullish(),
+  /** Earlier asks in this phase and the replies, oldest first. */
+  history: z.array(z.object({ statement: z.string(), feedback: z.string() })).default([]),
+  code: z.string().optional()
 });
 
 interface ResponseVerdict {
   criterion_id: string;
   criterion_text: string;
+  /** The line the student reads above the nudge: what to do, in the criterion's own words. */
+  not_met: string;
   verdict: 'PASS' | 'FAIL';
   gate: 'gating' | 'advisory';
   explain: string;
@@ -67,6 +79,7 @@ interface SubmitResponse {
     nudge: string;
     reason: string;
     focus_id: string;
+    focus_not_met: string;
     failing: { id: string; text: string }[];
   };
   nudge_error?: string;
@@ -79,6 +92,7 @@ function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]): Resp
     return {
       criterion_id: v.criterion_id,
       criterion_text: criterion?.text ?? '',
+      not_met: criterion?.not_met ?? '',
       verdict: v.verdict,
       gate: criterion?.gate ?? 'gating',
       explain: criterion?.explain ?? '',
@@ -158,6 +172,7 @@ async function submit(body: z.infer<typeof submitSchema>): Promise<SubmitRespons
         nudge: n.nudge,
         reason: n.reason,
         focus_id: n.focus_id,
+        focus_not_met: n.focus_not_met,
         failing: n.failing
       };
     } catch (error) {
@@ -184,28 +199,42 @@ class CLiveAPI extends ServerAPI {
         }
       });
 
-      app.post('/hint', async (request, reply) => {
-        const parsed = hintSchema.safeParse(request.body);
+      app.post('/stuck', async (request, reply) => {
+        const parsed = stuckSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
         try {
           const body = parsed.data;
+          const statement = body.statement.trim().slice(0, STATEMENT_MAX);
+          if (!statement) throw new JudgeError('Say what you are having trouble with first.');
           const phase = phaseDoc(body.phase);
           const problem = await loadCLiveProblem(body.problemId);
-          const h = await hint(
+          const field = phase.artifact_fields.find((f) => f.id === body.fieldId);
+          // In a tests-gated phase the model first sees how the program does on the public
+          // cases -- the ones the student can already see -- so it never questions a
+          // calculation that works. Hidden cases are never run for this.
+          let tests: PublicTestRun | undefined;
+          if (phase.gate === 'tests') {
+            const code = body.code ?? (typeof body.artifact.code === 'string' ? body.artifact.code : '');
+            try {
+              tests = await publicTestRun(code, problem.public_test_cases);
+            } catch {
+              tests = undefined;
+            }
+          }
+          const got = await stuck(
             phase,
             problem,
             body.artifact,
-            rubricDoc(body.phase).criteria,
-            body.attempt,
+            statement,
+            field,
             body.priorArtifacts,
-            body.history
+            body.history,
+            tests
           );
-          return reply.send({
-            criterion_id: h.criterion_id,
-            criterion_text: h.criterion_text,
-            diagnosis: h.diagnosis,
-            hint: h.hint
-          });
+          // The diagnosis names the idea the student lacks, which is often the answer itself:
+          // it goes to the log, and the page receives the feedback alone.
+          request.log.info({ phase: phase.phase, diagnosis: got.diagnosis }, 'CLive stuck diagnosis');
+          return reply.send({ feedback: got.feedback });
         } catch (error) {
           return handle(reply, error);
         }

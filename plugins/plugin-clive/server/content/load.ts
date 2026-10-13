@@ -16,8 +16,8 @@ import problemDefinitionCriteriaYaml from '../../content/criteria/problem_defini
 import caseDesignCriteriaYaml from '../../content/criteria/case_design.yaml?raw';
 import algorithmDesignCriteriaYaml from '../../content/criteria/algorithm_design.yaml?raw';
 import implementCriteriaYaml from '../../content/criteria/implement.yaml?raw';
-import hintYaml from '../../content/base/hint.yaml?raw';
 import nudgeYaml from '../../content/base/nudge.yaml?raw';
+import stuckYaml from '../../content/base/stuck.yaml?raw';
 import outputSchemaRaw from '../../content/base/output_schema.json?raw';
 import { JudgeError } from './errors';
 
@@ -158,8 +158,15 @@ export function rubricDoc(phase: string): RubricDoc {
   return doc;
 }
 
-export const HINT_DOC: PromptDoc = parseFile(hintYaml, 'base/hint.yaml');
-export const NUDGE_DOC: PromptDoc = parseFile(nudgeYaml, 'base/nudge.yaml');
+function normalisePrompt(doc: PromptDoc, name: string): PromptDoc {
+  if (!String(doc.system_prompt ?? '').trim() || !String(doc.user_template ?? '').trim()) {
+    throw new JudgeError(`CLive content ${name} has no system_prompt or user_template.`);
+  }
+  return doc;
+}
+
+export const NUDGE_DOC: PromptDoc = normalisePrompt(parseFile(nudgeYaml, 'base/nudge.yaml'), 'base/nudge.yaml');
+export const STUCK_DOC: PromptDoc = normalisePrompt(parseFile(stuckYaml, 'base/stuck.yaml'), 'base/stuck.yaml');
 
 /** The judge output JSON Schema, as shipped, for the provider that is told its shape. */
 export const JUDGE_JSON_SCHEMA: unknown = JSON.parse(outputSchemaRaw);

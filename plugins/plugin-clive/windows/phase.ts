@@ -231,7 +231,7 @@ const RECTANGLE =
   'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.';
 
 const CASE_PROMPT =
-  'Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?';
+  'Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?';
 const CASE_HINT = 'Type the input as you would in the program, then work out the output by hand and show how.';
 
 const NORMAL_EXAMPLE: CaseRow[] = [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }];
@@ -245,15 +245,18 @@ export const PHASES: readonly PhaseConfig[] = [
     label: 'Problem',
     order: 1,
     layout: 'steps',
-    taskDescription: 'Describe the problem in your own words, without writing any code yet.',
+    taskDescription:
+      'Every solution starts with understanding the problem. Before you think about code, make sure ' +
+      'you know exactly what it asks.',
     exampleProblem: RECTANGLE,
     artifactFields: [
       {
         id: 'summary',
         label: 'Summary',
         kind: 'text',
-        prompt: 'In your own words, what is the program supposed to do?',
-        hint: "Please write around 2-3 sentences, as if explaining to a classmate who hasn't read the problem.",
+        prompt:
+          'When solving a problem, the very first thing you should do is understand it. In your own words, what is the program supposed to do?',
+        hint: "One or two sentences is enough, as if explaining to a classmate who hasn't read the problem.",
         example: "The program asks for a rectangle's length and width and prints its area.",
         rows: 4
       },
@@ -261,7 +264,7 @@ export const PHASES: readonly PhaseConfig[] = [
         id: 'inputs',
         label: 'Inputs',
         kind: 'text',
-        prompt: 'What should the program ask for?',
+        prompt: 'Next, state what the program is given. What values does it read?',
         hint: 'List each value in the order the program reads it. Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so.',
         example: '1. length: an int from 1 to 100.\n2. width: an int from 1 to 100.\nLength is read first, then width.',
         rows: 4
@@ -270,7 +273,7 @@ export const PHASES: readonly PhaseConfig[] = [
         id: 'outputs',
         label: 'Outputs',
         kind: 'text',
-        prompt: 'What should the program display?',
+        prompt: 'Then state what it must print. What should the program display?',
         hint: 'If it prints a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough.',
         example: 'The area as an int, for example, 24.',
         rows: 3
@@ -283,7 +286,9 @@ export const PHASES: readonly PhaseConfig[] = [
     order: 2,
     layout: 'steps',
     judge: 'per_step',
-    taskDescription: 'Work out two examples of the problem by hand.',
+    taskDescription:
+      "Before you plan anything, solve the problem yourself. If you can't work out an example by hand, " +
+      "you can't tell a computer how to.",
     exampleProblem: RECTANGLE,
     artifactFields: [
       {
@@ -336,14 +341,15 @@ export const PHASES: readonly PhaseConfig[] = [
     label: 'Design',
     order: 3,
     layout: 'steps',
-    taskDescription: 'Plan the solution in plain English without using C yet.',
+    taskDescription: 'Now turn what you did by hand into steps. Plan in plain English first; the C comes after.',
     exampleProblem: 'Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.',
     artifactFields: [
       {
         id: 'steps',
         label: 'Algorithm steps',
         kind: 'steps',
-        prompt: 'What sequence of steps would solve the problem?',
+        prompt:
+          'Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.',
         hint: 'Place one action per step. You may use indentation to express conditional or repeating statements.',
         example: [
           { text: 'Read n.', level: 0 },
@@ -361,9 +367,10 @@ export const PHASES: readonly PhaseConfig[] = [
     label: 'Implement',
     order: 4,
     taskDescription:
-      'Write the C program for your plan. Press Run to test it on the examples. Press Submit when ' +
-      "it works for a final check against test cases you haven't seen. Print only what the problem " +
-      'asks for, with no extra messages like "Enter a number:". Don\'t use AI tools like ChatGPT.',
+      'Now translate your plan into C, one step at a time. Your design is beside your code. Press ' +
+      'Run to test it on the examples. Press Submit when it works for a final check against test ' +
+      "cases you haven't seen. Print only what the problem asks for, with no extra messages like " +
+      '"Enter a number:". Don\'t use AI tools like ChatGPT.',
     artifactFields: [
       {
         id: 'code',
@@ -376,3 +383,24 @@ export const PHASES: readonly PhaseConfig[] = [
     ]
   }
 ];
+
+/** The phase whose window needs AnimoRank's own code editor and test-case results. */
+export const IMPLEMENT_PHASE = 'implement';
+
+/** The panel the Implement phase is shown in. */
+export const IMPLEMENT_WINDOW_KEY = `clive:${IMPLEMENT_PHASE}`;
+
+/** Every window the CLive plugin owns on the solve page. */
+export const CLIVE_WINDOW_KEYS: readonly string[] = ['clive:track', ...PHASES.map((phase) => `clive:${phase.phase}`)];
+
+/** The AnimoRank windows the Implement phase needs: the code the student writes, and its results. */
+export const IMPLEMENT_WINDOW_KEYS: readonly string[] = ['code_editor', 'test_cases'];
+
+/**
+ * The windows that stay open while `phase` is the one the student is on: CLive's
+ * own, plus the two the Implement phase needs — and only while it is open, since
+ * the rest of the page belongs to CLive.
+ */
+export function solveLayoutKeys(phase: string): string[] {
+  return phase === IMPLEMENT_PHASE ? [...CLIVE_WINDOW_KEYS, ...IMPLEMENT_WINDOW_KEYS] : [...CLIVE_WINDOW_KEYS];
+}

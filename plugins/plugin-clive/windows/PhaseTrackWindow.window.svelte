@@ -1,6 +1,9 @@
 <script lang="ts">
+  import Button from '$lib/components/ui/buttons/Button.svelte';
   import { cliveSessionFor } from './cliveSession.svelte';
-  import { PHASES } from './phase';
+  import { IMPLEMENT_PHASE, IMPLEMENT_WINDOW_KEY, PHASES, solveLayoutKeys } from './phase';
+  import TutorialDialog from './TutorialDialog.svelte';
+  import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
   let { context }: { context: SolveWindowContext } = $props();
@@ -9,17 +12,71 @@
 
   let anyPassed = $derived(session.phases.some((p) => p.passed));
 
+  /**
+   * CLive owns the solve page: every window that is not its own is closed, and
+   * the two the Implement phase needs -- the editor the student writes in and the
+   * test-case results its gate reads -- are shown only while that phase is on
+   * screen.
+   *
+   * This window is the one CLive panel that is always mounted (it cannot be
+   * closed), so it is the one place this runs.
+   */
+  $effect(() => {
+    const phase = PHASES[session.current]?.phase ?? '';
+    context.closeWindowsExcept(solveLayoutKeys(phase));
+    if (phase === IMPLEMENT_PHASE) {
+      context.openWindow('code_editor', { direction: 'right', referencePanel: IMPLEMENT_WINDOW_KEY });
+      context.openWindow('test_cases', { direction: 'below', referencePanel: 'code_editor' });
+      // Each open focuses its panel, so the last one would be the results; the student
+      // is here to write code, so hand them the editor.
+      context.openWindow('code_editor');
+    }
+  });
+
+  let tutorialOpen = $state(false);
+  let tutorialOffered = false;
+
+  /**
+   * A short walkthrough on a first visit, skippable from any card and reopened
+   * from "How this works". Remembered on the practice session, so it is offered
+   * once per sitting.
+   */
+  $effect(() => {
+    if (tutorialOffered || session.tutorialSeen) return;
+    tutorialOffered = true;
+    tutorialOpen = true;
+  });
+
+  function closeTutorial(): void {
+    tutorialOpen = false;
+    session.tutorialSeen = true;
+    session.persist();
+  }
+
+  let loadRecorded = false;
+
+  /** One entry per page load: the solve page opened, and whether CLive work was found. */
+  $effect(() => {
+    if (loadRecorded) return;
+    loadRecorded = true;
+    context.telemetry.record(CLIVE_EVENT.problemLoad, {
+      problem: context.problem.id,
+      restored: session.restored
+    });
+  });
+
   function statusText(i: number): string {
     const st = session.phases[i];
     if (st.passed) return 'Passed';
     if (!st.unlocked) return 'Locked';
     if (i === session.current) return 'In progress';
-    if (st.advanced) return 'Moved on';
+    if (st.advanced) return 'Not passed';
     return 'Open';
   }
 
   function open(i: number): void {
     session.open(i);
+    context.telemetry.record(CLIVE_EVENT.phaseOpen, { phase: PHASES[i].phase, via: 'track' });
     context.openWindow(`clive:${PHASES[i].phase}`);
   }
 
@@ -64,6 +121,14 @@
 {/snippet}
 
 <div class="flex h-full flex-col gap-3 overflow-y-auto p-4">
+  <div class="flex items-center justify-between gap-3">
+    <span class="font-mono text-[11.5px] text-base-content/50">CLive</span>
+    <Button
+      class="btn-ghost btn-xs"
+      type="button"
+      onclick={() => (tutorialOpen = true)}>How this works</Button
+    >
+  </div>
   <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
     {#each PHASES as p, i (p.phase)}
       {@const st = session.phases[i]}
@@ -88,5 +153,8 @@
     <p class="text-xs text-base-content/60">
       Passed phases stay open. Click one to reread or change it. Changes carry into later phases and never lock you out.
     </p>
+  {/if}
+  {#if tutorialOpen}
+    <TutorialDialog onclose={closeTutorial} />
   {/if}
 </div>

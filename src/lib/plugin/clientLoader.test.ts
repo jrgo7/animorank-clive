@@ -334,6 +334,7 @@ describe('ClientPluginLoader', () => {
  */
 describe('ClientPluginLoader page hooks', () => {
   const solvePage = { name: 'the solve page' } as unknown as PluginPageHookContexts['onSolvePageLoad'];
+  const editorPage = { name: 'the editor page' } as unknown as PluginPageHookContexts['onProblemEditorLoad'];
 
   it('loads the plugins that answer the hook, and calls each with the context', async () => {
     serve('solver', hookingPlugin('solver', ['onSolvePageLoad']));
@@ -428,5 +429,56 @@ describe('ClientPluginLoader page hooks', () => {
 
     expect(hookCalls()).toContain('healthy-solver:onSolvePageLoad:the solve page');
     await failing;
+  });
+
+  it('tells a plugin that loads after the page announced itself', async () => {
+    // A plugin loaded by a registry miss (see `clientPluginFinder`) is loaded long
+    // after the page said it had loaded; it must still be told which page it is on.
+    serve('late-editor', hookingPlugin('late-editor', ['onProblemEditorLoad']));
+    const plugins = loader();
+
+    await plugins.notifyPageHook('onProblemEditorLoad', editorPage);
+    await plugins.getPlugin('late-editor');
+
+    expect(hookCalls().filter((call) => call.startsWith('late-editor:'))).toEqual([
+      'late-editor:onProblemEditorLoad:the editor page'
+    ]);
+  });
+
+  it('tells a plugin about a page once, however many paths reach it', async () => {
+    serve('once-solver', hookingPlugin('once-solver', ['onSolvePageLoad']));
+    const plugins = loader({ prebuiltPlugins: () => ['once-solver'] });
+
+    await plugins.notifyPageHook('onSolvePageLoad', solvePage);
+    // Re-announcing the same page, and asking for the plugin again, are both no-ops.
+    await plugins.notifyPageHook('onSolvePageLoad', solvePage);
+    await plugins.getPlugin('once-solver');
+
+    expect(hookCalls().filter((call) => call.startsWith('once-solver:'))).toHaveLength(1);
+  });
+
+  it('tells every answering plugin again when the page loads afresh', async () => {
+    serve('reload-solver', hookingPlugin('reload-solver', ['onSolvePageLoad']));
+    const plugins = loader({ prebuiltPlugins: () => ['reload-solver'] });
+
+    await plugins.notifyPageHook('onSolvePageLoad', solvePage);
+    await plugins.notifyPageHook('onSolvePageLoad', {
+      name: 'the solve page'
+    } as unknown as PluginPageHookContexts['onSolvePageLoad']);
+
+    expect(hookCalls().filter((call) => call.startsWith('reload-solver:'))).toHaveLength(2);
+  });
+
+  it('does not replay a page the browser has left', async () => {
+    serve('stale-editor', hookingPlugin('stale-editor', ['onProblemEditorLoad']));
+    const plugins = loader();
+
+    await plugins.notifyPageHook('onProblemEditorLoad', editorPage);
+    await plugins.notifyPageHook('onSolvePageLoad', solvePage);
+    await plugins.getPlugin('stale-editor');
+
+    // The editor context is dead once the solve page is on screen; a plugin loading
+    // now is told about the solve page, never the page the browser has left.
+    expect(hookCalls().filter((call) => call.startsWith('stale-editor:'))).toEqual([]);
   });
 });

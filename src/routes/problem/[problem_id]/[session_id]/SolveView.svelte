@@ -79,6 +79,7 @@
   $effect(() => {
     if (!manager || !context) return;
     context.openWindow = manager.openWindow.bind(manager);
+    context.closeWindowsExcept = manager.closeWindowsExcept.bind(manager);
 
     if (notified) return;
     notified = true;

@@ -48,7 +48,8 @@ async function importModule(path: string): Promise<PluginClientModule> {
  *
  * A page load is the one ask that is not a single plugin id: the loader checks
  * the app's prebuilt plugins for the page's hook and loads those that answer
- * it (see {@link notifyPageHook}).
+ * it, and it remembers the page so a plugin loaded later — by a registry miss,
+ * say — is told the page it has loaded onto (see {@link notifyPageHook}).
  */
 export class ClientPluginLoader {
   private static _instance: ClientPluginLoader | null = null;
@@ -56,6 +57,11 @@ export class ClientPluginLoader {
   private readonly instances = new Map<string, Promise<ClientPlugin>>();
   /** Descriptors the plugin route served, by plugin id; see {@link servedDescriptor}. */
   private readonly descriptors = new Map<string, Promise<PluginClientDescriptor | undefined>>();
+  /** The page the browser is on, so a plugin that loads after it announced is still told. */
+  private page: { hook: PluginPageHook; context: unknown; id: number } | null = null;
+  private nextPageId = 1;
+  /** Pages each plugin has been told about, by plugin id; see {@link deliver}. */
+  private readonly told = new Map<string, Set<number>>();
   private readonly routeBase: string;
   private readonly importPlugin: PluginModuleImporter;
   private readonly prebuiltPlugins: () => string[];
@@ -108,22 +114,65 @@ export class ClientPluginLoader {
    * The plugins that can be checked for that without running them are the ones
    * the client knows: each prebuilt plugin's client module is imported and only
    * a class that overrides the hook is loaded for real. A dynamically loaded
-   * plugin is named nowhere before it loads, so it answers a page hook only
-   * once something else has loaded it.
+   * plugin is named nowhere before it loads, so it answers a page hook when it
+   * loads instead — the page it loads onto is remembered here and replayed to it
+   * ({@link tellAboutPage}), so a plugin loaded late is told the page it is on.
+   *
+   * Re-announcing the same page (its context unchanged) does not repeat the
+   * hooks; a page announced with a fresh context is a page load, and every
+   * answering plugin is told again.
    *
    * Nothing a plugin does here holds up the page: a plugin that cannot load is
    * reported and skipped, and so is one whose hook throws.
    */
   public async notifyPageHook<H extends PluginPageHook>(hook: H, context: PluginPageHookContexts[H]): Promise<void> {
+    this.announcePage(hook, context);
+
     await Promise.all(this.prebuiltPlugins().map((id) => this.loadPageHookPlugin(id, hook)));
 
     for (const [id, plugin] of await this.loadedPlugins()) {
-      if (!answersPageHook(Object.getPrototypeOf(plugin) as ClientPlugin, hook)) continue;
-      try {
-        await (plugin[hook] as (_context: PluginPageHookContexts[H]) => void | Promise<void>)(context);
-      } catch (error) {
-        console.error(`Plugin "${id}" failed its ${hook} hook`, error);
-      }
+      await this.deliver(id, plugin, hook, context);
+    }
+  }
+
+  /**
+   * Remember the page the browser is on, so a plugin that loads after this call
+   * is still told about it. Only one page is on screen at a time, so the last
+   * announcement replaces the one before it.
+   */
+  private announcePage(hook: PluginPageHook, context: unknown): void {
+    const current = this.page;
+    if (current && current.hook === hook && current.context === context) return;
+    this.page = { hook, context, id: this.nextPageId++ };
+    // A page is told once per plugin; the ids of pages nobody is on anymore can never
+    // match again, so forget them rather than grow this for the life of the tab.
+    this.told.clear();
+  }
+
+  /** Tells one plugin about the page it is on, if it answers that page's hook and has not been told. */
+  private async tellAboutPage(id: string, plugin: ClientPlugin): Promise<void> {
+    const page = this.page;
+    if (!page) return;
+    await this.deliver(id, plugin, page.hook, page.context);
+  }
+
+  /** Tells one plugin about the current page, exactly once: the load path and {@link notifyPageHook} share this. */
+  private async deliver(id: string, plugin: ClientPlugin, hook: PluginPageHook, context: unknown): Promise<void> {
+    // A plugin that leaves the hook alone is not this page's business, so it is never called.
+    if (!answersPageHook(Object.getPrototypeOf(plugin) as ClientPlugin, hook)) return;
+    const page = this.page;
+    // Only the page on screen is told: an announcement the browser has already left
+    // (a newer page replaced it) is dropped rather than replayed to a dead context.
+    if (!page || page.hook !== hook || page.context !== context) return;
+    const told = this.told.get(id) ?? new Set<number>();
+    this.told.set(id, told);
+    if (told.has(page.id)) return;
+    // Marked before the call, so the other path cannot tell the same page twice.
+    told.add(page.id);
+    try {
+      await (plugin[hook] as (_context: unknown) => void | Promise<void>)(context);
+    } catch (error) {
+      console.error(`Plugin "${id}" failed its ${hook} hook`, error);
     }
   }
 
@@ -193,6 +242,9 @@ export class ClientPluginLoader {
     const filesUrl = `${this.routeBase}/${descriptor.id}/`;
     const plugin = new Plugin();
     await plugin.init(new ClientAnimoRankAPI(descriptor.id, filesUrl));
+    // The plugin now exists on whatever page the browser is on: tell it, so a plugin
+    // loaded after the page announced itself (a registry miss, say) is not left silent.
+    await this.tellAboutPage(descriptor.id, plugin);
     return plugin;
   }
 

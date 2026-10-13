@@ -34,7 +34,7 @@ criteria:
     text: The summary is in your own words.
     gate: gating
     fields: [summary]
-    not_met: Your summary is not in your own words yet.
+    not_met: "You should retell the task in your own words instead of the problem's sentences."
     explain: >-
       Put the task in your own words instead of copying sentences from the problem.
     guidance: |
@@ -47,7 +47,7 @@ criteria:
     text: Each input has a C type.
     gate: gating
     fields: [inputs]
-    not_met: An input does not include a C type.
+    not_met: "You should give each input a C type: int, float, double or char."
     explain: >-
       Give each input a C type -- int, float, double or char -- not just "a number". Does your input contain decimal places? Is it supposed to be a single letter?
     guidance: |
@@ -61,7 +61,7 @@ criteria:
     text: You say what kind of value the output is.
     gate: gating
     fields: [outputs]
-    not_met: The output does not say what kind of value it is.
+    not_met: "You should say what kind of value the output is, or describe exactly how the printed text looks."
     explain: >-
       If the program prints a single value, give its C type -- int, float, double or char.
       If it prints text or a pattern of several values, describe exactly how it looks instead.
@@ -83,7 +83,7 @@ criteria:
     text: The constraints on the inputs are stated, or you say there are none.
     gate: gating
     fields: [inputs]
-    not_met: The constraints on the inputs are not stated. If there are none, say so.
+    not_met: "You should write down every constraint the problem puts on the inputs, or say it gives none."
     explain: >-
       Say what constraints the problem puts on the inputs, like "always between 1 and 100" or
       "always never negative", or say plainly that it gives none.
@@ -99,6 +99,7 @@ criteria:
     text: You say which input the program reads first, and what comes after it.
     gate: advisory
     fields: [inputs]
+    not_met: "You could also say which input the program reads first."
     explain: >-
       Say which input the program reads first and what comes after it -- for example,
       "first height, then weight". If it reads only one thing, say that.
@@ -117,6 +118,7 @@ criteria:
     text: You say exactly how the output looks when printed.
     gate: advisory
     fields: [outputs]
+    not_met: "You could also say exactly how the output looks when printed."
     explain: >-
       Say exactly how the output looks -- decimal places, any words around it, spaces
       or commas between values -- wherever the problem fixes it.

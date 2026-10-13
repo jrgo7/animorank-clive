@@ -1,5 +1,5 @@
 id: phase.case_design
-version: 12
+version: 13
 phase: case_design
 label: Cases
 order: 2
@@ -7,6 +7,7 @@ layout: steps
 judge: per_step
 created: 2026-08-20
 changelog: |
+  v13: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
   v12: Cases 3-5 (`case_3`..`case_5`, `added: true`): a student who has passed Cases 1 and 2 may add up to three more, each judged, none required, through a "ready to move on?" question on the student page (2026-10-05 consultation; spec 2026-10-06-more-cases-design.md). Same prompt, hint and example as Case 2.
   v11: Two cases asked for the same way ("Case 1", "Case 2", same question and hint) instead of a typical and an edge case; Justin's call after the wording round, where "edge case" kept leading students to input the problem forbids (which still fails). The "break it" draft wording is not used for the same reason. Rubric v7 drops `edge_is_boundary`. The page refuses a Case 2 whose input repeats Case 1's. Field ids are unchanged so logs and the Design carry-forward line up. Wording is a draft for the author to revise.
   v10: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over.
@@ -27,7 +28,7 @@ model:
   response_format: json_schema
   schema: base/output_schema.json
 task_description: |
-  Work out two examples of the problem by hand.
+  Before you plan anything, solve the problem yourself. If you can't work out an example by hand, you can't tell a computer how to.
 example_problem: |
   Read the length and width of a rectangle, each a whole number of centimeters from 1 to
   100. Print the area.
@@ -35,7 +36,7 @@ artifact_fields:
 - id: normal_cases
   label: Case 1
   kind: cases
-  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
   hint: Type the input as you would in the program, then work out the output by hand and show how.
   example:
   - input: 4 6
@@ -44,7 +45,7 @@ artifact_fields:
 - id: edge_cases
   label: Case 2
   kind: cases
-  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
   hint: Type the input as you would in the program, then work out the output by hand and show how.
   example:
   - input: 1 1
@@ -54,7 +55,7 @@ artifact_fields:
   label: Case 3
   added: true
   kind: cases
-  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
   hint: Type the input as you would in the program, then work out the output by hand and show how.
   example:
   - input: 1 1
@@ -64,7 +65,7 @@ artifact_fields:
   label: Case 4
   added: true
   kind: cases
-  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
   hint: Type the input as you would in the program, then work out the output by hand and show how.
   example:
   - input: 1 1
@@ -74,7 +75,7 @@ artifact_fields:
   label: Case 5
   added: true
   kind: cases
-  prompt: Try to think of a normal use of the program. What values would you type in? What should the program display, and how did you get it?
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
   hint: Type the input as you would in the program, then work out the output by hand and show how.
   example:
   - input: 1 1

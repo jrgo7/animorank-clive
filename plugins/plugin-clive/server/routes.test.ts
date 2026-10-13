@@ -96,6 +96,8 @@ describe('CLive plugin routes', () => {
     expect(body.verdicts).toHaveLength(4);
     expect(body.nudge).toBeUndefined();
     expect(body.verdicts.map((v: { criterion_id: string }) => v.criterion_id)).toContain('outputs_are_correct');
+    // Each verdict carries the line the student reads for that requirement.
+    expect(body.verdicts.every((v: { not_met: string }) => v.not_met.length > 0)).toBe(true);
   });
 
   it('answers a blocking failure with a nudge in the same call', async () => {
@@ -116,6 +118,7 @@ describe('CLive plugin routes', () => {
     const body = response.json();
     expect(body.passed).toBe(false);
     expect(body.nudge?.focus_id).toBe('case_is_concrete');
+    expect(body.nudge?.focus_not_met).toBeTruthy();
     expect(body.nudge?.failing.map((f: { id: string }) => f.id)).toContain('case_is_concrete');
   });
 
@@ -153,23 +156,50 @@ describe('CLive plugin routes', () => {
     expect(body.advisory_unmet).toEqual(['follows_own_design']);
   });
 
-  it('returns one hint', async () => {
-    state.queue = [{ criterion_id: 'input_order_stated', diagnosis: 'You list inputs.', hint: 'Say which is first.' }];
+  it('answers a stuck ask with the feedback alone, keeping the diagnosis out of the response', async () => {
+    state.queue = [
+      { diagnosis: 'Does not connect “leftover” with a remainder.', feedback: 'How many fit?\nWhat is left over?' }
+    ];
     const instance = await app();
     const response = await instance.inject({
       method: 'POST',
-      url: '/plugin-api/clive/hint',
+      url: '/plugin-api/clive/stuck',
       payload: {
-        phase: 'problem_definition',
+        phase: 'case_design',
         problemId: 'p',
-        artifact: { summary: 'x', inputs: 'y', outputs: 'z' },
+        artifact: { normal_cases: [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }] },
         attempt: 1,
         priorArtifacts: [],
+        statement: 'I do not get the leftover.',
+        fieldId: 'normal_cases',
+        history: [{ statement: 'Is my input right?', feedback: 'Which value comes first?' }]
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ feedback: 'How many fit?\nWhat is left over?' });
+    // The diagnosis names the answer often enough that the page must never receive it.
+    expect(JSON.stringify(response.json())).not.toContain('remainder');
+  });
+
+  it('refuses a stuck ask with nothing asked', async () => {
+    state.queue = [{ diagnosis: 'd', feedback: 'f' }];
+    const instance = await app();
+    const response = await instance.inject({
+      method: 'POST',
+      url: '/plugin-api/clive/stuck',
+      payload: {
+        phase: 'case_design',
+        problemId: 'p',
+        artifact: {},
+        attempt: 1,
+        priorArtifacts: [],
+        statement: '   ',
         history: []
       }
     });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ criterion_id: 'input_order_stated' });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatch(/Say what you are having trouble with first/);
   });
 
   it('turns a JudgeError into a 400 with its message', async () => {

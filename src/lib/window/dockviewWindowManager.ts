@@ -168,6 +168,24 @@ export class DockviewWindowManager<T> {
     return window;
   }
 
+  /**
+   * Close every open window whose key is not in `keep`. A closed window is not
+   * destroyed: it stays registered, so {@link openWindow} brings the same one
+   * back — the same component instance, with whatever state it holds.
+   */
+  public closeWindowsExcept(keep: readonly string[]): void {
+    if (!this.dockview) {
+      return;
+    }
+    const kept = new Set(keep);
+    // Snapshot the list: `removePanel` mutates the panels the getter walks.
+    for (const panel of [...this.dockview.panels]) {
+      if (!kept.has(panel.id)) {
+        this.dockview.removePanel(panel);
+      }
+    }
+  }
+
   private resolvePosition(
     positions: AddPanelPositionOptions | AddPanelPositionOptions[] | undefined
   ): AddPanelPositionOptions | undefined {

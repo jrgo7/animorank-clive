@@ -13,13 +13,13 @@
  * A reference exits with status {@link OUT_OF_RULES_EXIT} on input the problem's
  * rules do not allow.
  */
-import { CodeExecutor } from '$lib/executor';
-import { ServerRegistryProvider } from '$lib/registry/server';
+import type { CodeExecutor } from '$lib/executor';
 import { caseRows } from './artifact';
 import type { CriterionDoc, PhaseDoc } from './content/load';
 import type { ProblemForPrompt } from './content/templates';
 import { judge, type JudgeOutcome, type Verdict } from './judge';
 import type { PriorArtifact } from './artifact';
+import { defaultExecutor, normaliseOutput, runProgram, type ProgramRun } from './program';
 import type { Provider } from './providers';
 
 /** The exit status a reference solution uses for input its problem does not allow. */
@@ -52,23 +52,14 @@ function sameToken(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
-/** Trailing whitespace per line, then trailing newlines — `grade.normalise`. */
-function normalise(text: string): string {
-  return text
-    .split('\n')
-    .map((line) => line.replace(/\s+$/, ''))
-    .join('\n')
-    .replace(/\n+$/, '');
-}
-
 /**
  * Whether a claimed output is the same value as the reference's. Format —
  * precision, leading zeros, casing — is left to the advisory format criterion,
  * so a different word is a different value: "Yes" is not "1".
  */
 export function outputsMatch(claimed: string, actual: string): boolean {
-  const a = normalise(claimed).split(/\s+/).filter(Boolean);
-  const b = normalise(actual).split(/\s+/).filter(Boolean);
+  const a = normaliseOutput(claimed).split(/\s+/).filter(Boolean);
+  const b = normaliseOutput(actual).split(/\s+/).filter(Boolean);
   return a.length === b.length && a.every((token, i) => sameToken(token, b[i]));
 }
 
@@ -107,37 +98,6 @@ function collectRows(phase: PhaseDoc, artifact: Record<string, unknown>): RefRow
   return out;
 }
 
-/** The executor the app runs student C on; injected in tests. */
-async function defaultExecutor(): Promise<CodeExecutor> {
-  return ServerRegistryProvider.instance().getService(CodeExecutor);
-}
-
-interface ReferenceRun {
-  compiled: boolean;
-  compileError: string;
-  exitCode?: number;
-  stdout: string;
-}
-
-async function runReference(executor: CodeExecutor, reference: string, row: RefRow): Promise<ReferenceRun> {
-  const result = await executor.execute({
-    files: [{ path: 'main.c', content: Buffer.from(reference, 'utf8') }],
-    processes: [
-      // Same flags as the app's own C stdio test case.
-      { command: 'gcc', args: ['-Werror', '-Wall', '-o', 'program', 'main.c', '-lm', '-lpthread'] },
-      { command: './program', args: [], stdin: Buffer.from(row.input, 'utf8') }
-    ]
-  });
-  const compile = result.processOutputs[0];
-  const run = result.processOutputs[1];
-  return {
-    compiled: compile?.exitCode === 0,
-    compileError: compile?.exitCode !== 0 ? (compile?.stderr?.toString('utf8') ?? 'compilation failed') : '',
-    exitCode: run?.exitCode,
-    stdout: run?.stdout?.toString('utf8') ?? ''
-  };
-}
-
 /**
  * Run the student's rows through the problem's reference solution. `status` is
  * `unavailable` or `error` when nothing can be computed, else `checked`.
@@ -171,9 +131,9 @@ export async function check(
       return { status: 'error', reason: `The reference could not run: ${describe(error)}` };
     }
     for (const row of toRun) {
-      let outcome: ReferenceRun;
+      let outcome: ProgramRun;
       try {
-        outcome = await runReference(runner, reference, row);
+        outcome = await runProgram(runner, reference, row.input);
       } catch (error) {
         return { status: 'error', reason: `The reference could not run: ${describe(error)}` };
       }

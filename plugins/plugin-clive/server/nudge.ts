@@ -18,6 +18,8 @@ export interface NudgeOutcome {
   summary: string;
   focus_id: string;
   focus_text: string;
+  /** The focused criterion's `not_met` line — the one the student sees just above the nudge. */
+  focus_not_met: string;
   reason: string;
   nudge: string;
   /** Every failing gating criterion, in rubric order — computed here, never taken from the model. */
@@ -75,10 +77,12 @@ export async function nudge(
     );
   }
 
+  const focus = failures.find((c) => c.id === parsed.focus_id);
   return {
     summary: parsed.summary,
     focus_id: parsed.focus_id,
-    focus_text: failures.find((c) => c.id === parsed.focus_id)?.text ?? '',
+    focus_text: focus?.text ?? '',
+    focus_not_met: focus?.not_met ?? '',
     reason: parsed.reason,
     nudge: parsed.nudge,
     failing: failures.map((c) => ({ id: c.id, text: c.text }))

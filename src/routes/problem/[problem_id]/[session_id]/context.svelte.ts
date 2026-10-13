@@ -29,6 +29,9 @@ const messageOf = (error: unknown, fallback: string): string => (error instanceo
 /** Opens (or focuses) a window in the dockview, optionally placing it. */
 export type OpenWindow = (_key: string, _positions?: AddPanelPositionOptions | AddPanelPositionOptions[]) => void;
 
+/** Closes every open window whose key is not named. */
+export type CloseWindowsExcept = (_keep: readonly string[]) => void;
+
 export interface SolveWindowContextInitial {
   problem: Problem;
   practiceSession: ClientPracticeSession;
@@ -108,6 +111,13 @@ export class SolveWindowContext {
    * window manager is available.
    */
   public openWindow: OpenWindow = async () => {};
+
+  /**
+   * Closes every open window except the named ones. Wired by the page alongside
+   * {@link openWindow}. A closed window is not destroyed, so `openWindow` brings
+   * the same one back.
+   */
+  public closeWindowsExcept: CloseWindowsExcept = () => {};
 
   /**
    * Build a context for a solve page. The telemetry service is a client-registry

@@ -5,6 +5,7 @@
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
   import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
   import ArrowRightIcon from '@iconify-svelte/fa6-solid/arrow-right';
+  import ProblemDescription from '$lib/components/content/ProblemDescription.svelte';
   import CaseRows from './CaseRows.svelte';
   import PhaseFeedback from './PhaseFeedback.svelte';
   import OutlineEditor from './OutlineEditor.svelte';
@@ -21,7 +22,8 @@
     type CaseRow,
     type OutlineRow
   } from './phase';
-  import { askHint, submitPhase, type JudgeContext } from './api';
+  import { askStuck, submitPhase, type JudgeContext } from './api';
+  import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
   interface Props {
@@ -84,7 +86,7 @@
     elapsed >= THINK_LONG_AFTER
       ? 'Taking longer than usual, but still working. Your work is saved.'
       : elapsed >= THINK_NOTE_AFTER
-        ? `${session.busy === 'hint' ? 'A hint' : 'Checking'} can take up to a minute. Your work is saved, so please don't reload.`
+        ? `${session.busy === 'stuck' ? 'An answer' : 'Checking'} can take up to a minute. Your work is saved, so please don't reload.`
         : ''
   );
 
@@ -122,24 +124,43 @@
     save();
   }
 
-  async function hint(): Promise<void> {
-    session.busy = 'hint';
+  /** The field the student is on, when the phase shows exactly one (the prototype's rule). */
+  const singleFieldId = $derived(config.artifactFields.length === 1 ? config.artifactFields[0].id : null);
+
+  async function ask(): Promise<void> {
+    const statement = phaseState.stuckDraft.trim();
+    if (!statement) return;
+    session.busy = 'stuck';
     session.busySince = Date.now();
     session.error = null;
     try {
-      const history = phaseState.hints
+      // Oldest first, so the model reads them in the order the student did and does not repeat itself.
+      const history = phaseState.stuck
         .slice()
         .reverse()
-        .map((h) => ({ role: 'hint' as const, text: `${h.diagnosis} ${h.hint}` }));
-      const got = await askHint({
+        .map((x) => ({ statement: x.statement, feedback: x.feedback }));
+      const got = await askStuck({
         phase: config.phase,
         problemId: context.problem.id,
         artifact: phaseState.artifact,
         attempt: current.attempt,
         priorArtifacts: session.priorArtifacts(phaseIndex),
-        history
+        statement,
+        fieldId: singleFieldId,
+        history,
+        ...(isCodePhase ? { code: context.editorState.code } : {})
       });
-      phaseState.hints.unshift({ ...got, attempt: current.attempt });
+      phaseState.stuck.unshift({
+        statement,
+        feedback: got.feedback,
+        fieldId: singleFieldId,
+        attempt: current.attempt
+      });
+      context.telemetry.record(CLIVE_EVENT.stuck, {
+        phase: config.phase,
+        field: singleFieldId,
+        statement
+      });
     } catch (e) {
       session.error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -149,17 +170,26 @@
     }
   }
 
+  function startQuestions(): void {
+    phaseState.read = true;
+    context.telemetry.record(CLIVE_EVENT.problemRead, { phase: config.phase });
+    save();
+  }
+
   async function submit(): Promise<void> {
     session.busy = 'submit';
     session.busySince = Date.now();
     session.error = null;
     const step = perStep && openField ? openField.id : undefined;
+    // Read before the call: a failing step increments its own attempt below, and the
+    // attempt being submitted is the one the student made.
+    const attempt = current.attempt;
     try {
       const payload: JudgeContext = {
         phase: config.phase,
         problemId: context.problem.id,
         artifact: phaseState.artifact,
-        attempt: current.attempt,
+        attempt,
         priorArtifacts: session.priorArtifacts(phaseIndex),
         ...(step ? { step } : {}),
         ...(isCodePhase ? { code: context.editorState.code } : {})
@@ -167,6 +197,17 @@
       const result: JudgeResult = await submitPhase(payload);
       if (step) session.completeStep(phaseIndex, step, result);
       else session.recordResult(phaseIndex, result);
+      context.telemetry.record(CLIVE_EVENT.submit, {
+        phase: config.phase,
+        step: step ?? null,
+        attempt,
+        passed: result.passed,
+        blocking: result.verdicts
+          .filter((v) => v.verdict === 'FAIL' && v.gate !== 'advisory')
+          .map((v) => v.criterion_id),
+        advisory_unmet: result.advisory_unmet,
+        missing_ids: result.missing_ids
+      });
     } catch (e) {
       session.error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -179,6 +220,7 @@
   function continueToNext(): void {
     const next = phaseIndex + 1;
     session.open(next);
+    context.telemetry.record(CLIVE_EVENT.phaseOpen, { phase: PHASES[next].phase, via: 'continue' });
     context.openWindow(`clive:${PHASES[next].phase}`);
   }
 
@@ -192,6 +234,10 @@
   function addCase(): void {
     phaseState.added += 1;
     phaseState.step = session.inPlay(phaseIndex).length - 1;
+    context.telemetry.record(CLIVE_EVENT.caseAdded, {
+      phase: config.phase,
+      cases: session.inPlay(phaseIndex).length
+    });
     save();
   }
 
@@ -202,21 +248,68 @@
     delete phaseState.stepResults[last.id];
     phaseState.added -= 1;
     phaseState.step = session.inPlay(phaseIndex).length - 1;
+    context.telemetry.record(CLIVE_EVENT.caseRemoved, {
+      phase: config.phase,
+      cases: session.inPlay(phaseIndex).length
+    });
     save();
   }
 </script>
 
 <div class="h-full min-w-0 overflow-y-auto">
+  {#snippet statement(open: boolean)}
+    {#if open}
+      <div class="rounded-box border border-base-content/10 bg-base-200 p-5">
+        <ProblemDescription problem={context.problem} />
+      </div>
+    {:else}
+      <details class="rounded-box border border-base-content/10 bg-base-200 p-4">
+        <summary class="w-fit cursor-pointer text-sm font-medium text-primary">Problem statement</summary>
+        <div class="mt-2"><ProblemDescription problem={context.problem} /></div>
+      </details>
+    {/if}
+  {/snippet}
+
   {#if !phaseState.unlocked}
     <div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
       <p class="max-w-[34ch] text-sm text-base-content/70">
         {config.label} opens once you have passed the phase before it.
       </p>
     </div>
+  {:else if phaseIndex === 0 && !phaseState.read}
+    <div class="flex flex-col gap-5 p-5 pb-10">
+      {#if session.error}
+        <Alert class="alert-error"><span>{session.error}</span></Alert>
+      {/if}
+
+      {@render statement(true)}
+
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <p class="max-w-[54ch] text-sm text-base-content/70">
+          Take your time with the problem. Press Next when you know what it asks.
+        </p>
+        <Button
+          class="btn-primary gap-2"
+          type="button"
+          onclick={startQuestions}
+        >
+          Next
+          <ArrowRightIcon class="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
   {:else}
     <div class="flex flex-col gap-5 p-5 pb-10">
       {#if session.error}
         <Alert class="alert-error"><span>{session.error}</span></Alert>
+      {/if}
+
+      {#if !session.hasApiKey}
+        <Alert class="bg-base-200 text-sm text-base-content/70">
+          <span>
+            No API key is set on the server, so checking and help are unavailable. Your work is still saved as you type.
+          </span>
+        </Alert>
       {/if}
 
       <div class="flex items-baseline gap-2.5">
@@ -254,6 +347,8 @@
           <div class="mt-1.5 text-base-content/60">Searching for documentation is fine. AI assistants are not.</div>
         </div>
       {/if}
+
+      {@render statement(false)}
 
       {#snippet fieldEditor(field: ArtifactField)}
         <div class="flex flex-col gap-1.5">
@@ -342,16 +437,62 @@
         </div>
       {/if}
 
+      <!-- "What are you stuck on?": the student says what they find hard, in their own
+           words, and gets a few lines back. The only help on the page since 2026-10-10. -->
+      <div class="flex flex-col gap-2.5">
+        {#if phaseState.stuckOpen || session.busy === 'stuck'}
+          <div class="flex flex-col gap-2 rounded-box border border-base-content/10 bg-base-200 p-4">
+            <label
+              class="text-sm font-semibold"
+              for="clive-stuck-ask">What are you having trouble with?</label
+            >
+            <p class="text-xs text-base-content/60">
+              Say it in your own words. CLive replies with a few lines to think about.
+            </p>
+            <Textarea
+              id="clive-stuck-ask"
+              rows={3}
+              maxlength={1000}
+              placeholder="e.g. I don't know what the program should print when …"
+              bind:value={phaseState.stuckDraft}
+              disabled={session.busy === 'stuck'}
+              oninput={save}
+            />
+            <div class="flex flex-wrap gap-2">
+              <Button
+                class="btn-primary"
+                type="button"
+                disabled={!!session.busy || !session.hasApiKey || !phaseState.stuckDraft.trim()}
+                onclick={ask}
+              >
+                {session.busy === 'stuck' ? 'Thinking…' : 'Ask'}
+              </Button>
+              <Button
+                class="btn-ghost"
+                type="button"
+                disabled={!!session.busy}
+                onclick={() => {
+                  phaseState.stuckOpen = false;
+                }}>Cancel</Button
+              >
+            </div>
+          </div>
+        {:else}
+          <Button
+            class="btn-ghost w-fit gap-2"
+            type="button"
+            disabled={!!session.busy || !session.hasApiKey}
+            onclick={() => {
+              phaseState.stuckOpen = true;
+            }}
+          >
+            <LightbulbIcon class="h-3.5 w-3.5" />
+            I'm stuck
+          </Button>
+        {/if}
+      </div>
+
       <div class="flex flex-wrap items-center gap-2.5">
-        <Button
-          class="btn-ghost gap-2"
-          type="button"
-          disabled={!!session.busy || !session.hasApiKey}
-          onclick={hint}
-        >
-          <LightbulbIcon class="h-3.5 w-3.5" />
-          {session.busy === 'hint' ? 'Thinking…' : "I'm stuck — get a hint"}
-        </Button>
         {#if isCodePhase}
           <Button
             class="btn-primary"
@@ -367,13 +508,19 @@
         {:else}
           {@const showSubmit = perStep || !stepped || openIndex === fields.length - 1 || phaseState.attempt > 1}
           {#if showSubmit}
+            <!-- After a pass the way on leads and this steps back: a still-primary Submit
+                 reads as the thing to click when the student means to move on. -->
             <Button
-              class="btn-primary"
+              class={phaseState.passed ? 'btn-ghost' : 'btn-primary'}
               type="button"
               disabled={!!session.busy || blank || !!duplicate}
               onclick={submit}
             >
-              {session.busy === 'submit' ? 'Checking…' : current.attempt > 1 ? 'Resubmit' : 'Submit for checking'}
+              {session.busy === 'submit'
+                ? 'Checking…'
+                : phaseState.passed || current.attempt > 1
+                  ? 'Resubmit'
+                  : 'Submit'}
             </Button>
           {:else}
             <Button
@@ -415,7 +562,8 @@
           <span>
             {nextPhase ? `Phase passed. ${nextPhase.label} is open.` : 'Phase passed. That was the last one.'}
             {#if advisoryUnmet}
-              {advisoryUnmet} optional point{advisoryUnmet > 1 ? 's' : ''} went unmet — worth a look before you move on.
+              {advisoryUnmet} optional point{advisoryUnmet > 1 ? 's' : ''} went unmet — worth a look. Optional points never
+              stop you from moving on.
             {/if}
           </span>
         </Alert>
@@ -423,7 +571,7 @@
 
       <PhaseFeedback
         {isCodePhase}
-        hints={phaseState.hints}
+        stuck={phaseState.stuck}
         result={current.result}
       />
 

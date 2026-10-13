@@ -1,15 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionHistoryTelemetryService } from './sessionHistoryTelemetryService';
-import type { Entry } from './telemetryHook';
 
 const SESSION_ID = '123e4567-e89b-42d3-a456-426614174000';
-
-/** Exposes the protected callback so tests can emit entries directly. */
-class TestSessionHistoryService extends SessionHistoryTelemetryService {
-  public emit(entry: Entry): void {
-    this.telemetryCallback(entry);
-  }
-}
 
 function postedEvents(fetchMock: ReturnType<typeof vi.fn>): unknown[] {
   const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -29,10 +21,10 @@ describe('SessionHistoryTelemetryService', () => {
   });
 
   it('buffers entries until flush posts them to the session history in one batch', async () => {
-    const service = new TestSessionHistoryService(SESSION_ID);
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
 
-    service.emit({ type: 'TEXT_MODIFIED', data: { new: 'a' } });
-    service.emit({ type: 'RUN_ATTEMPT', data: { success: false } });
+    service.record('TEXT_MODIFIED', { new: 'a' });
+    service.record('RUN_ATTEMPT', { success: false });
     expect(fetchMock).not.toHaveBeenCalled();
 
     await service.flush();
@@ -53,7 +45,7 @@ describe('SessionHistoryTelemetryService', () => {
   });
 
   it('does nothing when flush is called with no buffered entries', async () => {
-    const service = new TestSessionHistoryService(SESSION_ID);
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
 
     await service.flush();
 
@@ -61,11 +53,11 @@ describe('SessionHistoryTelemetryService', () => {
   });
 
   it('posts entries that arrive after a flush on the next flush', async () => {
-    const service = new TestSessionHistoryService(SESSION_ID);
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
 
-    service.emit({ type: 'PING', data: {} });
+    service.record('PING', {});
     await service.flush();
-    service.emit({ type: 'PING', data: { second: true } });
+    service.record('PING', { second: true });
     await service.flush();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -75,10 +67,10 @@ describe('SessionHistoryTelemetryService', () => {
 
   it('drops the batch with a warning instead of throwing when the request fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const service = new TestSessionHistoryService(SESSION_ID);
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
     fetchMock.mockRejectedValueOnce(new Error('network down'));
 
-    service.emit({ type: 'PING', data: {} });
+    service.record('PING', {});
     await expect(service.flush()).resolves.toBeUndefined();
 
     expect(warn).toHaveBeenCalledTimes(1);

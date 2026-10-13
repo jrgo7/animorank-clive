@@ -1,11 +1,13 @@
 id: phase.algorithm_design
-version: 10
+version: 11
 phase: algorithm_design
 label: Design
 order: 3
 layout: steps
 created: 2026-08-20
 changelog: >
+  v11: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
+
   v10: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over.
 
   v9: Only the algorithm steps, written in a doc-style outline (`kind: steps`, a list of
@@ -76,14 +78,14 @@ model:
   schema: base/output_schema.json
 
 task_description: |
-  Plan the solution in plain English without using C yet.
+  Now turn what you did by hand into steps. Plan in plain English first; the C comes after.
 example_problem: |
   Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.
 artifact_fields:
   - id: steps
     label: Algorithm steps
     kind: steps
-    prompt: What sequence of steps would solve the problem?
+    prompt: Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.
     hint: Place one action per step. You may use indentation to express conditional or repeating statements.
     example:
       - {text: Read n., level: 0}

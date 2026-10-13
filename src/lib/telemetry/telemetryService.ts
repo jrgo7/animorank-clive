@@ -65,6 +65,15 @@ export abstract class TelemetryService {
   }
 
   /**
+   * Record one entry of the caller's own, alongside the built-in hooks'. An
+   * extension uses this for the events the hooks cannot see — a phase opened, an
+   * answer submitted — and they land in the same session history as the rest.
+   */
+  public record(type: string, data: object = {}): void {
+    void this.telemetryCallback({ type, data });
+  }
+
+  /**
    * Persist or transmit any entries the service has collated so far (the
    * session history strategy writes them out in one batch). Called by the
    * app when the session is saved; a no-op for strategies without a sink.
