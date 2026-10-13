@@ -15,6 +15,7 @@ import {
 import type { AddPanelPositionOptions } from 'dockview-core';
 import type { WindowSizing } from '$lib/window/dockviewWindowManager';
 import { Subscribable } from '$lib/utils/subscription';
+import type { ExecutionEvent } from '$lib/testCase/executionHook';
 
 /**
  * Shown when an attempt is abandoned because the code could not be persisted.
@@ -87,10 +88,12 @@ export class SolveWindowContext {
   public readonly slots: Slot[];
   public readonly editorState: SolveEditorState;
 
-  private readonly executionObservable = new Subscribable<{
-    run: { code: SolveEditorState; results: TestRunResponse };
-    submit: { code: SolveEditorState; results: TestRunResponse };
-  }>();
+  /**
+   * Fired on every Run and Submit so a telemetry hook can record the attempt.
+   * Inert until something subscribes: `SolveView.svelte` attaches it to the
+   * session's telemetry sink while the page is mounted.
+   */
+  private readonly executionObservable = new Subscribable<ExecutionEvent>();
 
   public testCaseResults: TestRunResponse = $state({ results: [], success: false });
   public lastTestType: 'run' | 'submit' = $state('run');
@@ -177,9 +180,8 @@ export class SolveWindowContext {
       sections: Object.fromEntries(previousCode.sections.map((section) => [section.slot.label, section.code]))
     });
 
-    // The factory always resolves it; the optional input exists only so the
-    // factory can accept a caller-supplied service.
     this.telemetry = initial.telemetry!;
+    this.telemetry.attachExecution(this.executionObservable);
 
     this.autosave = new AutoSave((code) => this.saveCode(code), $state.snapshot(this.editorState.codeSections));
   }
@@ -213,7 +215,13 @@ export class SolveWindowContext {
         return;
       }
       const results = await runTestCases(this.practiceSession.id, this.problem);
-      this.executionObservable.fire('run', { code: this.editorState, results });
+      this.executionObservable.fire('tests', {
+        runType: 'run',
+        publicTestResults: results.results,
+        generalTestResults: results.results.map((r) => r.success),
+        submittedCode: this.editorState.code
+      });
+      this.telemetry.flush(); // This can silently fail, choose to fail open
       this.testCaseResults = results;
       this.lastTestType = 'run';
       this.testSubmitted = false;
@@ -239,7 +247,13 @@ export class SolveWindowContext {
         return;
       }
       const results = await submit(this.practiceSession.id, this.problem);
-      this.executionObservable.fire('submit', { code: this.editorState, results });
+      this.executionObservable.fire('tests', {
+        runType: 'submit',
+        publicTestResults: results.results,
+        generalTestResults: results.results.map((r) => r.success),
+        submittedCode: this.editorState.code
+      });
+      this.telemetry.flush(); // This can silently fail, choose to fail open
       this.testCaseResults = results;
       this.lastTestType = 'submit';
 
@@ -272,6 +286,11 @@ export class SolveWindowContext {
         return;
       }
       this.customRunResult = await runCustomInput(this.practiceSession.id, stdin);
+      this.executionObservable.fire('custom', {
+        submittedCode: this.editorState.code,
+        result: this.customRunResult
+      });
+      this.telemetry.flush(); // This can silently fail, choose to fail open
     } catch (error) {
       this.runError = messageOf(error, 'Could not run your code.');
     } finally {
