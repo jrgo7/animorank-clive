@@ -47,23 +47,44 @@
   $effect(() => {
     if (initializing || context) return;
     initializing = true;
-    void SolveWindowContext.create(initialValues).then((created) => {
+    // The dock lays itself out from the windows the registry holds by the time
+    // it is built, and a plugin registers its own windows in `init`. So the
+    // plugins that own windows on this page are loaded beside the context, not
+    // after it: a layout that names a plugin's windows is then one the dock can
+    // bring back, rather than one it prunes down to the app's own.
+    void Promise.all([
+      SolveWindowContext.create(initialValues),
+      ClientPluginLoader.instance().preloadPlugins('onSolvePageLoad')
+    ]).then(([created]) => {
       if (destroyed) return;
       context = created;
       initializing = false;
     });
   });
 
+  // The page's own arrangement: the problem statement down a narrow column of
+  // its own on the left, the editor stack taking the rest. The CLive plugin
+  // drops its strip and phase windows into the editor column when it loads, and
+  // closes the editor out of the way; see `solveLayoutKeys` in the plugin.
+  //
+  // One root pane rather than two, because `defaultLayoutToDockview` splits the
+  // top level equally and only a pane's own `weights` say otherwise.
   const defaultLayout: DefaultLayout = {
     panes: [
       {
-        orientation: 'vertical',
-        children: [{ tabs: ['problem_info', 'submissions'], active: 'problem_info' }]
-      },
-      {
-        orientation: 'vertical',
-        children: ['code_editor', { tabs: ['test_cases', 'custom_code'], active: 'test_cases' }],
-        weights: [2, 1]
+        orientation: 'horizontal',
+        weights: [3, 7],
+        children: [
+          {
+            orientation: 'vertical',
+            children: [{ tabs: ['problem_info', 'submissions'], active: 'problem_info' }]
+          },
+          {
+            orientation: 'vertical',
+            children: ['code_editor', { tabs: ['test_cases', 'custom_code'], active: 'test_cases' }],
+            weights: [2, 1]
+          }
+        ]
       }
     ]
   };
@@ -125,7 +146,7 @@
   // `solve-layout-v` covers the whole retired `v<number>` convention in one
   // prefix -- `solve-layout-v2-<id>` (the only one saved per problem) through
   // `solve-layout-v5` -- because a dated key never starts with it.
-  const SUPERSEDED_LAYOUT_KEYS = ['solve-layout-v'];
+  const SUPERSEDED_LAYOUT_KEYS = ['solve-layout-v', 'solve-layout-2026-09-18'];
   onMount(() => SUPERSEDED_LAYOUT_KEYS.forEach((key) => discardSavedLayouts(key)));
 
   onMount(() => {
@@ -170,7 +191,7 @@
       bind:context
       {windowRegistry}
       {defaultLayout}
-      storageKey="solve-layout-2026-09-18"
+      storageKey="solve-layout-2026-10-16"
       bind:manager
     />
   {/if}

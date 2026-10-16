@@ -28,13 +28,30 @@ export interface DockviewWindowManagerOptions {
 }
 
 /**
+ * A window's size in the grid, in pixels. Applied only when the window has to be
+ * created: a panel that is already open keeps the size the student gave it, the
+ * same way it keeps its position. `initial*` is where it starts; the minimums and
+ * maximums are dockview's constraints on the sash that resizes it, so a window
+ * pinned to one size at both ends is one the student cannot drag.
+ */
+export interface WindowSizing {
+  initialWidth?: number;
+  initialHeight?: number;
+  minimumWidth?: number;
+  minimumHeight?: number;
+  maximumWidth?: number;
+  maximumHeight?: number;
+}
+
+/**
  * Opens (or focuses) a window in the dockview, optionally placing it. The
  * window type is erased on purpose: a page context hands this to plugins, which
  * have no business knowing the windows of the page they run on.
  */
 export type OpenWindow = (
   _key: string,
-  _positions?: AddPanelPositionOptions | AddPanelPositionOptions[]
+  _positions?: AddPanelPositionOptions | AddPanelPositionOptions[],
+  _sizing?: WindowSizing
 ) => Promise<unknown>;
 
 /**
@@ -144,11 +161,13 @@ export class DockviewWindowManager<T> {
    * Open the window, focusing it when it is already open. When it needs to be
    * created, `positions` (a single position or a list of candidates) places
    * the panel relative to an existing panel or group; the first candidate
-   * whose reference is open is used.
+   * whose reference is open is used. `sizing` gives the new panel its size,
+   * and is ignored for one that already exists.
    */
   public async openWindow(
     key: string,
-    positions?: AddPanelPositionOptions | AddPanelPositionOptions[]
+    positions?: AddPanelPositionOptions | AddPanelPositionOptions[],
+    sizing?: WindowSizing
   ): Promise<Window<T>> {
     const window = await this.ensureWindow(key);
     const panel = this.dockview?.getPanel(key);
@@ -160,7 +179,8 @@ export class DockviewWindowManager<T> {
         id: key,
         title: window.title,
         component: 'default',
-        ...(position !== undefined ? { position } : {})
+        ...(position !== undefined ? { position } : {}),
+        ...sizing
       });
       // Positioned additions are not activated by dockview; focus the panel.
       this.dockview?.getPanel(key)?.api.setActive();

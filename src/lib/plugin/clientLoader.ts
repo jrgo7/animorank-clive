@@ -107,6 +107,25 @@ export class ClientPluginLoader {
   }
 
   /**
+   * Load and initialize the prebuilt plugins that answer `hook`, without telling
+   * them about a page yet.
+   *
+   * A page whose layout is built from the windows registered so far has to wait
+   * for this first: a plugin registers its windows in `init` (see
+   * `ClientPlugin.init`), and a page that built its layout before that would
+   * find those windows unknown and drop them from it -- so a layout the student
+   * arranged would come back without them, every load.
+   *
+   * The hook itself is still delivered by {@link notifyPageHook}, once the page
+   * has the context a hook is called with. A plugin that cannot load is reported
+   * and skipped, like everywhere else here: the page does not fail because a
+   * plugin did.
+   */
+  public async preloadPlugins<H extends PluginPageHook>(hook: H): Promise<void> {
+    await Promise.all(this.prebuiltPlugins().map((id) => this.loadPageHookPlugin(id, hook)));
+  }
+
+  /**
    * Tells the plugins that answer `hook` that the page has loaded, with the
    * page's context, loading them first if they are not loaded already.
    *

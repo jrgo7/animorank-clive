@@ -17,6 +17,7 @@
     "knip": "npx knip",
     "scripts:addDefaultTags": "npx tsx scripts/addDefaultTags.ts",
     "scripts:featureProblemSet": "npx tsx scripts/featureProblemSet.ts",
+    "scripts:fetchClangd": "npx tsx scripts/fetchClangd.ts",
     "prepare": "npx husky",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

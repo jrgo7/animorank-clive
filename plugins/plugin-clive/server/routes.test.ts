@@ -82,7 +82,15 @@ describe('CLive plugin routes', () => {
     const instance = await app();
     const response = await instance.inject({ method: 'GET', url: '/plugin-api/clive/boot' });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ hasApiKey: true });
+    const body = response.json();
+    expect(body.hasApiKey).toBe(true);
+    // The live-diagnostics wording table rides along: the page words a squiggle
+    // from it, and it needs it before the student types.
+    expect(Object.keys(body.live_check).sort()).toEqual(['available', 'fallback', 'table']);
+    expect(body.live_check.fallback).toBe('The compiler stopped here.');
+    const unfinished = body.live_check.table.find((row: { kind: string }) => row.kind === 'unfinished_statement');
+    expect(unfinished.codes).toContain('expected_semi_after_expr');
+    expect(body.live_check.table.every((row: { codes: string[] }) => row.codes.length > 0)).toBe(true);
   });
 
   it('judges one Cases step and carries no nudge when nothing blocks', async () => {

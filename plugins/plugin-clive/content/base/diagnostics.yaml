@@ -1,0 +1,110 @@
+# What the Implement page says beside each place the compiler stopped.
+#
+# The student sees the line, a mark on the spot, and the `say` of the first entry whose
+# `match` finds gcc's message. gcc's own output is shown below, unchanged, so a `say` never
+# has to carry the detail.
+#
+# The rule: describe the problem, never name the fix. "This statement isn't finished here",
+# never "you're missing a semicolon". tests/test_diagnostics.py rejects C punctuation and fix
+# words (add, remove, missing, ...) in any `say`. See
+# docs/superpowers/specs/2026-10-03-compile-error-markers-design.md.
+#
+#   match    A regular expression, searched in gcc's message after its trailing [-W...] tag
+#            is removed and curly quotes are straightened -- write 'x', never the curly form.
+#            First match wins, so order matters: the specific `expected` entries come before
+#            the catch-all one.
+#   id       A stable name for the kind of problem. The tests and the session log use it, so
+#            rewording a `say` breaks nothing. Rename an id only together with its tests.
+#   fallback What a message no entry matches gets.
+#   clang    The clangd diagnostic codes this entry also describes, for the squiggles shown
+#            while the student types (live checking, 2026-10-12). Each code under one entry
+#            only. A code no entry lists gets the fallback.
+
+id: base.diagnostics
+version: 4
+created: 2026-10-03
+changelog: >
+  v4: `clang:` codes on each entry, so the squiggles clangd draws while the student types
+  use the same descriptions as Run's marks (spec 2026-10-12-live-c-diagnostics-design.md).
+
+  v3: `store_into_non_variable` for gcc's "lvalue required as left operand of assignment",
+  which had only the fallback. Session 7 (2026-10-06): a student spent five Runs on
+  `if (h <= 12 || h = 0)` with the editor saying only "The compiler stopped here."
+
+  v2: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over.
+
+  v1: First version. Drafted from gcc 14 and 15 output for the mistakes CCPROG1 students
+  make, for the author to revise. The `assignment_in_condition` wording is borderline --
+  the author should judge whether it names the fix.
+
+fallback: The compiler stopped here.
+
+entries:
+  - id: unfinished_statement
+    match: "^expected (?:'[^']*'(?:, | or ))*';'"
+    say: This statement isn't finished here.
+    clang: ["expected_semi_after_expr", "expected_semi_declaration", "expected_semi_after_stmt"]
+  - id: end_of_input
+    match: "^expected declaration or statement at end of input"
+    say: The compiler reached the end of the program unexpectedly.
+  - id: expected_expression
+    match: "^expected expression"
+    say: The compiler expected a value or calculation here.
+    clang: ["expected_expression"]
+  - id: expected_other
+    match: "^expected "
+    say: C expected something different at this point.
+    clang: ["expected"]
+  - id: undeclared
+    match: "undeclared"
+    say: The compiler doesn't know this name at this point.
+    clang: ["undeclared_var_use"]
+  - id: unknown_function
+    match: "^implicit declaration of function"
+    say: The compiler doesn't recognize this function.
+    clang: ["-Wimplicit-function-declaration"]
+  - id: format_mismatch
+    match: "^format '|arguments for format"
+    say: The values here don't match what the format asks for.
+    clang: ["-Wformat"]
+  - id: unused_variable
+    match: "^unused variable"
+    say: This variable is never used. Here, that stops the build.
+    clang: ["-Wunused-variable"]
+  - id: unused_value
+    match: "set but not used"
+    say: This variable is given a value that is never used. Here, that stops the build.
+    clang: ["-Wunused-but-set-variable"]
+  - id: uninitialized
+    match: "is used uninitialized"
+    say: This variable is used before it is given a value.
+    clang: ["-Wuninitialized", "-Wsometimes-uninitialized"]
+  - id: already_declared
+    match: "^(?:redefinition|redeclaration) of|^conflicting types for"
+    say: This name was already declared earlier.
+    clang: ["redefinition"]
+  - id: argument_count
+    match: "^too (?:few|many) arguments to function"
+    say: The number of values passed here doesn't match the function.
+  - id: stray_character
+    match: "^stray '"
+    say: There is a character here that C doesn't accept.
+  - id: unterminated
+    match: "^missing terminating"
+    say: Some text here starts but never ends.
+    clang: ["-Winvalid-pp-token"]
+  - id: missing_file
+    match: "No such file or directory"
+    say: The compiler can't find the file named here.
+  - id: no_return_value
+    match: "^control reaches end of non-void function"
+    say: The function can reach its end without giving back a value.
+    clang: ["-Wreturn-type"]
+  - id: assignment_in_condition
+    match: "^suggest parentheses around assignment used as truth value"
+    say: This condition stores a value rather than comparing one.
+    clang: ["-Wparentheses"]
+  - id: store_into_non_variable
+    match: "^lvalue required as left operand of assignment"
+    say: This line tries to store a value somewhere that cannot hold one. Was it meant to compare two values?
+    clang: ["typecheck_expression_not_modifiable_lvalue"]

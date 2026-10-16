@@ -1,6 +1,7 @@
 import { AutoSave, type AutoSaveState } from '$lib/utils/autosave.svelte';
 import { ClientRegistryProvider } from '$lib/registry/client';
 import { TelemetryService } from '$lib/telemetry/telemetryService';
+import type { monaco } from '$lib/monaco';
 import type { Problem, Slot } from '$lib/problem';
 import type { ClientPracticeSession } from '$lib/practiceSession/clientPracticeSession';
 import {
@@ -12,6 +13,7 @@ import {
   type TestRunResponse
 } from '$lib/practiceSession/api';
 import type { AddPanelPositionOptions } from 'dockview-core';
+import type { WindowSizing } from '$lib/window/dockviewWindowManager';
 
 /**
  * Shown when an attempt is abandoned because the code could not be persisted.
@@ -26,8 +28,12 @@ const unsavedMessage = (verb: string) =>
 /** The message a failed attempt should show, for a rejection that isn't an Error. */
 const messageOf = (error: unknown, fallback: string): string => (error instanceof Error ? error.message : fallback);
 
-/** Opens (or focuses) a window in the dockview, optionally placing it. */
-export type OpenWindow = (_key: string, _positions?: AddPanelPositionOptions | AddPanelPositionOptions[]) => void;
+/** Opens (or focuses) a window in the dockview, optionally placing and sizing it. */
+export type OpenWindow = (
+  _key: string,
+  _positions?: AddPanelPositionOptions | AddPanelPositionOptions[],
+  _sizing?: WindowSizing
+) => void;
 
 /** Closes every open window whose key is not named. */
 export type CloseWindowsExcept = (_keep: readonly string[]) => void;
@@ -52,6 +58,16 @@ export class SolveEditorState {
   public code: string = $state('');
   public codeSections: Record<string, string> = $state({});
   public locked: boolean = $state(false);
+  /**
+   * The Monaco model the Code Editor currently holds, or undefined while it is
+   * still loading. Published here so an extension can attach its own view of the
+   * code without the editor having to know about it: the CLive plugin draws
+   * clangd's live diagnostics on this model under its own marker owner.
+   *
+   * Reset Code swaps in a fresh model, and this follows the swap, so a marker
+   * owner reads it as reactive state rather than holding on to a disposed model.
+   */
+  public model: monaco.editor.ITextModel | undefined = $state(undefined);
 
   constructor(initial: { code: string; sections: Record<string, string> }) {
     this.code = initial.code;

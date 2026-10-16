@@ -20,6 +20,15 @@
  * - `CLIVE_STUCK` — `{ phase, field, statement }`: one "what are you stuck on?"
  *   ask. The reply's feedback is not recorded; the diagnosis is on the server's
  *   log line.
+ * - `CLIVE_LIVE_CHECK_READY` — `{ load_ms }`: clangd in the student's browser
+ *   answered its handshake, and how long it took; `CLIVE_LIVE_CHECK_FAILED` —
+ *   `{ reason }`: it could not start, or gave up after three unanswered checks.
+ *   A session with neither never ran live checking (the switch, or no vendored
+ *   clangd on the machine serving the plugin).
+ * - `CLIVE_LIVE_CHECK` — `{ problem, diagnostics }`: the set of squiggles
+ *   changed, as `[{ line, kind }]` — never the code, which the next run or
+ *   submit already records.
+ * - `CLIVE_LIVE_RAW_TOGGLE` — `{ on }`: the "show the compiler's own words" box.
  */
 export const CLIVE_EVENT = {
   problemLoad: 'CLIVE_PROBLEM_LOAD',
@@ -28,5 +37,9 @@ export const CLIVE_EVENT = {
   caseAdded: 'CLIVE_CASE_ADDED',
   caseRemoved: 'CLIVE_CASE_REMOVED',
   submit: 'CLIVE_SUBMIT',
-  stuck: 'CLIVE_STUCK'
+  stuck: 'CLIVE_STUCK',
+  liveCheckReady: 'CLIVE_LIVE_CHECK_READY',
+  liveCheckFailed: 'CLIVE_LIVE_CHECK_FAILED',
+  liveCheck: 'CLIVE_LIVE_CHECK',
+  liveRawToggle: 'CLIVE_LIVE_RAW_TOGGLE'
 } as const;

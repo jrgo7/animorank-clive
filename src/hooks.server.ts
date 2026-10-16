@@ -6,6 +6,8 @@ import { ServerRegistryProvider } from '$lib/registry/server';
 import { ServerPluginService } from '$lib/plugin/serverPluginService';
 import { Server, type ServerApp } from '$lib/server';
 import { injectPluginApiRequest, isPluginApiPath } from '$lib/server/pluginApiRequest';
+import { clangdPresent } from '$lib/clangd/assets.server';
+import { ISOLATION_HEADERS, isCrossOriginIsolatedPage } from '$lib/crossOriginIsolation';
 import { errorMessage } from '$lib/utils/errorMessage';
 
 /**
@@ -31,6 +33,16 @@ export const init: ServerInit = async () => {
   // `Server.prepareApp`), so it is prepared only now, with every plugin already
   // loaded, and each plugin's routes are part of it.
   app = await new Server().prepareApp();
+
+  // Live C diagnostics in the CLive plugin run on clangd, which is too big for
+  // git and fetched once per machine. Say so once, here, rather than let an
+  // operator find out from a student whose editor stayed quiet.
+  if (!clangdPresent()) {
+    const logger = await ServerRegistryProvider.instance().getService(Logger, 'webserver');
+    logger.info(
+      'clangd is not vendored, so the CLive plugin will not mark C as the student types. Run: npm run scripts:fetchClangd'
+    );
+  }
 };
 
 /**
@@ -52,7 +64,17 @@ export const handle: Handle = async ({ event, resolve }) => {
     return app === undefined ? new Response('Not Found', { status: 404 }) : injectPluginApiRequest(app, event);
   }
 
-  return authHandle({ event, resolve });
+  const response = await authHandle({ event, resolve });
+
+  // Live C diagnostics run clangd's threads, and a browser only gives a document
+  // SharedArrayBuffer when it is cross-origin isolated. Only the solve page runs
+  // clangd, so only the solve page carries these; every other page of the app is
+  // served exactly as before.
+  if (isCrossOriginIsolatedPage(event.url.pathname)) {
+    for (const [name, value] of Object.entries(ISOLATION_HEADERS)) response.headers.set(name, value);
+  }
+
+  return response;
 };
 
 export const handleError: HandleServerError = async ({ error }) => {

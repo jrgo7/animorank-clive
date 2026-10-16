@@ -9,7 +9,9 @@ import {
   IMPLEMENT_PHASE,
   IMPLEMENT_WINDOW_KEY,
   IMPLEMENT_WINDOW_KEYS,
+  PHASE_PLACEMENT_REFERENCE,
   PHASES,
+  PROBLEM_INFO_WINDOW_KEY,
   blankValueFor,
   duplicateOf,
   inPlay,
@@ -21,16 +23,14 @@ import {
   parseOutline,
   rowsOf,
   solveLayoutKeys,
-  stepComplete,
   type ArtifactField,
-  type CaseRow,
   type PhaseConfig
 } from './windows/phase';
 
 const case_design = PHASES[1];
 const problem = PHASES[0];
 
-const text = (id: string, rows = 4): ArtifactField => ({ id, label: id, kind: 'text', rows });
+const text = (id: string): ArtifactField => ({ id, label: id, kind: 'text' });
 
 describe('outline rows', () => {
   it('parses numbered and indented text back to rows, and renders them the same way', () => {
@@ -84,15 +84,8 @@ describe('values', () => {
     expect(isFilled('  x ')).toBe(true);
     expect(isFilled('   ')).toBe(false);
     expect(isFilled([{ input: '', output: '', working: 'work' }])).toBe(true);
+    expect(isFilled([{ input: '', output: '', working: '' }])).toBe(false);
     expect(isFilled([{ text: ' ', level: 0 }])).toBe(false);
-  });
-
-  it('needs a case’s output and working before it can be judged, but not its input', () => {
-    const field: ArtifactField = { id: 'c', label: 'Case 1', kind: 'cases' };
-    const row = (over: Partial<CaseRow>): CaseRow[] => [{ input: '', output: '', working: '', ...over }];
-    expect(stepComplete(field, row({ output: '24', working: '4*6' }))).toBe(true);
-    expect(stepComplete(field, row({ input: '4 6', output: '24' }))).toBe(false);
-    expect(stepComplete(text('summary'), 'x')).toBe(true);
   });
 });
 
@@ -124,17 +117,27 @@ describe('steps', () => {
 });
 
 describe('solve-page layout', () => {
-  it('keeps only CLive’s own windows outside the Implement phase', () => {
-    expect(solveLayoutKeys('problem_definition')).toEqual(CLIVE_WINDOW_KEYS);
-    expect(solveLayoutKeys('case_design')).toEqual(CLIVE_WINDOW_KEYS);
+  it('keeps the statement and CLive’s own windows outside the Implement phase', () => {
+    expect(solveLayoutKeys('problem_definition')).toEqual([PROBLEM_INFO_WINDOW_KEY, ...CLIVE_WINDOW_KEYS]);
+    expect(solveLayoutKeys('case_design')).toEqual([PROBLEM_INFO_WINDOW_KEY, ...CLIVE_WINDOW_KEYS]);
+    expect(PROBLEM_INFO_WINDOW_KEY).toBe('problem_info');
     expect(CLIVE_WINDOW_KEYS).toContain('clive:track');
     expect(CLIVE_WINDOW_KEYS).toContain('clive:implement');
     expect(CLIVE_WINDOW_KEYS).not.toContain('code_editor');
   });
 
   it('keeps the editor and the test-case results only in the Implement phase', () => {
-    expect(solveLayoutKeys(IMPLEMENT_PHASE)).toEqual([...CLIVE_WINDOW_KEYS, ...IMPLEMENT_WINDOW_KEYS]);
+    expect(solveLayoutKeys(IMPLEMENT_PHASE)).toEqual([
+      PROBLEM_INFO_WINDOW_KEY,
+      ...CLIVE_WINDOW_KEYS,
+      ...IMPLEMENT_WINDOW_KEYS
+    ]);
     expect(IMPLEMENT_WINDOW_KEYS).toEqual(['code_editor', 'test_cases']);
     expect(IMPLEMENT_WINDOW_KEY).toBe('clive:implement');
+  });
+
+  it('puts a new phase window beside the statement, in the editor’s column', () => {
+    // A column of its own would squeeze the statement to make room for a third.
+    expect(PHASE_PLACEMENT_REFERENCE).toBe('code_editor');
   });
 });

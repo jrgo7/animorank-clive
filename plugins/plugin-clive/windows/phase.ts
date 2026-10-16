@@ -1,12 +1,20 @@
 /**
  * The four PCDIT phases, in the order CLive gates them (Problem, Cases, Design,
  * Implement -- `case_design` runs before `algorithm_design` despite the name
- * order, per each phase's own `order`).
+ * order, per each phase's own `order` in the YAML).
  *
- * A hand-port of `plugins/plugin-clive/content/phases/*.yaml` for the *display*:
- * labels, fields, hints, examples and task descriptions. The server judges from
- * the YAML itself; `contentAgreement.test.ts` pins the two to agree on field
- * metadata, since a field id the server does not know means a submitted artifact
+ * Load-bearing metadata only. Each phase's UI, flow and wording is its own window
+ * (`ProblemWindow.window.svelte`, `CaseDesignWindow.window.svelte`,
+ * `AlgorithmDesignWindow.window.svelte`, `ImplementWindow.window.svelte`); what
+ * stays here is what the server contract and the shared state need: the phase id
+ * and its fields' ids, labels, kinds and `added` flags, plus the layout and judge
+ * shape. A label is prompt-visible -- the client sends it to the judge as
+ * `prior_artifacts`, and the nudge and stuck prompts render it -- so it cannot
+ * drift from the YAML.
+ *
+ * A hand-port of `plugins/plugin-clive/content/phases/*.yaml`'s metadata: the
+ * server judges from the YAML itself, and `contentAgreement.test.ts` pins the two
+ * to agree, since a field id the server does not know means a submitted artifact
  * key means nothing to the judge.
  *
  * This module is plain TypeScript (no Svelte, no YAML) so the browser and the
@@ -32,33 +40,18 @@ export type ArtifactFieldKind = 'text' | 'cases' | 'code' | 'steps';
 
 export interface ArtifactField {
   id: string;
+  /** Prompt-visible: the judge receives it as part of `prior_artifacts`. */
   label: string;
   kind: ArtifactFieldKind;
-  /** The question heading a stepped phase shows above the field. */
-  prompt?: string;
-  hint?: string;
-  /** A worked example shown under the field. A `cases` field's example is a list of rows. */
-  example?: string | CaseRow[] | OutlineRow[];
-  rows?: number;
   /** An optional extra case (Cases 3-5), offered only after every required case has passed. */
   added?: boolean;
-  language?: string;
-}
-
-export interface PhaseReference {
-  label: string;
-  url: string;
 }
 
 export interface PhaseConfig {
   phase: string;
+  /** Prompt-visible: the judge receives it as part of `prior_artifacts`. */
   label: string;
-  order: number;
-  taskDescription: string;
-  /** The sample problem every field's example answers, shown above the example. */
-  exampleProblem?: string;
   artifactFields: ArtifactField[];
-  references?: PhaseReference[];
   /** A phase that shows one field at a time (`layout: steps`). */
   layout?: 'steps';
   /** A phase submitted one field at a time, each judged on its own. */
@@ -188,19 +181,6 @@ export function blankValueFor(field: ArtifactField, startingCode: string): Artif
 }
 
 /**
- * Whether a step holds enough to judge: every box of a case card (input may be
- * empty -- an empty line is a real case for a problem that reads text), any text
- * for the others.
- */
-export function stepComplete(field: ArtifactField, value: unknown): boolean {
-  if (field.kind === 'cases') {
-    const row = rowsOf(value)[0] ?? blankRow();
-    return ['output', 'working'].every((key) => String(row[key as 'output' | 'working'] || '').trim());
-  }
-  return isFilled(value);
-}
-
-/**
  * The earlier in-play case field whose input this one repeats, or `null`. The
  * same input twice passes every check and teaches nothing, so Submit waits for a
  * new one. Whitespace is ignored: "2 80 90" and "2\n80 90" are the same input.
@@ -227,160 +207,40 @@ export function duplicateOf(
   );
 }
 
-const RECTANGLE =
-  'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.';
-
-const CASE_PROMPT =
-  'Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?';
-const CASE_HINT = 'Type the input as you would in the program, then work out the output by hand and show how.';
-
-const NORMAL_EXAMPLE: CaseRow[] = [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }];
-const EDGE_EXAMPLE: CaseRow[] = [
-  { input: '1 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
-];
-
 export const PHASES: readonly PhaseConfig[] = [
   {
     phase: 'problem_definition',
     label: 'Problem',
-    order: 1,
     layout: 'steps',
-    taskDescription:
-      'Every solution starts with understanding the problem. Before you think about code, make sure ' +
-      'you know exactly what it asks.',
-    exampleProblem: RECTANGLE,
     artifactFields: [
-      {
-        id: 'summary',
-        label: 'Summary',
-        kind: 'text',
-        prompt:
-          'When solving a problem, the very first thing you should do is understand it. In your own words, what is the program supposed to do?',
-        hint: "One or two sentences is enough, as if explaining to a classmate who hasn't read the problem.",
-        example: "The program asks for a rectangle's length and width and prints its area.",
-        rows: 4
-      },
-      {
-        id: 'inputs',
-        label: 'Inputs',
-        kind: 'text',
-        prompt: 'Next, state what the program is given. What values does it read?',
-        hint: 'List each value in the order the program reads it. Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so.',
-        example: '1. length: an int from 1 to 100.\n2. width: an int from 1 to 100.\nLength is read first, then width.',
-        rows: 4
-      },
-      {
-        id: 'outputs',
-        label: 'Outputs',
-        kind: 'text',
-        prompt: 'Then state what it must print. What should the program display?',
-        hint: 'If it prints a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough.',
-        example: 'The area as an int, for example, 24.',
-        rows: 3
-      }
+      { id: 'summary', label: 'Summary', kind: 'text' },
+      { id: 'inputs', label: 'Inputs', kind: 'text' },
+      { id: 'outputs', label: 'Outputs', kind: 'text' }
     ]
   },
   {
     phase: 'case_design',
     label: 'Cases',
-    order: 2,
     layout: 'steps',
     judge: 'per_step',
-    taskDescription:
-      "Before you plan anything, solve the problem yourself. If you can't work out an example by hand, " +
-      "you can't tell a computer how to.",
-    exampleProblem: RECTANGLE,
     artifactFields: [
-      {
-        id: 'normal_cases',
-        label: 'Case 1',
-        kind: 'cases',
-        prompt: CASE_PROMPT,
-        hint: CASE_HINT,
-        example: NORMAL_EXAMPLE
-      },
-      {
-        id: 'edge_cases',
-        label: 'Case 2',
-        kind: 'cases',
-        prompt: CASE_PROMPT,
-        hint: CASE_HINT,
-        example: EDGE_EXAMPLE
-      },
-      {
-        id: 'case_3',
-        label: 'Case 3',
-        kind: 'cases',
-        added: true,
-        prompt: CASE_PROMPT,
-        hint: CASE_HINT,
-        example: EDGE_EXAMPLE
-      },
-      {
-        id: 'case_4',
-        label: 'Case 4',
-        kind: 'cases',
-        added: true,
-        prompt: CASE_PROMPT,
-        hint: CASE_HINT,
-        example: EDGE_EXAMPLE
-      },
-      {
-        id: 'case_5',
-        label: 'Case 5',
-        kind: 'cases',
-        added: true,
-        prompt: CASE_PROMPT,
-        hint: CASE_HINT,
-        example: EDGE_EXAMPLE
-      }
+      { id: 'normal_cases', label: 'Case 1', kind: 'cases' },
+      { id: 'edge_cases', label: 'Case 2', kind: 'cases' },
+      { id: 'case_3', label: 'Case 3', kind: 'cases', added: true },
+      { id: 'case_4', label: 'Case 4', kind: 'cases', added: true },
+      { id: 'case_5', label: 'Case 5', kind: 'cases', added: true }
     ]
   },
   {
     phase: 'algorithm_design',
     label: 'Design',
-    order: 3,
     layout: 'steps',
-    taskDescription: 'Now turn what you did by hand into steps. Plan in plain English first; the C comes after.',
-    exampleProblem: 'Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.',
-    artifactFields: [
-      {
-        id: 'steps',
-        label: 'Algorithm steps',
-        kind: 'steps',
-        prompt:
-          'Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.',
-        hint: 'Place one action per step. You may use indentation to express conditional or repeating statements.',
-        example: [
-          { text: 'Read n.', level: 0 },
-          { text: 'Set the total to 0 and the counter to 1.', level: 0 },
-          { text: 'While the counter is at most n:', level: 0 },
-          { text: 'Add the counter to the total.', level: 1 },
-          { text: 'Add 1 to the counter.', level: 1 },
-          { text: 'Print the total.', level: 0 }
-        ]
-      }
-    ]
+    artifactFields: [{ id: 'steps', label: 'Algorithm steps', kind: 'steps' }]
   },
   {
     phase: 'implement',
     label: 'Implement',
-    order: 4,
-    taskDescription:
-      'Now translate your plan into C, one step at a time. Your design is beside your code. Press ' +
-      'Run to test it on the examples. Press Submit when it works for a final check against test ' +
-      "cases you haven't seen. Print only what the problem asks for, with no extra messages like " +
-      '"Enter a number:". Don\'t use AI tools like ChatGPT.',
-    artifactFields: [
-      {
-        id: 'code',
-        label: 'Your C program',
-        kind: 'code',
-        language: 'c',
-        hint: 'Write your whole program here.',
-        rows: 20
-      }
-    ]
+    artifactFields: [{ id: 'code', label: 'Your C program', kind: 'code' }]
   }
 ];
 
@@ -393,14 +253,31 @@ export const IMPLEMENT_WINDOW_KEY = `clive:${IMPLEMENT_PHASE}`;
 /** Every window the CLive plugin owns on the solve page. */
 export const CLIVE_WINDOW_KEYS: readonly string[] = ['clive:track', ...PHASES.map((phase) => `clive:${phase.phase}`)];
 
+/**
+ * AnimoRank's own problem-statement panel. It stays open beside CLive: the
+ * student reads the problem while they work on a phase, rather than reopening
+ * the same text inside the phase window.
+ */
+export const PROBLEM_INFO_WINDOW_KEY = 'problem_info';
+
 /** The AnimoRank windows the Implement phase needs: the code the student writes, and its results. */
 export const IMPLEMENT_WINDOW_KEYS: readonly string[] = ['code_editor', 'test_cases'];
 
 /**
- * The windows that stay open while `phase` is the one the student is on: CLive's
- * own, plus the two the Implement phase needs — and only while it is open, since
- * the rest of the page belongs to CLive.
+ * The window the phase window goes into when it has to be created: AnimoRank's
+ * own code editor, whose group is the right-hand column. Joining it rather than
+ * asking for a column of its own keeps the page's two columns as the page's own
+ * default layout made them -- the statement on the left, the phases on the right
+ * -- instead of squeezing the statement to make room for a third.
+ */
+export const PHASE_PLACEMENT_REFERENCE = 'code_editor';
+
+/**
+ * The windows that stay open while `phase` is the one the student is on: the
+ * problem statement, CLive's own, plus the two the Implement phase needs -- and
+ * only while it is open, since the rest of the page belongs to CLive.
  */
 export function solveLayoutKeys(phase: string): string[] {
-  return phase === IMPLEMENT_PHASE ? [...CLIVE_WINDOW_KEYS, ...IMPLEMENT_WINDOW_KEYS] : [...CLIVE_WINDOW_KEYS];
+  const keys = [PROBLEM_INFO_WINDOW_KEY, ...CLIVE_WINDOW_KEYS];
+  return phase === IMPLEMENT_PHASE ? [...keys, ...IMPLEMENT_WINDOW_KEYS] : keys;
 }

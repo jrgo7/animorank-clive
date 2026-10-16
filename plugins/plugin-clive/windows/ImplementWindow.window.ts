@@ -6,7 +6,7 @@ import ImplementWindowComponent from './ImplementWindow.window.svelte';
  * Phase 4 of PCDIT: `implement` (see `phase.ts`). Its `code` field has no
  * editor of its own -- the student writes it in AnimoRank's native Code
  * Editor window, and this one only adds the plan-vs-code advisory judge that
- * runs once AnimoRank's own tests pass. See `PhaseWindowContent.svelte`.
+ * runs once AnimoRank's own tests pass. See `ImplementWindow.window.svelte`.
  */
 export class ImplementWindow extends Window<SolveWindowContext> {
   static readonly title = 'Implement';

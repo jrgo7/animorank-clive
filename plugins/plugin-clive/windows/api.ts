@@ -1,6 +1,27 @@
+import { z } from 'zod';
 import type { ArtifactValue, JudgeResult } from './cliveSession.svelte';
+import type { LiveTable } from './liveMarks';
 
 const BASE = '/plugin-api/clive';
+
+/** What `GET /boot` answers: the key gate, and the live-diagnostics wording table. */
+const bootSchema = z.object({
+  hasApiKey: z.boolean(),
+  live_check: z.object({
+    available: z.boolean(),
+    fallback: z.string(),
+    table: z.array(z.object({ kind: z.string(), say: z.string(), codes: z.array(z.string()) }))
+  })
+});
+
+export type BootInfo = Omit<z.infer<typeof bootSchema>, 'live_check'> & { live_check: LiveTable };
+
+/** The one GET this plugin makes: what the page needs before the student does anything. */
+export async function fetchBoot(): Promise<BootInfo> {
+  const res = await fetch(`${BASE}/boot`);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return bootSchema.parse(await res.json());
+}
 
 async function call<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

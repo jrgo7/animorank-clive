@@ -1,7 +1,8 @@
 <script lang="ts">
   import Button from '$lib/components/ui/buttons/Button.svelte';
   import { cliveSessionFor } from './cliveSession.svelte';
-  import { IMPLEMENT_PHASE, IMPLEMENT_WINDOW_KEY, PHASES, solveLayoutKeys } from './phase';
+  import { PHASES } from './phase';
+  import { showPhaseWindows } from './phaseWindows';
   import TutorialDialog from './TutorialDialog.svelte';
   import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -13,24 +14,13 @@
   let anyPassed = $derived(session.phases.some((p) => p.passed));
 
   /**
-   * CLive owns the solve page: every window that is not its own is closed, and
-   * the two the Implement phase needs -- the editor the student writes in and the
-   * test-case results its gate reads -- are shown only while that phase is on
-   * screen.
-   *
-   * This window is the one CLive panel that is always mounted (it cannot be
-   * closed), so it is the one place this runs.
+   * CLive owns the solve page: switching phase moves the editor with it. The same
+   * arrangement is set by the page hook when the page loads (see
+   * `phaseWindows.ts`), which is what makes it stick even for a window built
+   * before the page bound its window functions; this is the reactive half.
    */
   $effect(() => {
-    const phase = PHASES[session.current]?.phase ?? '';
-    context.closeWindowsExcept(solveLayoutKeys(phase));
-    if (phase === IMPLEMENT_PHASE) {
-      context.openWindow('code_editor', { direction: 'right', referencePanel: IMPLEMENT_WINDOW_KEY });
-      context.openWindow('test_cases', { direction: 'below', referencePanel: 'code_editor' });
-      // Each open focuses its panel, so the last one would be the results; the student
-      // is here to write code, so hand them the editor.
-      context.openWindow('code_editor');
-    }
+    showPhaseWindows(context, PHASES[session.current]?.phase ?? '');
   });
 
   let tutorialOpen = $state(false);

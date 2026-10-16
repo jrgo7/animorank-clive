@@ -348,6 +348,37 @@ describe('ClientPluginLoader page hooks', () => {
     expect(hookCalls()).toEqual(['solver:onSolvePageLoad:the solve page']);
   });
 
+  it('registers the plugins of a page without calling their hook', async () => {
+    // A page that builds a window layout from the registry has to have plugin
+    // windows registered first (see `preloadPlugins`), and the hook itself waits
+    // for the page's context.
+    serve('preloaded-solver', hookingPlugin('preloaded-solver', ['onSolvePageLoad']));
+    serve('preloaded-editor', hookingPlugin('preloaded-editor', ['onProblemEditorLoad']));
+    const plugins = loader({ prebuiltPlugins: () => ['preloaded-solver', 'preloaded-editor'] });
+    const callsBefore = hookCalls().length;
+
+    await plugins.preloadPlugins('onSolvePageLoad');
+
+    expect(inits()).toContain('preloaded-solver');
+    expect(inits()).not.toContain('preloaded-editor');
+    expect(hookCalls()).toHaveLength(callsBefore);
+
+    // The hook is still delivered once the page announces itself — and once only.
+    await plugins.notifyPageHook('onSolvePageLoad', solvePage);
+    await plugins.notifyPageHook('onSolvePageLoad', solvePage);
+
+    expect(hookCalls().filter((call) => call.startsWith('preloaded-solver:'))).toEqual([
+      'preloaded-solver:onSolvePageLoad:the solve page'
+    ]);
+  });
+
+  it('carries on when a plugin of the page cannot be loaded', async () => {
+    serve('broken-solver', 'export default 42;\n');
+    const plugins = loader({ prebuiltPlugins: () => ['broken-solver'] });
+
+    await expect(plugins.preloadPlugins('onSolvePageLoad')).resolves.toBeUndefined();
+  });
+
   it('leaves a plugin that does not answer the hook unloaded', async () => {
     serve('plain-plugin', recordingPlugin('plain-plugin'));
     const plugins = loader({ prebuiltPlugins: () => ['plain-plugin'] });

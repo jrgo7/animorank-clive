@@ -4,6 +4,7 @@ import type { JsonValue } from '@zenstackhq/orm';
 import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
+import { fetchBoot } from './api';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import {
   PHASES,
@@ -92,6 +93,27 @@ const PERSIST_KEY = 'clive';
 const PERSIST_VERSION = 1;
 const SAVE_DEBOUNCE_MS = 500;
 
+/**
+ * A saved artifact with every field its phase has.
+ *
+ * The fields are authored content, so the set grows: a session saved before a
+ * field existed holds an artifact that simply lacks it. Restoring such an
+ * artifact as it stands would reach the field editor as `undefined`, and Svelte
+ * refuses to bind a prop that has a fallback to an undefined value
+ * (`props_invalid_value`) — every phase window would throw as it opened. A value
+ * the saved state does hold is kept exactly as it is, blank or not.
+ */
+function completeArtifact(config: PhaseConfig, saved: unknown, startingCode: string): Record<string, ArtifactValue> {
+  const stored = (saved ?? {}) as Record<string, unknown>;
+  return Object.fromEntries(
+    config.artifactFields.map((field) => {
+      const value = stored[field.id];
+      const missing = value === undefined || value === null;
+      return [field.id, missing ? blankValueFor(field, startingCode) : (value as ArtifactValue)];
+    })
+  );
+}
+
 /** One phase's working state: what the student has written, and what came back for it. */
 export class PhaseState {
   artifact: Record<string, ArtifactValue> = $state({});
@@ -141,7 +163,7 @@ export class CliveSession {
   /**
    * What the plugin is waiting on. `'run'` never appears here: the Implement
    * phase's compiling and running is AnimoRank's own submit flow (see
-   * `PhaseWindowContent.svelte`), not something this plugin's UI does itself.
+   * `ImplementWindow.window.svelte`), not something this plugin's UI does itself.
    */
   busy: 'stuck' | 'submit' | null = $state(null);
   busySince: number | null = $state(null);
@@ -162,20 +184,19 @@ export class CliveSession {
     this.sessionId = context.practiceSession.id;
     this.telemetry = context.telemetry;
     this.phases = PHASES.map((config, i) => new PhaseState(config, context.editorState.code, i === 0));
-    this.restored = this.restore(context.practiceSession.extension_data);
+    this.restored = this.restore(context.practiceSession.extension_data, context.editorState.code);
     void this.refreshBoot();
   }
 
   private async refreshBoot(): Promise<void> {
     try {
-      const response = await fetch('/plugin-api/clive/boot');
-      if (response.ok) this.hasApiKey = ((await response.json()) as { hasApiKey?: boolean }).hasApiKey !== false;
+      this.hasApiKey = (await fetchBoot()).hasApiKey;
     } catch {
       // The key gate is a courtesy; the server's own error is the fallback.
     }
   }
 
-  private restore(extensionData: unknown): boolean {
+  private restore(extensionData: unknown, startingCode: string): boolean {
     const stored = extensionData as { clive?: PersistedState } | null | undefined;
     const persisted = stored?.clive;
     if (!persisted || persisted.version !== PERSIST_VERSION || persisted.phases?.length !== PHASES.length) {
@@ -187,7 +208,7 @@ export class CliveSession {
     persisted.phases.forEach((saved, i) => {
       const phase = this.phases[i];
       Object.assign(phase, {
-        artifact: saved.artifact,
+        artifact: completeArtifact(PHASES[i], saved.artifact, startingCode),
         attempt: saved.attempt,
         passed: saved.passed,
         advanced: saved.advanced,

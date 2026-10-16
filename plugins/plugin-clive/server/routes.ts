@@ -15,6 +15,7 @@ import { JudgeError } from './content/errors';
 import { phaseDoc, rubricDoc, type CriterionDoc } from './content/load';
 import type { PublicTestRun } from './content/templates';
 import { judge, type JudgeOutcome, type Verdict } from './judge';
+import { liveTable } from './live';
 import { nudge } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
@@ -187,7 +188,9 @@ async function submit(body: z.infer<typeof submitSchema>): Promise<SubmitRespons
 class CLiveAPI extends ServerAPI {
   public async fastifyPlugin(): Promise<FastifyPluginCallback> {
     return (app) => {
-      app.get('/boot', async (_request, reply) => reply.send({ hasApiKey: getProvider().hasApiKey() }));
+      app.get('/boot', async (_request, reply) =>
+        reply.send({ hasApiKey: getProvider().hasApiKey(), live_check: liveTable() })
+      );
 
       app.post('/submit', async (request, reply) => {
         const parsed = submitSchema.safeParse(request.body);

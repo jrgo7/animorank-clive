@@ -7,12 +7,16 @@
  * a component tree is evaluating it. Looking a practice session up did exactly
  * that, because creating one writes state.
  */
+import type { JsonValue } from '@zenstackhq/orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushSync, mount, unmount } from 'svelte';
 import PhaseTrackWindow from './PhaseTrackWindow.window.svelte';
-import PhaseWindowContent from './PhaseWindowContent.svelte';
+import ProblemWindow from './ProblemWindow.window.svelte';
+import CaseDesignWindow from './CaseDesignWindow.window.svelte';
+import AlgorithmDesignWindow from './AlgorithmDesignWindow.window.svelte';
+import ImplementWindow from './ImplementWindow.window.svelte';
 import { cliveSessionFor } from './cliveSession.svelte';
-import { CLIVE_WINDOW_KEYS } from './phase';
+import { CLIVE_WINDOW_KEYS, PROBLEM_INFO_WINDOW_KEY } from './phase';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
 /** One entry a stub context's telemetry recorded. */
@@ -50,8 +54,15 @@ function stubContext(id: string, calls?: WindowCalls): SolveWindowContext {
   } as unknown as SolveWindowContext;
 }
 
+/**
+ * Mount one phase's UI. Each phase is its own window component, mounted with
+ * nothing but the context: `Window` types an entry as `Component<{ context }>`.
+ */
 function mountPhase(context: SolveWindowContext, phaseIndex: number): Record<string, unknown> {
-  return mount(PhaseWindowContent, { target: document.body, props: { context, phaseIndex } });
+  if (phaseIndex === 0) return mount(ProblemWindow, { target: document.body, props: { context } });
+  if (phaseIndex === 1) return mount(CaseDesignWindow, { target: document.body, props: { context } });
+  if (phaseIndex === 2) return mount(AlgorithmDesignWindow, { target: document.body, props: { context } });
+  return mount(ImplementWindow, { target: document.body, props: { context } });
 }
 
 /** Click the first button whose text contains `label`. */
@@ -68,6 +79,28 @@ const PHASES = [
   { id: 'implement', label: 'Implement' }
 ];
 
+/**
+ * The shape the plugin persists, with every phase's artifact holding none of the
+ * fields that phase has -- a session saved before those fields existed.
+ */
+function missingFieldsState(): JsonValue {
+  const phase = {
+    artifact: {},
+    attempt: 1,
+    passed: false,
+    advanced: false,
+    unlocked: true,
+    step: 0,
+    added: 0,
+    stepResults: {},
+    result: null,
+    stuck: [],
+    stuckDraft: '',
+    read: true
+  };
+  return { clive: { version: 1, current: 0, tutorialSeen: true, phases: [phase, phase, phase, phase] } };
+}
+
 describe('CLive windows', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -78,7 +111,12 @@ describe('CLive windows', () => {
     // The key gate asks the server once; nothing else in a mount reaches the network.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({ hasApiKey: true }), { status: 200 }))
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ hasApiKey: true, live_check: { available: false, fallback: '', table: [] } }), {
+            status: 200
+          })
+      )
     );
   }
 
@@ -94,6 +132,20 @@ describe('CLive windows', () => {
       expect(document.body.textContent, phase.id).toContain(phase.label);
       unmount(app);
     });
+  });
+
+  it('opens a phase whose saved work is missing its fields', () => {
+    stubBoot();
+    const context = stubContext('mount-empty-artifact');
+    // Binding a field editor to a field the saved artifact does not hold threw as
+    // the window opened, which took the page hook down with it.
+    context.practiceSession.extension_data = missingFieldsState();
+
+    const app = mountPhase(context, 0);
+    const area = document.querySelector('textarea');
+    expect(area).not.toBeNull();
+    expect(area?.value).toBe('');
+    unmount(app);
   });
 
   it('opens a problem on its statement alone, with Next to the first question', () => {
@@ -146,8 +198,8 @@ describe('CLive windows', () => {
     expect(document.body.textContent).toContain('In progress');
     expect(document.body.textContent).toContain('Locked');
 
-    // On load, only CLive's own windows survive.
-    expect(calls.closed.at(-1)).toEqual(CLIVE_WINDOW_KEYS);
+    // On load, the statement and CLive's own windows are what survives.
+    expect(calls.closed.at(-1)).toEqual([PROBLEM_INFO_WINDOW_KEY, ...CLIVE_WINDOW_KEYS]);
     expect(calls.opened).not.toContain('code_editor');
 
     // Entering Implement brings the code editor and the test cases back.
@@ -160,10 +212,10 @@ describe('CLive windows', () => {
     expect(calls.opened).toContain('code_editor');
     expect(calls.opened).toContain('test_cases');
 
-    // Leaving it takes them away again.
+    // Leaving it takes them away again, keeping the statement.
     session.open(0);
     flushSync();
-    expect(calls.closed.at(-1)).toEqual(CLIVE_WINDOW_KEYS);
+    expect(calls.closed.at(-1)).toEqual([PROBLEM_INFO_WINDOW_KEY, ...CLIVE_WINDOW_KEYS]);
 
     unmount(app);
   });
@@ -177,6 +229,14 @@ describe('CLive windows', () => {
 
     expect(document.body.textContent).toContain('1 of 7');
     expect(document.body.textContent).toContain('Four phases');
+
+    // The page stays put behind the cards: a wheel over them is not the student
+    // scrolling the phase strip away underneath.
+    const overlay = document.querySelector('[role="dialog"]');
+    if (!overlay) throw new Error('no walkthrough overlay');
+    const wheel = new Event('wheel', { bubbles: true, cancelable: true });
+    overlay.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
 
     clickButton('Skip');
     flushSync();

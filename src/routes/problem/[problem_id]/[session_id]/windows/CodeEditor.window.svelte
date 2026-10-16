@@ -73,6 +73,7 @@
   <div class="relative flex-1 min-h-0">
     <CodeEditor
       bind:monacoInstance
+      bind:monacoModel={context.editorState.model}
       bind:code={context.editorState.code}
       language={context.language}
       useSlots={context.useSlots}

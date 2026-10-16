@@ -57,6 +57,17 @@
       onclose();
     }
   }
+
+  /**
+   * The page stays put behind the cards: a wheel or a drag over them is not the
+   * student scrolling the phase strip away underneath. Ported from the
+   * prototype's tutorial (2026-10-12); its other half -- keeping a highlight on
+   * the phase it points at while the page scrolls -- has no counterpart here,
+   * since these cards are a modal and light nothing on the page.
+   */
+  function hold(event: Event): void {
+    event.preventDefault();
+  }
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -66,6 +77,9 @@
   role="dialog"
   aria-modal="true"
   aria-label="How this works"
+  tabindex="-1"
+  onwheel={hold}
+  ontouchmove={hold}
 >
   <div class="flex w-full max-w-[440px] flex-col gap-3 rounded-box bg-base-100 p-5 shadow-xl">
     <div class="font-mono text-xs text-base-content/50">{index + 1} of {CARDS.length}</div>
