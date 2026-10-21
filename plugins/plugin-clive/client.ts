@@ -4,16 +4,24 @@ import type { SolveWindowContext } from '../../src/routes/problem/[problem_id]/[
 import { SolveWindowRegistry } from '../../src/routes/problem/[problem_id]/[session_id]/windowRegistry';
 import type { ProblemEditorWindowContext } from '../../src/routes/edit/[slug]/context.svelte';
 import { ProblemEditorWindowRegistry } from '../../src/routes/edit/[slug]/windowRegistry';
+import type { SessionLogsWindowRegistry } from '../../src/routes/instructor/analytics/session-logs/windowRegistry';
+import type { SessionLogsViewContext } from '../../src/routes/instructor/analytics/session-logs/context.svelte';
 import { PhaseTrackWindow } from './windows/PhaseTrackWindow.window';
 import { ProblemWindow } from './windows/ProblemWindow.window';
 import { CaseDesignWindow } from './windows/CaseDesignWindow.window';
 import { AlgorithmDesignWindow } from './windows/AlgorithmDesignWindow.window';
 import { ImplementWindow } from './windows/ImplementWindow.window';
 import { ReferenceSolutionWindow } from './windows/ReferenceSolutionWindow.window';
+import { CLiveLogsWindow } from './windows/CLiveLogs.window';
 import { live } from './windows/live.svelte';
 import { cliveSessionFor } from './windows/cliveSession.svelte';
 import { PHASE_PLACEMENT_REFERENCE, PHASES, PROBLEM_INFO_WINDOW_KEY } from './windows/phase';
 import { showPhaseWindows } from './windows/phaseWindows';
+import { CLIVE_EVENT } from './windows/telemetry';
+import { checkLog } from './windows/api';
+
+/** The key the log view is registered under, in the plugin's own namespace. */
+const LOG_VIEW = 'events';
 
 /**
  * The CLive strip's height, in pixels: its four phase cards, the line under them,
@@ -23,6 +31,8 @@ import { showPhaseWindows } from './windows/phaseWindows';
 const PHASE_TRACK_HEIGHT = 226;
 
 export default class CLivePlugin extends ClientPlugin {
+  private logViewKey = LOG_VIEW;
+
   public async init(api: ClientAnimoRankAPI): Promise<void> {
     const registrar = api.clientRegistryProviderRegistrar.getRegistrar(SolveWindowRegistry);
     registrar.register('track', PhaseTrackWindow);
@@ -38,14 +48,62 @@ export default class CLivePlugin extends ClientPlugin {
     api.clientRegistryProviderRegistrar
       .getRegistrar(ProblemEditorWindowRegistry)
       .register('reference_solution', ReferenceSolutionWindow);
+
+    // The session-logs page renders whatever each plugin registers; this one's
+    // view is the prototype's Logs page: one timeline of a session's CLive
+    // events, with each model call folded into the submit or stuck ask it served.
+    const logRegistrar =
+      await api.clientRegistryProviderRegistrar.getRegistrarById<SessionLogsWindowRegistry>('window.session_logs');
+    this.logViewKey = `${logRegistrar.id}:${LOG_VIEW}`;
+    logRegistrar.register(LOG_VIEW, CLiveLogsWindow);
   }
 
   public async onSolvePageLoad(context: SolveWindowContext): Promise<void> {
+    const session = cliveSessionFor(context);
+
+    // A Run is AnimoRank's own flow -- the plugin has none of its own -- so its
+    // outcome is recorded from the execution event. The code itself is already
+    // in the telemetry hook's `RUN_ATTEMPT` entry; Submit is recorded
+    // server-side as `CLIVE_SUBMIT`.
+    context.executionObservable.subscribe('tests', (execution) => {
+      if (execution.runType !== 'run') return;
+      const passed = execution.generalTestResults.filter(Boolean).length;
+      context.telemetry.record(CLIVE_EVENT.run, {
+        problem: context.problem.id,
+        phase: PHASES[session.current]?.phase ?? null,
+        passed: passed === execution.generalTestResults.length,
+        tests_passed: passed,
+        tests_total: execution.generalTestResults.length
+      });
+    });
+
+    // Prove the session's history accepts writes before the student settles in.
+    // Independent of clangd, so a slow handshake cannot delay it.
+    void checkLog(context.practiceSession.id, context.problem.id).catch((error: unknown) => {
+      // The thing being checked is the history write, so a failure cannot be
+      // recorded in it; the console is what is left, and the page still opens.
+      console.warn('CLive could not check the session log', error);
+    });
+
     // Live C diagnostics start now rather than when Implement opens, so clangd
     // has the whole session to load in (13 MB, and a second or two to start) --
-    // and deliberately not awaited: its handshake is not something the windows
-    // above should wait on. See `windows/live.svelte.ts`.
-    void live.attach(context);
+    // and deliberately not awaited by the page: its handshake is not something
+    // the windows above should wait on. `attach` itself resolves once the mode
+    // is known, which is what `CLIVE_SESSION_START` records. See
+    // `windows/live.svelte.ts`.
+    void (async () => {
+      try {
+        await live.attach(context);
+      } catch {
+        // `attach` degrades to 'unavailable' on its own; a failure there must
+        // not cost the session its start record.
+      }
+      context.telemetry.record(CLIVE_EVENT.sessionStart, {
+        problem: context.problem.id,
+        new_session: !session.restored,
+        live: live.mode
+      });
+    })();
 
     // `openWindow` is async (`DockviewWindowManager.ensureWindow` awaits the
     // window registry), so firing these without awaiting lets them land in
@@ -86,6 +144,14 @@ export default class CLivePlugin extends ClientPlugin {
     // call here is the one that holds on a page whose windows were built before
     // the page bound `closeWindowsExcept` (see `phaseWindows.ts`).
     showPhaseWindows(context, PHASES[cliveSessionFor(context).current]?.phase ?? '');
+  }
+
+  public async onSessionLogsLoad(context: SessionLogsViewContext): Promise<void> {
+    // A session with any CLive entry is worth reading as a CLive timeline; the
+    // replay and raw views stay one tab away. Replay leaves CLive sessions to
+    // this view (see the session-replay plugin), so the tab strip does not
+    // depend on which page hook happens to run last.
+    if (context.logs.some((entry) => entry.type.startsWith('CLIVE_'))) await context.openView(this.logViewKey);
   }
 
   public async onProblemEditorLoad(context: ProblemEditorWindowContext): Promise<void> {

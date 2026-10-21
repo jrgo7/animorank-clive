@@ -13,7 +13,13 @@ import { JudgeError } from './content/errors';
 import type { SessionLogEntry } from './sessionLog';
 
 const state = vi.hoisted(() => ({ queue: [] as unknown[], calls: 0 }));
-const log = vi.hoisted(() => ({ owns: true, fail: false, written: [] as SessionLogEntry[] }));
+const log = vi.hoisted(() => ({
+  owns: true,
+  fail: false,
+  written: [] as SessionLogEntry[],
+  check: true,
+  checked: [] as string[]
+}));
 
 vi.mock('./problem', () => ({
   loadCLiveProblem: async () => ({
@@ -58,6 +64,10 @@ vi.mock('./sessionLog', async (importOriginal) => {
     writeSessionLog: async (_sessionId: string, entries: SessionLogEntry[]) => {
       if (log.fail) throw new Error('database down');
       log.written.push(...entries);
+    },
+    checkSessionLog: async (sessionId: string) => {
+      log.checked.push(sessionId);
+      return { ok: log.check, file: sessionId, error: log.check ? '' : 'database down' };
     }
   };
 });
@@ -151,6 +161,8 @@ describe('CLive plugin routes', () => {
     log.owns = true;
     log.fail = false;
     log.written = [];
+    log.check = true;
+    log.checked = [];
   });
 
   it('answers /boot', async () => {
@@ -166,6 +178,30 @@ describe('CLive plugin routes', () => {
     const unfinished = body.live_check.table.find((row: { kind: string }) => row.kind === 'unfinished_statement');
     expect(unfinished.codes).toContain('expected_semi_after_expr');
     expect(body.live_check.table.every((row: { codes: string[] }) => row.codes.length > 0)).toBe(true);
+  });
+
+  it('checks the session log for the practice session that owns it', async () => {
+    const response = await post('/log-check', { sessionId: SESSION, problemId: 'p' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, file: SESSION, error: '' });
+    expect(log.checked).toEqual([SESSION]);
+  });
+
+  it('reports a failed log check as an answer, not a failed request', async () => {
+    log.check = false;
+    const response = await post('/log-check', { sessionId: SESSION, problemId: 'p' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: false, file: SESSION, error: 'database down' });
+  });
+
+  it('refuses a log check into another student’s practice session', async () => {
+    log.owns = false;
+    const response = await post('/log-check', { sessionId: SESSION, problemId: 'p' });
+
+    expect(response.statusCode).toBe(403);
+    expect(log.checked).toEqual([]);
   });
 
   it('judges one Cases step and carries no nudge when nothing blocks', async () => {

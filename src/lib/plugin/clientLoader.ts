@@ -107,7 +107,6 @@ export class ClientPluginLoader {
   }
 
   /**
-<<<<<<< HEAD
    * Load and initialize the prebuilt plugins that answer `hook`, without telling
    * them about a page yet.
    *
@@ -124,7 +123,9 @@ export class ClientPluginLoader {
    */
   public async preloadPlugins<H extends PluginPageHook>(hook: H): Promise<void> {
     await Promise.all(this.prebuiltPlugins().map((id) => this.loadPageHookPlugin(id, hook)));
-=======
+  }
+
+  /**
    * Loads every plugin the client knows about — the app's prebuilt set —
    * whether or not it answers a page hook.
    *
@@ -145,7 +146,6 @@ export class ClientPluginLoader {
         }
       })
     );
->>>>>>> 2bd41dd (feat: add replay system and analytics)
   }
 
   /**

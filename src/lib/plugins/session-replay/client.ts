@@ -19,7 +19,10 @@ export default class SessionReplayClientPlugin extends ClientPlugin {
 
   public async onSessionLogsLoad(context: SessionLogsViewContext): Promise<void> {
     // A selected session is worth replaying whatever it contains, so this view
-    // comes forward; `Raw logs` stays one tab away.
-    if (context.logs.length > 0) await context.openView(this.viewKey);
+    // comes forward -- unless it is a CLive session, where the plugin's own
+    // event view is the more useful default. Both stay one tab away.
+    if (context.logs.length > 0 && !context.logs.some((entry) => entry.type.startsWith('CLIVE_'))) {
+      await context.openView(this.viewKey);
+    }
   }
 }

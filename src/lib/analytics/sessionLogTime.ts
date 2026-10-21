@@ -9,7 +9,17 @@ const timestampFormat = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC'
 });
 
+const timeFormat = new Intl.DateTimeFormat('en-US', {
+  timeStyle: 'medium',
+  timeZone: 'UTC'
+});
+
 /** A log entry's timestamp (`ISO` string) as it is shown in the log views. */
 export function formatLogTimestamp(timestamp: string): string {
   return timestampFormat.format(new Date(timestamp));
+}
+
+/** The time of day only, for a timeline where one date runs through every entry. */
+export function formatLogTime(timestamp: string): string {
+  return timeFormat.format(new Date(timestamp));
 }

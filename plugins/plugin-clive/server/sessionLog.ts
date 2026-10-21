@@ -10,9 +10,12 @@
  *
  * Some of what is written here is for the researcher only — the reference
  * check's rows hold the right output for every case, and a stuck ask's diagnosis
- * often names the answer. Nothing in the app reads `SessionHistoryEntry` back to
- * a page today; anything that ever does must leave these fields out.
+ * often names the answer. The instructor session-logs page is the one reader
+ * (`plugins/plugin-clive/windows/CLiveLogs.window.svelte`), and it shows them to
+ * instructors; anything that reads these rows into a student-facing page must
+ * leave these fields out.
  */
+import { randomUUID } from 'node:crypto';
 import type { JsonValue } from '@zenstackhq/orm';
 import { db } from '$lib/zenstack';
 import type { LlmCall } from './llmCalls';
@@ -22,7 +25,8 @@ export const SESSION_LOG_TYPES = {
   submit: 'CLIVE_SUBMIT',
   stuck: 'CLIVE_STUCK',
   llmCall: 'CLIVE_LLM_CALL',
-  error: 'CLIVE_ERROR'
+  error: 'CLIVE_ERROR',
+  logCheck: 'CLIVE_LOG_CHECK'
 } as const;
 
 export interface SessionLogEntry {
@@ -37,6 +41,47 @@ export async function ownsPracticeSession(userId: string, sessionId: string, pro
     where: { id: sessionId, student_id: userId, problem_id: problemId }
   });
   return count > 0;
+}
+
+/** The answer to a log check, for the page that asked: the prototype's `session_log.check` shape. */
+interface LogCheckResult {
+  ok: boolean;
+  /** The history the entry was written into — the practice session id, where the prototype named a file. */
+  file: string;
+  /** Why the check failed; empty when it passed. */
+  error: string;
+}
+
+/**
+ * Write a `CLIVE_LOG_CHECK` entry with a fresh nonce, then read it back. A
+ * failed write is reported rather than thrown, so the page can tell a student
+ * their session is not being recorded; nothing about it costs them the page.
+ */
+export async function checkSessionLog(sessionId: string): Promise<LogCheckResult> {
+  const nonce = randomUUID();
+  try {
+    const written = await db.sessionHistoryEntry.create({
+      data: {
+        practice_session_id: sessionId,
+        type: SESSION_LOG_TYPES.logCheck,
+        data: { nonce },
+        timestamp: new Date()
+      },
+      select: { id: true }
+    });
+    const read = await db.sessionHistoryEntry.findUnique({
+      where: { id: written.id },
+      select: { data: true }
+    });
+    const ok = (read?.data as { nonce?: unknown } | null)?.nonce === nonce;
+    return {
+      ok,
+      file: sessionId,
+      error: ok ? '' : 'The entry was written but could not be read back.'
+    };
+  } catch (error) {
+    return { ok: false, file: sessionId, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /** Write `entries` into the practice session's history, in one statement. */

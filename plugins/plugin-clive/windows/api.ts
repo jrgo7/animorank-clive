@@ -76,3 +76,21 @@ export async function askStuck(ctx: StuckContext): Promise<{ feedback: string }>
 export async function submitPhase(ctx: JudgeContext): Promise<JudgeResult> {
   return call('/submit', ctx);
 }
+
+/** What `POST /log-check` answers: whether the check's own entry could be read back. */
+const logCheckSchema = z.object({
+  ok: z.boolean(),
+  file: z.string(),
+  error: z.string()
+});
+
+type LogCheck = z.infer<typeof logCheckSchema>;
+
+/**
+ * Prove this practice session's history can be written: the server writes a
+ * `CLIVE_LOG_CHECK` entry with a fresh nonce and reads it back. Called once as
+ * the solve page opens, beside `CLIVE_SESSION_START`.
+ */
+export async function checkLog(sessionId: string, problemId: string): Promise<LogCheck> {
+  return logCheckSchema.parse(await call('/log-check', { sessionId, problemId }));
+}

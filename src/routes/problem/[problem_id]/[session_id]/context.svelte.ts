@@ -91,9 +91,10 @@ export class SolveWindowContext {
   /**
    * Fired on every Run and Submit so a telemetry hook can record the attempt.
    * Inert until something subscribes: `SolveView.svelte` attaches it to the
-   * session's telemetry sink while the page is mounted.
+   * session's telemetry sink while the page is mounted, and a plugin that owns
+   * the page (CLive) subscribes to record its own attempt events.
    */
-  private readonly executionObservable = new Subscribable<ExecutionEvent>();
+  public readonly executionObservable = new Subscribable<ExecutionEvent>();
 
   public testCaseResults: TestRunResponse = $state({ results: [], success: false });
   public lastTestType: 'run' | 'submit' = $state('run');

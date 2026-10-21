@@ -1,6 +1,7 @@
 /**
- * The plugin's HTTP surface: `POST /submit`, `POST /stuck` and `GET /boot`,
- * served under `/plugin-api/clive` (the plugin's id; see `src/lib/server/index.ts`).
+ * The plugin's HTTP surface: `POST /submit`, `POST /stuck`, `POST /log-check`
+ * and `GET /boot`, served under `/plugin-api/clive` (the plugin's id; see
+ * `src/lib/server/index.ts`).
  *
  * These are the counterpart of the prototype's `/api/student/{submit,stuck}` in
  * `clive-userflow/src/clive/studio/student.py`. The rubric reaches the browser
@@ -29,6 +30,7 @@ import { getProvider } from './providers';
 import { publicTestRun } from './publicTests';
 import { judgeWithChecks, type CheckResult } from './referenceCheck';
 import {
+  checkSessionLog,
   ownsPracticeSession,
   requestEntries,
   SESSION_LOG_TYPES,
@@ -59,6 +61,12 @@ const submitSchema = z.object({
   priorArtifacts: priorArtifactsSchema.default([]),
   step: z.string().optional(),
   code: z.string().optional()
+});
+
+const logCheckSchema = z.object({
+  /** The practice session whose history the check writes into; it must be the caller's. */
+  sessionId: z.uuid(),
+  problemId: z.string()
 });
 
 const stuckSchema = z.object({
@@ -315,6 +323,22 @@ class CLiveAPI extends ServerAPI {
       app.get('/boot', async (_request, reply) =>
         reply.send({ hasApiKey: getProvider().hasApiKey(), live_check: liveTable() })
       );
+
+      // The prototype's `/api/student/log-check`: prove the session's history is
+      // still writable, before a participant sits down. The check's own entry is
+      // the `CLIVE_LOG_CHECK` the researcher reads later.
+      app.post('/log-check', async (request, reply) => {
+        const parsed = logCheckSchema.safeParse(request.body);
+        if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        const body = parsed.data;
+        try {
+          const refused = await refusal(request, body);
+          if (refused) return sendError(reply, refused.message, refused.code);
+        } catch (error) {
+          return handle(reply, error);
+        }
+        return reply.send(await checkSessionLog(body.sessionId));
+      });
 
       app.post('/submit', async (request, reply) => {
         const parsed = submitSchema.safeParse(request.body);

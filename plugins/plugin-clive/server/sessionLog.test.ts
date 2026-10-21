@@ -3,11 +3,18 @@ import type { LlmCall } from './llmCalls';
 
 const db = vi.hoisted(() => ({
   practiceSession: { count: vi.fn() },
-  sessionHistoryEntry: { createMany: vi.fn() }
+  sessionHistoryEntry: { createMany: vi.fn(), create: vi.fn(), findUnique: vi.fn() }
 }));
 vi.mock('$lib/zenstack', () => ({ db }));
 
-import { llmCallEntries, ownsPracticeSession, requestEntries, SESSION_LOG_TYPES, writeSessionLog } from './sessionLog';
+import {
+  checkSessionLog,
+  llmCallEntries,
+  ownsPracticeSession,
+  requestEntries,
+  SESSION_LOG_TYPES,
+  writeSessionLog
+} from './sessionLog';
 
 const SESSION = '123e4567-e89b-42d3-a456-426614174000';
 
@@ -38,6 +45,8 @@ describe('session log', () => {
   beforeEach(() => {
     db.practiceSession.count.mockReset();
     db.sessionHistoryEntry.createMany.mockReset();
+    db.sessionHistoryEntry.create.mockReset();
+    db.sessionHistoryEntry.findUnique.mockReset();
   });
 
   it('owns a practice session only when it is this user’s, for this problem', async () => {
@@ -78,6 +87,54 @@ describe('session log', () => {
     await writeSessionLog(SESSION, []);
 
     expect(db.sessionHistoryEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  describe('a log check', () => {
+    it('writes a fresh nonce and reports the write when it reads back', async () => {
+      let written: { data?: { nonce?: string } } | undefined;
+      db.sessionHistoryEntry.create.mockImplementation(async ({ data }: { data: { data: { nonce: string } } }) => {
+        written = data;
+        return { id: 'entry-1' };
+      });
+      db.sessionHistoryEntry.findUnique.mockImplementation(async () => ({ data: written?.data }));
+
+      await expect(checkSessionLog(SESSION)).resolves.toEqual({ ok: true, file: SESSION, error: '' });
+
+      expect(db.sessionHistoryEntry.create).toHaveBeenCalledWith({
+        data: {
+          practice_session_id: SESSION,
+          type: 'CLIVE_LOG_CHECK',
+          data: { nonce: expect.any(String) },
+          timestamp: expect.any(Date)
+        },
+        select: { id: true }
+      });
+      expect(db.sessionHistoryEntry.findUnique).toHaveBeenCalledWith({
+        where: { id: 'entry-1' },
+        select: { data: true }
+      });
+    });
+
+    it('reports a check that cannot be read back, rather than throwing', async () => {
+      db.sessionHistoryEntry.create.mockResolvedValue({ id: 'entry-1' });
+      db.sessionHistoryEntry.findUnique.mockResolvedValue({ data: { nonce: 'some-other-check' } });
+
+      await expect(checkSessionLog(SESSION)).resolves.toEqual({
+        ok: false,
+        file: SESSION,
+        error: 'The entry was written but could not be read back.'
+      });
+    });
+
+    it('reports a failed write, rather than throwing', async () => {
+      db.sessionHistoryEntry.create.mockRejectedValue(new Error('database down'));
+
+      await expect(checkSessionLog(SESSION)).resolves.toEqual({
+        ok: false,
+        file: SESSION,
+        error: 'database down'
+      });
+    });
   });
 
   describe('a request’s entries', () => {

@@ -13,9 +13,10 @@
  * - The prototype remembers the `?live=0` switch per participant code, which this
  *   port has no equivalent of; it is remembered per practice session instead, so
  *   it survives a reload of the page it was set on.
- * - The prototype logs the resolved mode in `session_start`; this port has no
- *   session-start entry. A session that ran live checking shows a
- *   `CLIVE_LIVE_CHECK_READY` entry, one that could not shows
+ * - The prototype logs the resolved mode in `session_start`; this port records
+ *   the same value in `CLIVE_SESSION_START` once `attach` knows the mode, before
+ *   clangd has necessarily loaded. A session that ran live checking then shows
+ *   a `CLIVE_LIVE_CHECK_READY` entry, one that could not shows
  *   `CLIVE_LIVE_CHECK_FAILED` with the reason, and one that never ran shows
  *   neither.
  * - Run and Submit leave their compile errors as text in AnimoRank's own test
@@ -135,7 +136,11 @@ class LiveChecking {
     }
     this.mode = 'on';
     this.watch();
-    await this.start();
+    // Loading 13 MB of clangd and its handshake can take seconds; `attach`
+    // resolves as soon as the mode is known, and the load carries on in the
+    // background. `session_start` records that resolved mode without waiting
+    // for the handshake (see `client.ts`).
+    void this.start();
   }
 
   /**
