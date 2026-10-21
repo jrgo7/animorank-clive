@@ -282,7 +282,7 @@ describe('CLive windows', () => {
 
     expect(calls.events).toContainEqual({
       type: 'CLIVE_PROBLEM_LOAD',
-      data: { problem: 'problem-1', restored: false }
+      data: { problem: 'problem-1', restored: false, phase: 'problem_definition' }
     });
 
     clickButton('Cases');
@@ -322,43 +322,48 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
-  it('records a submission, a stuck ask and the case changes', async () => {
+  it('sends the practice session with a submission and a stuck ask, and records the case changes', async () => {
     const calls: WindowCalls = { opened: [], closed: [], events: [] };
     const context = stubContext('mount-telemetry-phase', calls);
     const session = cliveSessionFor(context);
     session.tutorialSeen = true;
     session.phases[1].unlocked = true;
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: RequestInfo | URL) => {
-        const path = String(url);
-        if (path.endsWith('/boot')) return new Response(JSON.stringify({ hasApiKey: true }), { status: 200 });
-        if (path.endsWith('/submit')) {
-          return new Response(
-            JSON.stringify({
-              passed: false,
-              verdicts: [
-                {
-                  criterion_id: 'case_is_concrete',
-                  criterion_text: 't',
-                  not_met: 'n',
-                  verdict: 'FAIL',
-                  gate: 'gating',
-                  explain: 'e',
-                  recheck: []
-                }
-              ],
-              missing_ids: [],
-              advisory_unmet: []
-            }),
-            { status: 200 }
-          );
-        }
-        if (path.endsWith('/stuck')) return new Response(JSON.stringify({ feedback: 'f' }), { status: 200 });
-        throw new Error(`unexpected ${path}`);
-      })
-    );
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const path = String(url);
+      if (path.endsWith('/boot')) return new Response(JSON.stringify({ hasApiKey: true }), { status: 200 });
+      if (path.endsWith('/submit')) {
+        return new Response(
+          JSON.stringify({
+            passed: false,
+            verdicts: [
+              {
+                criterion_id: 'case_is_concrete',
+                criterion_text: 't',
+                not_met: 'n',
+                verdict: 'FAIL',
+                gate: 'gating',
+                explain: 'e',
+                recheck: []
+              }
+            ],
+            missing_ids: [],
+            advisory_unmet: []
+          }),
+          { status: 200 }
+        );
+      }
+      if (path.endsWith('/stuck')) return new Response(JSON.stringify({ feedback: 'f' }), { status: 200 });
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    /** The JSON body of the last request sent to `path`. */
+    const sent = (path: string) => {
+      const call = fetchMock.mock.calls.findLast(([url]) => String(url).endsWith(path)) as
+        | [RequestInfo | URL, RequestInit]
+        | undefined;
+      return call ? JSON.parse(call[1].body as string) : undefined;
+    };
 
     const app = mountPhase(context, 1);
     flushSync();
@@ -367,30 +372,22 @@ describe('CLive windows', () => {
     session.phases[1].artifact.normal_cases = [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }];
     flushSync();
     clickButton('Submit');
-    await vi.waitFor(() => expect(calls.events?.some((e) => e.type === 'CLIVE_SUBMIT')).toBe(true));
-    expect(calls.events).toContainEqual({
-      type: 'CLIVE_SUBMIT',
-      data: {
-        phase: 'case_design',
-        step: 'normal_cases',
-        attempt: 1,
-        passed: false,
-        blocking: ['case_is_concrete'],
-        advisory_unmet: [],
-        missing_ids: []
-      }
-    });
+    await vi.waitFor(() => expect(session.phases[1].stepResults.normal_cases).toBeDefined());
+    // The server records the submission in this practice session; the page records nothing of its own.
+    expect(sent('/submit')).toMatchObject({ sessionId: 'mount-telemetry-phase', phase: 'case_design' });
+    expect(calls.events?.some((e) => e.type === 'CLIVE_SUBMIT')).toBe(false);
 
     session.phases[1].stuckDraft = 'I do not get the leftover.';
     flushSync();
     clickButton("I'm stuck");
     flushSync();
     clickButton('Ask');
-    await vi.waitFor(() => expect(calls.events?.some((e) => e.type === 'CLIVE_STUCK')).toBe(true));
-    expect(calls.events).toContainEqual({
-      type: 'CLIVE_STUCK',
-      data: { phase: 'case_design', field: null, statement: 'I do not get the leftover.' }
+    await vi.waitFor(() => expect(session.phases[1].stuck).toHaveLength(1));
+    expect(sent('/stuck')).toMatchObject({
+      sessionId: 'mount-telemetry-phase',
+      statement: 'I do not get the leftover.'
     });
+    expect(calls.events?.some((e) => e.type === 'CLIVE_STUCK')).toBe(false);
 
     // Both required cases passing offers another; adding and removing one is recorded.
     session.phases[1].stepResults = {

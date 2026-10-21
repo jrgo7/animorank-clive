@@ -10,6 +10,7 @@ import { JudgeError } from './content/errors';
 import { JUDGE_JSON_SCHEMA_TEXT, type CriterionDoc, type PhaseDoc } from './content/load';
 import { JudgeResultSchema, type ModelVerdict } from './content/schema';
 import { renderPhasePrompt, type ProblemForPrompt } from './content/templates';
+import { callModel, noteJudgeChecks } from './llmCalls';
 import { getProvider, type Provider } from './providers';
 
 export { JudgeError };
@@ -79,7 +80,7 @@ export async function judge(
   const model = phase.model.id || chosen.defaultModel;
   const user = renderPhasePrompt(phase, { problem, artifact, criteria, attempt, priorArtifacts });
 
-  const result = await chosen.judgeJson({
+  const result = await callModel(chosen, 'judge', {
     system: phase.system_prompt,
     user,
     model,
@@ -93,11 +94,18 @@ export async function judge(
   const quoted = auditEvidence(judged.verdicts, artifact);
   const asked = criteria.map((c) => c.id);
   const returned = judged.verdicts.map((v) => v.criterion_id);
+  const missingIds = asked.filter((id) => !returned.includes(id));
+  const unexpectedIds = returned.filter((id) => !asked.includes(id));
+  noteJudgeChecks({
+    missing_ids: missingIds,
+    unexpected_ids: unexpectedIds,
+    evidence_not_found: returned.filter((id) => !quoted[id])
+  });
 
   return {
     verdicts: judged.verdicts.map((v) => ({ ...v, evidence_found: quoted[v.criterion_id] })),
-    missing_ids: asked.filter((id) => !returned.includes(id)),
-    unexpected_ids: returned.filter((id) => !asked.includes(id)),
+    missing_ids: missingIds,
+    unexpected_ids: unexpectedIds,
     model: result.model,
     usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens }
   };

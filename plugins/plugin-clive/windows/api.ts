@@ -35,6 +35,8 @@ async function call<T>(path: string, body: unknown): Promise<T> {
 }
 
 export interface JudgeContext {
+  /** The practice session the server records the request in. */
+  sessionId: string;
   phase: string;
   problemId: string;
   artifact: Record<string, ArtifactValue>;

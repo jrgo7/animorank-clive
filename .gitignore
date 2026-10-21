@@ -34,3 +34,5 @@ backups/
 *storybook.log
 storybook-static
 /.scannerwork
+
+/dump-animorank-postgres-202610201509

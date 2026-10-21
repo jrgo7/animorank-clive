@@ -16,8 +16,9 @@ const validator = z.array(
 
 export const POST: RequestHandler = async ({ locals, request }) => {
   const session = await locals.auth();
+  const userId = session?.user?.id;
 
-  if (!session) {
+  if (!userId) {
     return new Response(JSON.stringify({ error: 'Not signed in' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' }
@@ -31,6 +32,17 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   if (!success) {
     return new Response(JSON.stringify(zodError), {
       status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // A batch is written only into the caller's own practice sessions: one naming
+  // anyone else's is refused whole, so nothing lands in a history it should not.
+  const sessionIds = [...new Set(bodyData.map((event) => event.session_id))];
+  const owned = await db.practiceSession.count({ where: { id: { in: sessionIds }, student_id: userId } });
+  if (owned !== sessionIds.length) {
+    return new Response(JSON.stringify({ error: 'Not your practice session' }), {
+      status: 403,
       headers: { 'Content-Type': 'application/json' }
     });
   }

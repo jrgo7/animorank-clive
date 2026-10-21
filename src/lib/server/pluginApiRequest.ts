@@ -1,6 +1,7 @@
 import { outgoingHeadersToHeadersInit } from '$lib/utils/outgoingHeadersToHeadersInit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { PLUGIN_API_PREFIX, type ServerApp } from './index';
+import { PLUGIN_API_USER_HEADER } from './serverAPI';
 
 /** Whether a request path names a plugin API: the prefix itself, or a path under it. */
 export function isPluginApiPath(pathname: string): boolean {
@@ -24,9 +25,14 @@ const HOP_BY_HOP_HEADERS: readonly string[] = [
 /**
  * The request headers the bridge never forwards: the body crosses as the bytes
  * the client sent, so its length is recomputed for the injected request
- * instead of being copied from the original one.
+ * instead of being copied from the original one; and the user header is the
+ * bridge's own to set, so a client cannot claim to be someone else.
  */
-const UNFORWARDED_REQUEST_HEADERS: readonly string[] = [...HOP_BY_HOP_HEADERS, 'content-length'];
+const UNFORWARDED_REQUEST_HEADERS: readonly string[] = [
+  ...HOP_BY_HOP_HEADERS,
+  'content-length',
+  PLUGIN_API_USER_HEADER
+];
 
 /** Statuses whose response carries no body; `Response` refuses a non-null body for these. */
 const NULL_BODY_STATUSES: readonly number[] = [101, 204, 205, 304];
@@ -53,9 +59,10 @@ type HTTPMethods =
  * answered. The body crosses as bytes in both directions — light-my-request's
  * `body` is a lossy UTF-8 decode of the payload, `rawPayload` is the payload —
  * and the caller's address travels with the request, so a plugin's
- * `request.ip` is the client rather than the inject default.
+ * `request.ip` is the client rather than the inject default. `userId` is the
+ * signed-in user, named to the plugin in {@link PLUGIN_API_USER_HEADER}.
  */
-export async function injectPluginApiRequest(app: ServerApp, event: RequestEvent): Promise<Response> {
+export async function injectPluginApiRequest(app: ServerApp, event: RequestEvent, userId?: string): Promise<Response> {
   const method = event.request.method;
 
   let payload: Buffer | undefined;
@@ -67,6 +74,7 @@ export async function injectPluginApiRequest(app: ServerApp, event: RequestEvent
   event.request.headers.forEach((value, name) => {
     if (!UNFORWARDED_REQUEST_HEADERS.includes(name)) headers[name] = value;
   });
+  if (userId) headers[PLUGIN_API_USER_HEADER] = userId;
 
   // A deployment can be told to read the client address from a header
   // (`ADDRESS_HEADER`), and `getClientAddress()` throws when that header is

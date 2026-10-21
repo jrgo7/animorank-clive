@@ -59,9 +59,16 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   // A plugin API request belongs to the Fastify app, never to a route of this
   // app, so it is injected before anything resolves it here — resolving a path
-  // that is no route of the app throws rather than answering 404.
+  // that is no route of the app throws rather than answering 404. It still goes
+  // through the auth handle first, so the plugin is told who is signed in the
+  // same way every route of the app finds out.
   if (isPluginApiPath(event.url.pathname)) {
-    return app === undefined ? new Response('Not Found', { status: 404 }) : injectPluginApiRequest(app, event);
+    if (app === undefined) return new Response('Not Found', { status: 404 });
+    const pluginApp = app;
+    return authHandle({
+      event,
+      resolve: async (authed) => injectPluginApiRequest(pluginApp, authed, (await authed.locals.auth())?.user?.id)
+    });
   }
 
   const response = await authHandle({ event, resolve });

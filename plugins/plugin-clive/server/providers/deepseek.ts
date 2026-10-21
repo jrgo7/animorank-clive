@@ -121,7 +121,9 @@ export class DeepSeekProvider extends BaseProvider {
       outputTokens: usage?.completion_tokens ?? 0,
       rawText: text,
       stopReason: finishReason ?? undefined,
-      reasoningText: reasoning
+      reasoningText: reasoning,
+      requestId,
+      reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens
     };
   }
 }

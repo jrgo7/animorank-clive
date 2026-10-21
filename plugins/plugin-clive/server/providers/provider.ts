@@ -34,6 +34,10 @@ export interface ProviderResult {
   stopReason?: string;
   /** The model's reasoning before it replied, when the provider returns it. */
   reasoningText?: string;
+  /** The provider's id for this request, for matching a call against its dashboard. */
+  requestId?: string;
+  /** Output tokens spent reasoning, when the provider reports them. */
+  reasoningTokens?: number;
 }
 
 export interface Provider {

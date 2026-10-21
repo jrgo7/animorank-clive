@@ -22,6 +22,7 @@ import {
   type PublicTestRun,
   type StuckTurn
 } from './content/templates';
+import { callModel } from './llmCalls';
 import { getProvider, type Provider } from './providers';
 
 export interface StuckOutcome {
@@ -53,7 +54,7 @@ export async function stuck(
   }
   const user = renderStuckPrompt({ phase, problem, artifact, field, statement, priorArtifacts, history, tests });
 
-  const result = await chosen.judgeJson({
+  const result = await callModel(chosen, 'stuck', {
     system: STUCK_SYSTEM,
     user,
     model: chosen.defaultModel,

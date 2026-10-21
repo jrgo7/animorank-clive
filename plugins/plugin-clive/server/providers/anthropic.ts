@@ -71,7 +71,8 @@ export class AnthropicProvider extends BaseProvider {
       inputTokens: message.usage.input_tokens,
       outputTokens: message.usage.output_tokens,
       rawText: raw,
-      stopReason: message.stop_reason ?? undefined
+      stopReason: message.stop_reason ?? undefined,
+      requestId: message.id
     };
   }
 }

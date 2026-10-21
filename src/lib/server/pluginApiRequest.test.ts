@@ -6,7 +6,7 @@ import { ServerRegistryProvider } from '$lib/registry/server';
 import { RegistryProviderRegistrar } from '$lib/registry/registryProviderRegistrar';
 import { Server, type ServerApp } from '$lib/server';
 import { ServerAPIRegistry } from '$lib/server/registry';
-import { ServerAPI } from '$lib/server/serverAPI';
+import { PLUGIN_API_USER_HEADER, ServerAPI, requestUserId } from '$lib/server/serverAPI';
 import { injectPluginApiRequest, isPluginApiPath } from './pluginApiRequest';
 
 /**
@@ -28,6 +28,7 @@ class BridgeTestAPI extends ServerAPI {
       );
       app.get('/stream', async (_request, reply) => reply.type('text/plain').send(Readable.from(['hello ', 'stream'])));
       app.get('/ip', async (request, reply) => reply.type('text/plain').send(request.ip));
+      app.get('/whoami', async (request, reply) => reply.type('text/plain').send(requestUserId(request) ?? 'nobody'));
       app.post('/echo', async (request, reply) => {
         const body = request.body as Buffer | string;
         const bytes = typeof body === 'string' ? Buffer.from(body) : body;
@@ -47,12 +48,18 @@ beforeAll(async () => {
 });
 
 /** A request event as `handle` receives one, with a fixed address. */
-function event(method: string, path: string, body?: BodyInit, contentType?: string): RequestEvent {
+function event(
+  method: string,
+  path: string,
+  body?: BodyInit,
+  contentType?: string,
+  headers: Record<string, string> = {}
+): RequestEvent {
   const url = new URL(`https://localhost${path}`);
   const request = new Request(url, {
     method,
     body,
-    headers: contentType ? { 'content-type': contentType } : undefined
+    headers: { ...(contentType ? { 'content-type': contentType } : {}), ...headers }
   });
 
   return { request, url, getClientAddress: () => '203.0.113.7' } as unknown as RequestEvent;
@@ -120,6 +127,30 @@ describe('injectPluginApiRequest', () => {
     const response = await injectPluginApiRequest(app, event('GET', '/plugin-api/bridge-test/ip'));
 
     await expect(response.text()).resolves.toBe('203.0.113.7');
+  });
+
+  it('tells the plugin who is signed in', async () => {
+    const response = await injectPluginApiRequest(app, event('GET', '/plugin-api/bridge-test/whoami'), 'user-1');
+
+    await expect(response.text()).resolves.toBe('user-1');
+  });
+
+  it('drops a user header the client sent when nobody is signed in', async () => {
+    const forged = event('GET', '/plugin-api/bridge-test/whoami', undefined, undefined, {
+      [PLUGIN_API_USER_HEADER]: 'forged'
+    });
+    const response = await injectPluginApiRequest(app, forged);
+
+    await expect(response.text()).resolves.toBe('nobody');
+  });
+
+  it('replaces a user header the client sent with the signed-in user', async () => {
+    const forged = event('GET', '/plugin-api/bridge-test/whoami', undefined, undefined, {
+      [PLUGIN_API_USER_HEADER]: 'forged'
+    });
+    const response = await injectPluginApiRequest(app, forged, 'user-1');
+
+    await expect(response.text()).resolves.toBe('user-1');
   });
 });
 

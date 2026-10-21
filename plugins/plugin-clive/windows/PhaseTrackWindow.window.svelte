@@ -45,13 +45,14 @@
 
   let loadRecorded = false;
 
-  /** One entry per page load: the solve page opened, and whether CLive work was found. */
+  /** One entry per page load: the solve page opened, whether CLive work was found, and the phase it resumed in. */
   $effect(() => {
     if (loadRecorded) return;
     loadRecorded = true;
     context.telemetry.record(CLIVE_EVENT.problemLoad, {
       problem: context.problem.id,
-      restored: session.restored
+      restored: session.restored,
+      phase: PHASES[session.current]?.phase ?? null
     });
   });
 

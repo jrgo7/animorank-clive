@@ -12,6 +12,7 @@ import { NUDGE_DOC, type CriterionDoc, type PhaseDoc } from './content/load';
 import { jsonSchemaText, NudgeSchema } from './content/schema';
 import { renderNudgePrompt, NUDGE_SYSTEM, type HistoryTurn, type ProblemForPrompt } from './content/templates';
 import type { Verdict } from './judge';
+import { callModel } from './llmCalls';
 import { getProvider, type Provider } from './providers';
 
 export interface NudgeOutcome {
@@ -58,7 +59,7 @@ export async function nudge(
   }
   const user = renderNudgePrompt({ phase, problem, artifact, failures, attempt, priorArtifacts, history });
 
-  const result = await chosen.judgeJson({
+  const result = await callModel(chosen, 'nudge', {
     system: NUDGE_SYSTEM,
     user,
     model: chosen.defaultModel,

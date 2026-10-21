@@ -138,6 +138,7 @@
         .reverse()
         .map((x) => ({ statement: x.statement, feedback: x.feedback }));
       const got = await askStuck({
+        sessionId: context.practiceSession.id,
         phase: config.phase,
         problemId: context.problem.id,
         artifact: phaseState.artifact,
@@ -149,7 +150,6 @@
         history
       });
       phaseState.stuck.unshift({ statement, feedback: got.feedback, fieldId: 'steps', attempt: current.attempt });
-      context.telemetry.record(CLIVE_EVENT.stuck, { phase: config.phase, field: 'steps', statement });
     } catch (e) {
       session.error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -168,6 +168,7 @@
     const attempt = current.attempt;
     try {
       const payload: JudgeContext = {
+        sessionId: context.practiceSession.id,
         phase: config.phase,
         problemId: context.problem.id,
         artifact: phaseState.artifact,
@@ -176,17 +177,6 @@
       };
       const result: JudgeResult = await submitPhase(payload);
       session.recordResult(2, result);
-      context.telemetry.record(CLIVE_EVENT.submit, {
-        phase: config.phase,
-        step: null,
-        attempt,
-        passed: result.passed,
-        blocking: result.verdicts
-          .filter((v) => v.verdict === 'FAIL' && v.gate !== 'advisory')
-          .map((v) => v.criterion_id),
-        advisory_unmet: result.advisory_unmet,
-        missing_ids: result.missing_ids
-      });
     } catch (e) {
       session.error = e instanceof Error ? e.message : String(e);
     } finally {

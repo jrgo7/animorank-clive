@@ -62,6 +62,16 @@
     });
   });
 
+  // The session history buffers entries until a save sends them. Given the page's
+  // window, it also sends them as the page is hidden or left, and once more when
+  // this page goes away, so the last few before a closed tab are not lost.
+  $effect(() => {
+    if (!context) return;
+    const telemetry = context.telemetry;
+    telemetry.attachWindow(window);
+    return () => telemetry.unmountWindow();
+  });
+
   // The page's own arrangement: the problem statement down a narrow column of
   // its own on the left, the editor stack taking the rest. The CLive plugin
   // drops its strip and phase windows into the editor column when it loads, and

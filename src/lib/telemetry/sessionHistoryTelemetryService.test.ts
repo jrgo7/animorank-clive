@@ -1,11 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SessionHistoryTelemetryService } from './sessionHistoryTelemetryService';
+import { KEEPALIVE_LIMIT_BYTES, SessionHistoryTelemetryService } from './sessionHistoryTelemetryService';
 
 const SESSION_ID = '123e4567-e89b-42d3-a456-426614174000';
 
 function postedEvents(fetchMock: ReturnType<typeof vi.fn>): unknown[] {
   const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
   return JSON.parse(init.body as string) as unknown[];
+}
+
+/** A window as far as the page lifecycle goes: `pagehide` on it, `visibilitychange` on its document. */
+function fakeWindow() {
+  const document = Object.assign(new EventTarget(), { visibilityState: 'visible' as DocumentVisibilityState });
+  const window = Object.assign(new EventTarget(), { document });
+  return {
+    window: window as unknown as Window,
+    hide: () => {
+      document.visibilityState = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+    },
+    show: () => {
+      document.visibilityState = 'visible';
+      document.dispatchEvent(new Event('visibilitychange'));
+    },
+    leave: () => window.dispatchEvent(new Event('pagehide'))
+  };
 }
 
 describe('SessionHistoryTelemetryService', () => {
@@ -75,5 +93,69 @@ describe('SessionHistoryTelemetryService', () => {
 
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
+  });
+
+  it('sends the buffer with keepalive when the page is hidden', () => {
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
+    const page = fakeWindow();
+    service.attachWindow(page.window);
+
+    service.record('CLIVE_LIVE_RAW_TOGGLE', { on: true });
+    page.hide();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).keepalive).toBe(true);
+    expect(postedEvents(fetchMock)).toMatchObject([{ type: 'CLIVE_LIVE_RAW_TOGGLE', data: { on: true } }]);
+  });
+
+  it('sends the buffer with keepalive when the page is left', () => {
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
+    const page = fakeWindow();
+    service.attachWindow(page.window);
+
+    service.record('PING', {});
+    page.leave();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).keepalive).toBe(true);
+  });
+
+  it('ignores the page becoming visible', () => {
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
+    const page = fakeWindow();
+    service.attachWindow(page.window);
+
+    service.record('PING', {});
+    page.show();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends a batch too large for keepalive without it', () => {
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
+    const page = fakeWindow();
+    service.attachWindow(page.window);
+
+    service.record('TEXT_MODIFIED', { new: 'x'.repeat(KEEPALIVE_LIMIT_BYTES) });
+    page.leave();
+
+    // Over the browser's keepalive quota the request would be refused outright, so it goes as a plain one.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).keepalive).toBeFalsy();
+    expect(postedEvents(fetchMock)).toHaveLength(1);
+  });
+
+  it('stops listening and sends what is left when the solve page goes away', () => {
+    const service = new SessionHistoryTelemetryService(SESSION_ID);
+    const page = fakeWindow();
+    service.attachWindow(page.window);
+
+    service.record('PING', {});
+    service.unmountWindow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    service.record('PING', { later: true });
+    page.leave();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

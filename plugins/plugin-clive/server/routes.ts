@@ -6,21 +6,35 @@
  * `clive-userflow/src/clive/studio/student.py`. The rubric reaches the browser
  * only attached to a verdict here, the reference check's row detail (which holds
  * the reference's own output) is never put in a response, and the stuck call's
- * diagnosis — which often names the answer — goes to the log instead.
+ * diagnosis — which often names the answer — goes to the session log instead.
+ *
+ * Each submit and stuck ask is recorded in the practice session's history, as
+ * the prototype's `_logged` recorded it in the participant's file: one entry per
+ * model call, then the record itself — or, when the request failed, an error
+ * entry. So a request is only served for the signed-in student's own practice
+ * session on that problem.
  */
-import { ServerAPI } from '$lib/server/serverAPI';
-import type { FastifyPluginCallback, FastifyReply } from 'fastify';
+import { requestUserId, ServerAPI } from '$lib/server/serverAPI';
+import type { FastifyPluginCallback, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { JudgeError } from './content/errors';
 import { phaseDoc, rubricDoc, type CriterionDoc } from './content/load';
 import type { PublicTestRun } from './content/templates';
 import { judge, type JudgeOutcome, type Verdict } from './judge';
 import { liveTable } from './live';
+import { captureLlmCalls } from './llmCalls';
 import { nudge } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
 import { publicTestRun } from './publicTests';
-import { judgeWithChecks } from './referenceCheck';
+import { judgeWithChecks, type CheckResult } from './referenceCheck';
+import {
+  ownsPracticeSession,
+  requestEntries,
+  SESSION_LOG_TYPES,
+  writeSessionLog,
+  type SessionLogEntry
+} from './sessionLog';
 import { cut, isPerStep } from './steps';
 import { stuck } from './stuck';
 
@@ -36,6 +50,8 @@ const priorArtifactsSchema = z.array(
 );
 
 const submitSchema = z.object({
+  /** The practice session the request is recorded in; it must be the caller's. */
+  sessionId: z.uuid(),
   phase: z.string(),
   problemId: z.string(),
   artifact: artifactSchema.default({}),
@@ -46,6 +62,8 @@ const submitSchema = z.object({
 });
 
 const stuckSchema = z.object({
+  /** The practice session the request is recorded in; it must be the caller's. */
+  sessionId: z.uuid(),
   phase: z.string(),
   problemId: z.string(),
   artifact: artifactSchema.default({}),
@@ -102,20 +120,42 @@ function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]): Resp
   });
 }
 
-/** A `check: reference` verdict names rows to trace, never their answers. */
-async function submit(body: z.infer<typeof submitSchema>): Promise<SubmitResponse> {
+/**
+ * The student's work a submit or stuck ask is about: for Implement the code from
+ * AnimoRank's editor, sent beside the artifact (the artifact's own copy can be
+ * stale, or never filled in), the artifact otherwise.
+ */
+function studentWork(body: {
+  phase: string;
+  artifact: Record<string, unknown>;
+  code?: string;
+}): Record<string, unknown> {
+  if (body.phase !== 'implement') return body.artifact;
+  return { code: body.code ?? (typeof body.artifact.code === 'string' ? body.artifact.code : '') };
+}
+
+/**
+ * Judge one submission. Returns the page's response and, beside it, the record
+ * the session log keeps: the same response with each verdict's evidence, plus
+ * the work judged and the reference check, none of which the page receives.
+ *
+ * A `check: reference` verdict names rows to trace, never their answers.
+ */
+async function submit(
+  body: z.infer<typeof submitSchema>
+): Promise<{ response: SubmitResponse; record: Record<string, unknown> }> {
   const phase = phaseDoc(body.phase);
   const problem = await loadCLiveProblem(body.problemId);
   let criteria = rubricDoc(body.phase).criteria;
   let artifact: Record<string, unknown> = body.artifact;
   let phaseForJudge = phase;
+  let referenceCheck: CheckResult | null = null;
 
   if (phase.phase === 'implement') {
     // The compiler gate is AnimoRank's own Submit flow; by the time the client
     // enables this button the code already passes, so the judge only reviews it
     // against the plan, and every Implement criterion is advisory.
-    const code = body.code ?? (typeof artifact.code === 'string' ? artifact.code : '');
-    artifact = { code };
+    artifact = studentWork(body);
   } else if (isPerStep(phase)) {
     if (!body.step) {
       throw new JudgeError(`Phase '${phase.phase}' is judged one step at a time; a step is required.`);
@@ -142,6 +182,7 @@ async function submit(body: z.infer<typeof submitSchema>): Promise<SubmitRespons
     );
     outcome = withChecks;
     applied = withChecks.criteria;
+    referenceCheck = withChecks.referenceCheck;
   }
 
   const verdicts = toResponseVerdicts(outcome.verdicts, applied);
@@ -182,7 +223,90 @@ async function submit(body: z.infer<typeof submitSchema>): Promise<SubmitRespons
     }
   }
 
-  return response;
+  const judged = new Map(outcome.verdicts.map((v) => [v.criterion_id, v]));
+  const record = {
+    phase_id: phase.phase,
+    problem_id: body.problemId,
+    attempt: body.attempt,
+    step: body.step ?? null,
+    artifact: studentWork(body),
+    reference_check: referenceCheck,
+    response: {
+      ...response,
+      verdicts: response.verdicts.map((v) => {
+        const verdict = judged.get(v.criterion_id);
+        return {
+          ...v,
+          evidence: verdict?.evidence ?? '',
+          evidence_found: verdict?.evidence_found ?? null,
+          confidence: verdict?.confidence ?? null,
+          source: verdict?.source ?? 'judge',
+          outside_rules: verdict?.outside_rules ?? []
+        };
+      })
+    }
+  };
+
+  return { response, record };
+}
+
+/** A stuck ask: what the model was told the student said, its diagnosis, and the reply the student gets. */
+async function askStuck(
+  body: z.infer<typeof stuckSchema>
+): Promise<{ statement: string; diagnosis: string; feedback: string }> {
+  const statement = body.statement.trim().slice(0, STATEMENT_MAX);
+  if (!statement) throw new JudgeError('Say what you are having trouble with first.');
+  const phase = phaseDoc(body.phase);
+  const problem = await loadCLiveProblem(body.problemId);
+  const field = phase.artifact_fields.find((f) => f.id === body.fieldId);
+  const work = studentWork(body);
+  // In a tests-gated phase the model first sees how the program does on the public
+  // cases -- the ones the student can already see -- so it never questions a
+  // calculation that works. Hidden cases are never run for this.
+  let tests: PublicTestRun | undefined;
+  if (phase.gate === 'tests') {
+    try {
+      tests = await publicTestRun(String(work.code ?? ''), problem.public_test_cases);
+    } catch {
+      tests = undefined;
+    }
+  }
+  const got = await stuck(phase, problem, work, statement, field, body.priorArtifacts, body.history, tests);
+  return { statement, diagnosis: got.diagnosis, feedback: got.feedback };
+}
+
+/**
+ * Why a request may not go ahead, or null when it may: it needs a signed-in
+ * user, and the practice session it names must be theirs, on the problem it
+ * names, because that is where its record is written.
+ */
+async function refusal(
+  request: FastifyRequest,
+  body: { sessionId: string; problemId: string }
+): Promise<{ code: number; message: string } | null> {
+  const userId = requestUserId(request);
+  if (!userId) return { code: 401, message: 'Sign in to use CLive.' };
+  if (!(await ownsPracticeSession(userId, body.sessionId, body.problemId))) {
+    return { code: 403, message: 'This practice session is not yours.' };
+  }
+  return null;
+}
+
+/** The record of a request that failed, with what it asked for. */
+function errorRecord(call: 'submit' | 'stuck', asked: Record<string, unknown>, error: unknown) {
+  return {
+    type: SESSION_LOG_TYPES.error,
+    data: { call, ...asked, error: error instanceof Error ? error.message : String(error) }
+  };
+}
+
+/** Write the session log, never failing the request over it: the student still gets their answer. */
+async function keep(request: FastifyRequest, sessionId: string, entries: SessionLogEntry[]): Promise<void> {
+  try {
+    await writeSessionLog(sessionId, entries);
+  } catch (error) {
+    request.log.error({ sessionId, err: error }, 'CLive could not write the session log');
+  }
 }
 
 class CLiveAPI extends ServerAPI {
@@ -195,52 +319,80 @@ class CLiveAPI extends ServerAPI {
       app.post('/submit', async (request, reply) => {
         const parsed = submitSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        const body = parsed.data;
         try {
-          return reply.send(await submit(parsed.data));
+          const refused = await refusal(request, body);
+          if (refused) return sendError(reply, refused.message, refused.code);
         } catch (error) {
           return handle(reply, error);
         }
+
+        const { calls, result } = await captureLlmCalls(() => submit(body));
+        if (!result.ok) {
+          const asked = {
+            phase_id: body.phase,
+            problem_id: body.problemId,
+            attempt: body.attempt,
+            step: body.step ?? null,
+            artifact: studentWork(body)
+          };
+          await keep(
+            request,
+            body.sessionId,
+            requestEntries('submit', calls, errorRecord('submit', asked, result.error))
+          );
+          return handle(reply, result.error);
+        }
+        const { response, record } = result.value;
+        await keep(
+          request,
+          body.sessionId,
+          requestEntries('submit', calls, { type: SESSION_LOG_TYPES.submit, data: record })
+        );
+        return reply.send(response);
       });
 
       app.post('/stuck', async (request, reply) => {
         const parsed = stuckSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        const body = parsed.data;
         try {
-          const body = parsed.data;
-          const statement = body.statement.trim().slice(0, STATEMENT_MAX);
-          if (!statement) throw new JudgeError('Say what you are having trouble with first.');
-          const phase = phaseDoc(body.phase);
-          const problem = await loadCLiveProblem(body.problemId);
-          const field = phase.artifact_fields.find((f) => f.id === body.fieldId);
-          // In a tests-gated phase the model first sees how the program does on the public
-          // cases -- the ones the student can already see -- so it never questions a
-          // calculation that works. Hidden cases are never run for this.
-          let tests: PublicTestRun | undefined;
-          if (phase.gate === 'tests') {
-            const code = body.code ?? (typeof body.artifact.code === 'string' ? body.artifact.code : '');
-            try {
-              tests = await publicTestRun(code, problem.public_test_cases);
-            } catch {
-              tests = undefined;
-            }
-          }
-          const got = await stuck(
-            phase,
-            problem,
-            body.artifact,
-            statement,
-            field,
-            body.priorArtifacts,
-            body.history,
-            tests
-          );
-          // The diagnosis names the idea the student lacks, which is often the answer itself:
-          // it goes to the log, and the page receives the feedback alone.
-          request.log.info({ phase: phase.phase, diagnosis: got.diagnosis }, 'CLive stuck diagnosis');
-          return reply.send({ feedback: got.feedback });
+          const refused = await refusal(request, body);
+          if (refused) return sendError(reply, refused.message, refused.code);
         } catch (error) {
           return handle(reply, error);
         }
+
+        const asked = {
+          phase_id: body.phase,
+          problem_id: body.problemId,
+          attempt: body.attempt,
+          field_id: body.fieldId ?? null,
+          statement: body.statement,
+          history: body.history,
+          artifact: studentWork(body)
+        };
+        const { calls, result } = await captureLlmCalls(() => askStuck(body));
+        if (!result.ok) {
+          await keep(
+            request,
+            body.sessionId,
+            requestEntries('stuck', calls, errorRecord('stuck', asked, result.error))
+          );
+          return handle(reply, result.error);
+        }
+        // The diagnosis names the idea the student lacks, which is often the answer itself:
+        // it goes to the session log, and the page receives the feedback alone.
+        const { statement, diagnosis, feedback } = result.value;
+        await keep(
+          request,
+          body.sessionId,
+          requestEntries('stuck', calls, {
+            type: SESSION_LOG_TYPES.stuck,
+            data: { ...asked, statement, diagnosis, response: { feedback } }
+          })
+        );
+        return reply.send({ feedback });
       });
     };
   }
