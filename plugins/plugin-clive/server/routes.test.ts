@@ -10,6 +10,8 @@ import { Server } from '$lib/server';
 import { PLUGIN_API_USER_HEADER } from '$lib/server/serverAPI';
 import CLiveServerPlugin from '../server';
 import { JudgeError } from './content/errors';
+import { rubricDoc } from './content/load';
+import { toResponseVerdicts } from './routes';
 import type { SessionLogEntry } from './sessionLog';
 
 const state = vi.hoisted(() => ({ queue: [] as unknown[], calls: 0 }));
@@ -86,6 +88,15 @@ const IMPLEMENT_VERDICTS = [
   { criterion_id: 'state_matches_design', verdict: 'PASS', evidence: '', confidence: 'high' },
   { criterion_id: 'handles_own_edge_cases', verdict: 'PASS', evidence: '', confidence: 'high' },
   { criterion_id: 'readable', verdict: 'PASS', evidence: '', confidence: 'high' }
+];
+
+const PROBLEM_VERDICTS = [
+  { criterion_id: 'novel_wording', verdict: 'PASS', evidence: '', confidence: 'high' },
+  { criterion_id: 'input_types', verdict: 'PASS', evidence: '', confidence: 'high' },
+  { criterion_id: 'output_types', verdict: 'PASS', evidence: '', confidence: 'high' },
+  { criterion_id: 'constraints_noted', verdict: 'FAIL', evidence: '', confidence: 'high' },
+  { criterion_id: 'input_order_stated', verdict: 'PASS', evidence: '', confidence: 'high' },
+  { criterion_id: 'output_form_exact', verdict: 'PASS', evidence: '', confidence: 'high' }
 ];
 
 const NUDGE = {
@@ -229,6 +240,48 @@ describe('CLive plugin routes', () => {
     expect(body.nudge?.focus_id).toBe('case_is_concrete');
     expect(body.nudge?.focus_not_met).toBeTruthy();
     expect(body.nudge?.failing.map((f: { id: string }) => f.id)).toContain('case_is_concrete');
+  });
+
+  it('tags each verdict, and the nudge, with the questions they are about', async () => {
+    state.queue = [{ verdicts: PROBLEM_VERDICTS }, { ...NUDGE, focus_id: 'constraints_noted' }];
+    const response = await post('/submit', {
+      sessionId: SESSION,
+      phase: 'problem_definition',
+      problemId: 'p',
+      artifact: { summary: 'Multiply two numbers.', inputs: 'Two ints.', outputs: 'Their product.' },
+      attempt: 1,
+      priorArtifacts: []
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    const constraints = body.verdicts.find((v: { criterion_id: string }) => v.criterion_id === 'constraints_noted');
+    expect(constraints.fields).toEqual(['inputs']);
+    // The page opens on the question the nudge is about, and words it from the requirement.
+    expect(body.nudge?.focus_fields).toEqual(['inputs']);
+    expect(body.nudge?.focus_text).toBe(constraints.criterion_text);
+  });
+
+  it('names the cases whose input breaks the rules, on a failed computed verdict only', () => {
+    const criteria = rubricDoc('case_design').criteria;
+    const computed = (verdict: 'PASS' | 'FAIL') =>
+      toResponseVerdicts(
+        [
+          {
+            criterion_id: 'outputs_are_correct',
+            verdict,
+            evidence: '',
+            confidence: 'high',
+            source: 'reference',
+            wrong: [],
+            outside_rules: ['Case 1']
+          }
+        ],
+        criteria
+      )[0];
+
+    expect(computed('FAIL').outside_rules).toEqual(['Case 1']);
+    expect(computed('PASS').outside_rules).toEqual([]);
   });
 
   it('rejects a per-step submit with no step', async () => {

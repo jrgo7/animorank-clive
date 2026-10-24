@@ -2,13 +2,14 @@
   import Textarea from '$lib/components/ui/textareas/Textarea.svelte';
   import Button from '$lib/components/ui/buttons/Button.svelte';
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
-  import Badge from '$lib/components/ui/badges/Badge.svelte';
   import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
   import ArrowRightIcon from '@iconify-svelte/fa6-solid/arrow-right';
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
   import ProblemDescription from '$lib/components/content/ProblemDescription.svelte';
+  import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
   import { PHASES, isFilled } from './phase';
+  import { fieldFeedback, fieldMark, startHere } from './feedback';
   import { askStuck, submitPhase, type JudgeContext } from './api';
   import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -84,33 +85,12 @@
         : ''
   );
 
-  /** One failure shown at a time, with a line saying the rest will be checked again. */
-  const MORE_TO_FIX = "There may be other things to fix. Submit again once this one's done and I'll check.";
-
-  /** The requirement line, read as something to do: `Check this: …`. */
-  const notYet = (text: string) =>
-    `Check this: ${/^[A-Z][a-z]/.test(text || '') ? text[0].toLowerCase() + text.slice(1) : text || ''}`;
-
-  const badgeFor = (v: JudgeResult['verdicts'][number]) =>
-    v.verdict === 'PASS'
-      ? { class: 'badge-success', text: 'Met' }
-      : v.gate === 'advisory'
-        ? { class: 'badge-warning', text: 'Depth' }
-        : { class: 'badge-error', text: 'Blocks' };
-
-  // What the judge's reply has to show, read out of the result the phase currently
-  // holds. Derived here rather than inline in the markup, so each block reads as the
-  // one thing it renders.
-  const nudge = $derived(current.result?.nudge);
-  /** The one requirement the nudge is about. */
-  const focus = $derived.by(() => {
-    const n = nudge;
-    return n ? (n.failing.find((f) => f.id === n.focus_id) ?? n.failing[0]) : undefined;
-  });
-  /** The line above the nudge that says what to do, in the requirement's own words. */
-  const focusLine = $derived(nudge ? nudge.focus_not_met || notYet(focus?.text ?? '') : '');
+  // What the judge's reply has to show, one thing at a time and on the question it
+  // is about (see `feedback.ts`): the question on screen shows its own part of the
+  // result, and no list of every requirement is put in front of the student.
+  const feedback = $derived(fieldFeedback(current.result, openField.id, false));
   const nudgeError = $derived(current.result?.nudge_error);
-  const verdicts = $derived(current.result?.verdicts ?? []);
+  /** A requirement the judge never ruled on belongs to no question, so it is said once, above them. */
   const missingIds = $derived(current.result?.missing_ids ?? []);
   const latestStuck = $derived(phaseState.stuck[0]);
   const olderStuck = $derived(phaseState.stuck.slice(1));
@@ -183,6 +163,14 @@
       };
       const result: JudgeResult = await submitPhase(payload);
       session.recordResult(0, result);
+      // A failed submit opens on the question its feedback starts from.
+      if (!result.passed) {
+        phaseState.step = startHere(
+          result,
+          fields.map((f) => f.id),
+          openIndex
+        );
+      }
     } catch (e) {
       session.error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -211,6 +199,28 @@
         <div class="mt-2"><ProblemDescription problem={context.problem} /></div>
       </details>
     {/if}
+  {/snippet}
+
+  <!-- A submit waits where its feedback will go, in place of the last one; a stuck ask
+       waits under its own box. -->
+  {#snippet thinking()}
+    <div
+      class="flex items-start gap-2.5 rounded-box border border-base-content/10 bg-base-200 p-4 text-sm text-base-content/70"
+      role="status"
+    >
+      <span class="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary"></span>
+      <div class="flex flex-col gap-0.5">
+        <div class="font-medium text-base-content">
+          CLive is thinking… <span class="ml-2 font-mono text-xs text-base-content/50">{elapsed}s</span>
+        </div>
+        <div>
+          {session.busy === 'submit'
+            ? 'Checking your work against every requirement.'
+            : 'Looking for somewhere useful to point.'}
+        </div>
+        {#if thinkNote}<div class="text-xs">{thinkNote}</div>{/if}
+      </div>
+    </div>
   {/snippet}
 
   {#if !phaseState.unlocked}
@@ -251,6 +261,16 @@
         <Alert class="bg-base-200 text-sm text-base-content/70">
           <span>
             No API key is set on the server, so checking and help are unavailable. Your work is still saved as you type.
+          </span>
+        </Alert>
+      {/if}
+
+      {#if missingIds.length}
+        <Alert class="alert-warning">
+          <TriangleExclamationIcon class="h-4 w-4" />
+          <span>
+            Part of your work came back unchecked. That is a fault on our side, not yours — submitting again usually
+            settles it.
           </span>
         </Alert>
       {/if}
@@ -330,22 +350,41 @@
         {/if}
       </div>
 
+      {#if session.busy === 'submit'}
+        {@render thinking()}
+      {:else if feedback}
+        <FieldFeedback {feedback} />
+      {/if}
+
       {#if fields.length > 1}
         <div class="flex flex-wrap gap-1.5">
           {#each fields as field, j (field.id)}
-            {@const stepResult = session.stateFor(0, field.id)}
+            {@const mark = fieldMark(session.stateFor(0, field.id).result, field.id)}
             {@const here = j === openIndex}
             {@const open = session.stepOpen(0, j)}
+            <!-- The number says how the question did on the last submit: red while a
+                 required point fails on it, green otherwise, with a dot for a point
+                 worth a look. -->
             <Button
               class="btn-sm gap-1.5 {here ? 'btn-primary' : 'btn-ghost'} {!open ? 'btn-disabled' : ''}"
               type="button"
               disabled={!!session.busy || (!here && !open)}
               title={open ? undefined : 'Opens once the case before it has passed.'}
+              data-mark={mark}
               onclick={() => goStep(j)}
             >
-              <span class="font-mono text-xs">{j + 1}</span>
+              <span
+                class="grid h-5 w-5 place-items-center rounded font-mono text-xs {mark === 'bad'
+                  ? 'bg-error/15 text-error'
+                  : mark
+                    ? 'bg-success/15 text-success'
+                    : ''}">{j + 1}</span
+              >
               <span>{field.label}</span>
-              {#if stepResult.passed}<span class="text-success">✓</span>{/if}
+              {#if mark === 'look'}<span
+                  class="h-1.5 w-1.5 rounded-full bg-warning"
+                  title="Worth a look"
+                ></span>{/if}
             </Button>
           {/each}
         </div>
@@ -431,24 +470,8 @@
         {/if}
       </div>
 
-      {#if session.busy}
-        <div
-          class="flex items-start gap-2.5 rounded-box border border-base-content/10 bg-base-200 p-4 text-sm text-base-content/70"
-          role="status"
-        >
-          <span class="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary"></span>
-          <div class="flex flex-col gap-0.5">
-            <div class="font-medium text-base-content">
-              CLive is thinking… <span class="ml-2 font-mono text-xs text-base-content/50">{elapsed}s</span>
-            </div>
-            <div>
-              {session.busy === 'submit'
-                ? 'Checking your work against every requirement.'
-                : 'Looking for somewhere useful to point.'}
-            </div>
-            {#if thinkNote}<div class="text-xs">{thinkNote}</div>{/if}
-          </div>
-        </div>
+      {#if session.busy === 'stuck'}
+        {@render thinking()}
       {/if}
 
       {#if phaseState.passed}
@@ -464,17 +487,7 @@
         </Alert>
       {/if}
 
-      {#if nudge}
-        <div class="flex flex-col gap-3 rounded-box border-l-[3px] border-error bg-base-200 p-5">
-          <h3 class="font-display text-base font-bold text-error">Let's look at this one</h3>
-          <p class="text-[15.5px]">{nudge.summary}</p>
-          {#if focusLine}<p class="text-sm font-medium text-base-content">{focusLine}</p>{/if}
-          <p class="max-w-[66ch] text-sm leading-relaxed whitespace-pre-wrap text-base-content/70">{nudge.nudge}</p>
-          {#if nudge.failing.length > 1}
-            <div class="border-t border-base-content/10 pt-2.5 text-xs text-base-content/60">{MORE_TO_FIX}</div>
-          {/if}
-        </div>
-      {:else if nudgeError}
+      {#if nudgeError}
         <Alert class="alert-warning">
           <TriangleExclamationIcon class="h-4 w-4" />
           <span>Your work was checked, but we could not put together a next step: {nudgeError}</span>
@@ -500,62 +513,6 @@
                 {/each}
               </div>
             </details>
-          {/if}
-        </div>
-      {/if}
-
-      {#if verdicts.length || missingIds.length}
-        <div class="flex flex-col gap-1 rounded-box border border-base-content/10 bg-base-200 p-5">
-          <h3 class="mb-2 font-display text-base font-bold">Every requirement, checked</h3>
-          {#each verdicts as v (v.criterion_id)}
-            {@const advisory = v.gate === 'advisory'}
-            {@const met = v.verdict === 'PASS'}
-            {@const badge = badgeFor(v)}
-            <div class="flex gap-3 border-t border-base-content/10 py-3 first:border-t-0">
-              <Badge class="{badge.class} mt-0.5 min-w-14 shrink-0 justify-center">{badge.text}</Badge>
-              <div class="min-w-0 flex-1">
-                <div class="text-[14.5px]">
-                  {#if v.not_met}
-                    <b>{v.not_met}</b>
-                    {#if v.explain}{v.explain}{/if}
-                  {:else}
-                    {v.explain || v.criterion_text || v.criterion_id}
-                  {/if}
-                </div>
-                <div class="mt-0.5 flex flex-wrap items-center gap-2 font-mono text-xs text-base-content/50">
-                  <span>{v.criterion_id}</span>
-                  <span
-                    class="rounded border px-1.5 text-[11px] font-semibold {advisory
-                      ? 'border-warning/45 text-warning'
-                      : 'border-base-content/20 text-base-content/70'}"
-                  >
-                    {advisory ? 'optional' : 'required'}
-                  </span>
-                </div>
-                {#if !met && advisory}
-                  <div class="mt-1.5 text-sm text-base-content/50 italic">
-                    Not met. This one is optional: you can move on without it.
-                  </div>
-                {/if}
-                {#if !met && v.recheck?.length}
-                  <div class="mt-1.5 max-w-[64ch] text-sm text-base-content">
-                    {v.recheck.join(', ')}: the expected output doesn't match the problem's rule. Trace {v.recheck
-                      .length > 1
-                      ? 'them'
-                      : 'it'} again.
-                  </div>
-                {/if}
-              </div>
-            </div>
-          {/each}
-          {#if missingIds.length}
-            <Alert class="alert-warning mt-3.5">
-              <TriangleExclamationIcon class="h-4 w-4" />
-              <span
-                >No ruling came back for: {missingIds.join(', ')}. That is a fault on our side, not yours — submitting
-                again usually settles it.</span
-              >
-            </Alert>
           {/if}
         </div>
       {/if}

@@ -94,6 +94,10 @@ interface ResponseVerdict {
   gate: 'gating' | 'advisory';
   explain: string;
   recheck: string[];
+  /** For a computed verdict: the rows whose input the problem does not allow, by label. */
+  outside_rules: string[];
+  /** Which questions this verdict belongs on, in a stepped phase: where the page shows it. */
+  fields: string[];
 }
 
 interface SubmitResponse {
@@ -106,13 +110,16 @@ interface SubmitResponse {
     nudge: string;
     reason: string;
     focus_id: string;
+    focus_text: string;
     focus_not_met: string;
+    /** The questions the focused requirement is about: the first is the one the page opens on. */
+    focus_fields: string[];
     failing: { id: string; text: string }[];
   };
   nudge_error?: string;
 }
 
-function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]): ResponseVerdict[] {
+export function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]): ResponseVerdict[] {
   const byId = new Map(criteria.map((c) => [c.id, c]));
   return verdicts.map((v) => {
     const criterion = byId.get(v.criterion_id);
@@ -123,7 +130,9 @@ function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]): Resp
       verdict: v.verdict,
       gate: criterion?.gate ?? 'gating',
       explain: criterion?.explain ?? '',
-      recheck: v.source === 'reference' && v.verdict === 'FAIL' ? (v.wrong ?? []) : []
+      recheck: v.source === 'reference' && v.verdict === 'FAIL' ? (v.wrong ?? []) : [],
+      outside_rules: v.verdict === 'FAIL' ? (v.outside_rules ?? []) : [],
+      fields: criterion?.fields ?? []
     };
   });
 }
@@ -222,7 +231,9 @@ async function submit(
         nudge: n.nudge,
         reason: n.reason,
         focus_id: n.focus_id,
+        focus_text: n.focus_text,
         focus_not_met: n.focus_not_met,
+        focus_fields: applied.find((c) => c.id === n.focus_id)?.fields ?? [],
         failing: n.failing
       };
     } catch (error) {

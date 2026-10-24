@@ -9,6 +9,7 @@
   import ProblemDescription from '$lib/components/content/ProblemDescription.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
   import { PHASES } from './phase';
+  import { MORE_TO_FIX } from './feedback';
   import { askStuck, submitPhase, type JudgeContext } from './api';
   import { live } from './live.svelte';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -71,31 +72,22 @@
         : ''
   );
 
-  /** One failure shown at a time, with a line saying the rest will be checked again. */
-  const MORE_TO_FIX = "There may be other things to fix. Submit again once this one's done and I'll check.";
-
-  /** The requirement line, read as something to do: `Check this: …`. */
-  const notYet = (text: string) =>
-    `Check this: ${/^[A-Z][a-z]/.test(text || '') ? text[0].toLowerCase() + text.slice(1) : text || ''}`;
-
   const badgeFor = (v: JudgeResult['verdicts'][number]) =>
     v.verdict === 'PASS'
       ? { class: 'badge-success', text: 'Met' }
       : v.gate === 'advisory'
-        ? { class: 'badge-warning', text: 'Depth' }
-        : { class: 'badge-error', text: 'Blocks' };
+        ? { class: 'badge-warning', text: 'Optional' }
+        : { class: 'badge-error', text: 'Not met' };
 
   // What the judge's reply has to show, read out of the result the phase currently
   // holds. Derived here rather than inline in the markup, so each block reads as the
   // one thing it renders.
   const nudge = $derived(current.result?.nudge);
-  /** The one requirement the nudge is about. */
+  /** The one requirement the nudge is about; the others wait for the next check. */
   const focus = $derived.by(() => {
     const n = nudge;
     return n ? (n.failing.find((f) => f.id === n.focus_id) ?? n.failing[0]) : undefined;
   });
-  /** The line above the nudge that says what to do, in the requirement's own words. */
-  const focusLine = $derived(nudge ? nudge.focus_not_met || notYet(focus?.text ?? '') : '');
   const nudgeError = $derived(current.result?.nudge_error);
   const verdicts = $derived(current.result?.verdicts ?? []);
   const missingIds = $derived(current.result?.missing_ids ?? []);
@@ -364,7 +356,11 @@
         <div class="flex flex-col gap-3 rounded-box border-l-[3px] border-error bg-base-200 p-5">
           <h3 class="font-display text-base font-bold text-error">Let's look at this one</h3>
           <p class="text-[15.5px]">{nudge.summary}</p>
-          {#if focusLine}<p class="text-sm font-medium text-base-content">{focusLine}</p>{/if}
+          {#if focus}
+            <ul class="list-disc pl-5 text-sm font-medium text-base-content">
+              <li>{focus.text}</li>
+            </ul>
+          {/if}
           <p class="max-w-[66ch] text-sm leading-relaxed whitespace-pre-wrap text-base-content/70">{nudge.nudge}</p>
           {#if nudge.failing.length > 1}
             <div class="border-t border-base-content/10 pt-2.5 text-xs text-base-content/60">{MORE_TO_FIX}</div>
@@ -405,25 +401,18 @@
       {/if}
 
       {#if verdicts.length || missingIds.length}
-        <div class="flex flex-col gap-1 rounded-box border border-base-content/10 bg-base-200 p-5">
-          <h3 class="mb-2 font-display text-base font-bold">Every requirement, checked</h3>
+        <!-- Folded: the full list is there for a student who wants it, not put in front of them. -->
+        <details class="flex flex-col gap-1 rounded-box border border-base-content/10 bg-base-200 p-5">
+          <summary class="cursor-pointer font-display text-base font-bold">See every requirement</summary>
           {#each verdicts as v (v.criterion_id)}
             {@const advisory = v.gate === 'advisory'}
             {@const met = v.verdict === 'PASS'}
             {@const badge = badgeFor(v)}
-            <div class="flex gap-3 border-t border-base-content/10 py-3 first:border-t-0">
+            <div class="flex gap-3 border-t border-base-content/10 py-3 first-of-type:mt-2">
               <Badge class="{badge.class} mt-0.5 min-w-14 shrink-0 justify-center">{badge.text}</Badge>
               <div class="min-w-0 flex-1">
-                <div class="text-[14.5px]">
-                  {#if v.not_met}
-                    <b>{v.not_met}</b>
-                    {#if v.explain}{v.explain}{/if}
-                  {:else}
-                    {v.explain || v.criterion_text || v.criterion_id}
-                  {/if}
-                </div>
+                <div class="text-[14.5px]">{v.criterion_text || v.criterion_id}</div>
                 <div class="mt-0.5 flex flex-wrap items-center gap-2 font-mono text-xs text-base-content/50">
-                  <span>{v.criterion_id}</span>
                   <span
                     class="rounded border px-1.5 text-[11px] font-semibold {advisory
                       ? 'border-warning/45 text-warning'
@@ -433,9 +422,14 @@
                   </span>
                 </div>
                 {#if !met && advisory}
+                  <!-- The team's direct line first, as on the stepped phases' "Worth a look". -->
+                  {#if v.not_met}<div class="mt-1.5 max-w-[64ch] text-sm text-base-content">{v.not_met}</div>{/if}
                   <div class="mt-1.5 text-sm text-base-content/50 italic">
                     Not met. This one is optional: you can move on without it.
                   </div>
+                {/if}
+                {#if !met && v.explain}
+                  <div class="mt-1.5 max-w-[64ch] text-sm text-base-content">{v.explain}</div>
                 {/if}
                 {#if !met && v.recheck?.length}
                   <div class="mt-1.5 max-w-[64ch] text-sm text-base-content">
@@ -457,7 +451,7 @@
               >
             </Alert>
           {/if}
-        </div>
+        </details>
       {/if}
 
       {#if phaseState.passed}

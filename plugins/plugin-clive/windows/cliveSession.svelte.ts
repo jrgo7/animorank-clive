@@ -37,6 +37,10 @@ export interface Verdict {
   gate: 'gating' | 'advisory';
   explain?: string;
   recheck?: string[];
+  /** For a computed verdict: the rows whose input the problem does not allow. */
+  outside_rules?: string[];
+  /** Which questions this verdict belongs on; absent from a result saved before it was sent. */
+  fields?: string[];
 }
 
 export interface NudgeResult {
@@ -44,8 +48,12 @@ export interface NudgeResult {
   nudge: string;
   reason: string;
   focus_id: string;
+  /** The focused requirement's own text, for a requirement with no `not_met` line. */
+  focus_text?: string;
   /** The focused requirement's `not_met`, the line the student sees just above the nudge. */
   focus_not_met?: string;
+  /** The questions the focused requirement is about: the first is where a failed submit opens. */
+  focus_fields?: string[];
   failing: { id: string; text: string }[];
 }
 
