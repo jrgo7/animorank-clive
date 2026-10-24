@@ -6,7 +6,6 @@
   import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
   import ArrowRightIcon from '@iconify-svelte/fa6-solid/arrow-right';
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
-  import ProblemDescription from '$lib/components/content/ProblemDescription.svelte';
   import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
   import { fieldFeedback } from './feedback';
@@ -284,19 +283,6 @@
 </script>
 
 <div class="h-full min-w-0 overflow-y-auto">
-  {#snippet statement(open: boolean)}
-    {#if open}
-      <div class="rounded-box border border-base-content/10 bg-base-200 p-5">
-        <ProblemDescription problem={context.problem} />
-      </div>
-    {:else}
-      <details class="rounded-box border border-base-content/10 bg-base-200 p-4">
-        <summary class="w-fit cursor-pointer text-sm font-medium text-primary">Problem statement</summary>
-        <div class="mt-2"><ProblemDescription problem={context.problem} /></div>
-      </details>
-    {/if}
-  {/snippet}
-
   <!-- A submit waits where its feedback will go, in place of the last one; a stuck ask
        waits under its own box. -->
   {#snippet thinking()}
@@ -360,13 +346,9 @@
         </Alert>
       {/if}
 
-      <p
-        class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed whitespace-pre-wrap text-base-content/70"
-      >
+      <p class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed text-base-content/70">
         Now turn what you did by hand into steps. Plan in plain English first; the C comes after.
       </p>
-
-      {@render statement(false)}
 
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-semibold">{QUESTION}</span>
@@ -437,58 +419,44 @@
 
       <!-- "What are you stuck on?": the student says what they find hard, in their own
            words, and gets a few lines back. The only help on the page since 2026-10-10. -->
-      <div class="flex flex-col gap-2.5">
-        {#if phaseState.stuckOpen || session.busy === 'stuck'}
-          <div class="flex flex-col gap-2 rounded-box border border-base-content/10 bg-base-200 p-4">
-            <label
-              class="text-sm font-semibold"
-              for="clive-stuck-ask">What are you having trouble with?</label
-            >
-            <p class="text-xs text-base-content/60">
-              Say it in your own words. CLive replies with a few lines to think about.
-            </p>
-            <Textarea
-              id="clive-stuck-ask"
-              rows={3}
-              maxlength={1000}
-              placeholder="e.g. I don't know what the program should print when …"
-              bind:value={phaseState.stuckDraft}
-              disabled={session.busy === 'stuck'}
-              oninput={save}
-            />
-            <div class="flex flex-wrap gap-2">
-              <Button
-                class="btn-primary"
-                type="button"
-                disabled={!!session.busy || !session.hasApiKey || !phaseState.stuckDraft.trim()}
-                onclick={ask}
-              >
-                {session.busy === 'stuck' ? 'Thinking…' : 'Ask'}
-              </Button>
-              <Button
-                class="btn-ghost"
-                type="button"
-                disabled={!!session.busy}
-                onclick={() => {
-                  phaseState.stuckOpen = false;
-                }}>Cancel</Button
-              >
-            </div>
-          </div>
-        {:else}
-          <Button
-            class="btn-ghost w-fit gap-2"
-            type="button"
-            disabled={!!session.busy || !session.hasApiKey}
-            onclick={() => {
-              phaseState.stuckOpen = true;
-            }}
+      {#if phaseState.stuckOpen || session.busy === 'stuck'}
+        <div class="flex flex-col gap-2 rounded-box border border-base-content/10 bg-base-200 p-4">
+          <label
+            class="text-sm font-semibold"
+            for="clive-stuck-ask">What are you having trouble with?</label
           >
-            <LightbulbIcon class="h-3.5 w-3.5" />
-            I'm stuck
-          </Button>
-        {/if}
-      </div>
+          <p class="text-xs text-base-content/60">
+            Say it in your own words. CLive replies with a few lines to think about.
+          </p>
+          <Textarea
+            id="clive-stuck-ask"
+            rows={3}
+            maxlength={1000}
+            placeholder="e.g. I don't know what the program should print when …"
+            bind:value={phaseState.stuckDraft}
+            disabled={session.busy === 'stuck'}
+            oninput={save}
+          />
+          <div class="flex flex-wrap gap-2">
+            <Button
+              class="btn-primary"
+              type="button"
+              disabled={!!session.busy || !session.hasApiKey || !phaseState.stuckDraft.trim()}
+              onclick={ask}
+            >
+              {session.busy === 'stuck' ? 'Thinking…' : 'Ask'}
+            </Button>
+            <Button
+              class="btn-ghost"
+              type="button"
+              disabled={!!session.busy}
+              onclick={() => {
+                phaseState.stuckOpen = false;
+              }}>Cancel</Button
+            >
+          </div>
+        </div>
+      {/if}
 
       <div class="flex flex-wrap items-center gap-2.5">
         <!-- After a pass the way on leads and this steps back: a still-primary Submit
@@ -501,6 +469,19 @@
         >
           {session.busy === 'submit' ? 'Checking…' : phaseState.passed || current.attempt > 1 ? 'Resubmit' : 'Submit'}
         </Button>
+        {#if !(phaseState.stuckOpen || session.busy === 'stuck')}
+          <Button
+            class="btn-ghost gap-2"
+            type="button"
+            disabled={!!session.busy || !session.hasApiKey}
+            onclick={() => {
+              phaseState.stuckOpen = true;
+            }}
+          >
+            <LightbulbIcon class="h-3.5 w-3.5" />
+            I'm stuck
+          </Button>
+        {/if}
       </div>
 
       {#if session.busy === 'stuck'}

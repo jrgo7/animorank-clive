@@ -148,7 +148,7 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
-  it('opens a problem on its statement alone, with Next to the first question', () => {
+  it('opens a problem on a pointer to its statement, with Next to the first question', () => {
     stubBoot();
     const context = stubContext('mount-focus');
     const session = cliveSessionFor(context);
@@ -158,11 +158,10 @@ describe('CLive windows', () => {
     const app = mountPhase(context, 0);
     flushSync();
 
-    // The statement, and nothing to answer yet. The markdown editor that renders the
-    // description never loads in the test environment, so its placeholder is what can be
-    // observed here; the focus row is the plugin's own text.
-    expect(document.body.textContent).toContain('Take your time with the problem');
-    expect(document.body.textContent).toContain('Loading Markdown');
+    // A pointer to the Problem Info tab, and nothing to answer yet. The statement itself
+    // lives in that tab, so the phase does not render it.
+    expect(document.body.textContent).toContain('Read the problem in the Problem Info tab');
+    expect(document.body.textContent).not.toContain('Loading Markdown');
     expect(document.body.textContent).not.toContain('what is the program supposed to do?');
 
     clickButton('Next');

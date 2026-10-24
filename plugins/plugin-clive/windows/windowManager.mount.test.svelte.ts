@@ -37,7 +37,7 @@ function stubContext(id: string): SolveWindowContext {
 }
 
 /** Text only this phase's window renders, in its opening state. */
-const PHASE_TEXT = 'Take your time with the problem';
+const PHASE_TEXT = 'Read the problem in the Problem Info tab';
 
 describe('DockviewWindowManager windows', () => {
   it('closes everything but the kept keys, and reopens the same window', async () => {
