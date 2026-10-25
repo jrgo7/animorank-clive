@@ -115,7 +115,7 @@
       : !unlocked
         ? 'border-dashed border-base-content/15'
         : 'border-base-content/10 bg-base-200';
-    return `flex flex-col gap-0.5 rounded-box border px-3.5 py-2.5 text-left transition-colors ${base} ${
+    return `flex items-baseline gap-2 rounded-box border px-3 py-1.5 text-left transition-colors ${base} ${
       clickable ? 'cursor-pointer hover:bg-base-100' : ''
     }`;
   }
@@ -131,7 +131,7 @@
         ? 'text-base-content/30'
         : 'text-base-content/50'}"
   >
-    Phase {i + 1}
+    {i + 1}
   </span>
   <span class="font-display text-sm font-bold {!st.unlocked ? 'text-base-content/30' : ''}">{PHASES[i].label}</span>
   <span
@@ -149,7 +149,7 @@
   </span>
 {/snippet}
 
-<div class="flex h-full flex-col gap-3 overflow-y-auto p-4">
+<div class="flex h-full flex-col gap-1.5 overflow-y-auto px-3 py-2">
   <div class="flex items-center justify-between gap-3">
     <span class="flex items-center gap-2 font-mono text-[11.5px] text-base-content/50">
       CLive
@@ -160,11 +160,18 @@
         >
       {/if}
     </span>
-    <Button
-      class="btn-ghost btn-xs"
-      type="button"
-      onclick={() => (tutorialOpen = true)}>How this works</Button
-    >
+    <span class="flex items-center gap-3">
+      {#if anyPassed}
+        <span class="hidden text-xs text-base-content/50 md:inline"
+          >Passed phases stay open: click one to reread or change it.</span
+        >
+      {/if}
+      <Button
+        class="btn-ghost btn-xs"
+        type="button"
+        onclick={() => (tutorialOpen = true)}>How this works</Button
+      >
+    </span>
   </div>
   <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
     {#each PHASES as p, i (p.phase)}
@@ -186,11 +193,7 @@
       {/if}
     {/each}
   </div>
-  {#if anyPassed}
-    <p class="text-xs text-base-content/60">
-      Passed phases stay open. Click one to reread or change it. Changes carry into later phases and never lock you out.
-    </p>
-  {/if}
+
   {#if overrideOpen && PHASES[session.current + 1] && !session.phases[session.current].passed}
     <OverrideDialog
       from={PHASES[session.current].label}
