@@ -62,10 +62,6 @@ export default class CLivePlugin extends ClientPlugin {
   public async onSolvePageLoad(context: SolveWindowContext): Promise<void> {
     const session = cliveSessionFor(context);
 
-    // A Run is AnimoRank's own flow -- the plugin has none of its own -- so its
-    // outcome is recorded from the execution event. The code itself is already
-    // in the telemetry hook's `RUN_ATTEMPT` entry; Submit is recorded
-    // server-side as `CLIVE_SUBMIT`.
     // A Run or Submit that did not pass, once the student has reached Implement: CLive
     // answers on its own with the situation it sees and one thing to do.
     context.executionObservable.subscribe('tests', (execution) => {
@@ -76,6 +72,10 @@ export default class CLivePlugin extends ClientPlugin {
       }
     });
 
+    // A Run is AnimoRank's own flow -- the plugin has none of its own -- so its
+    // outcome is recorded from the execution event. The code itself is already
+    // in the telemetry hook's `RUN_ATTEMPT` entry; Submit is recorded
+    // server-side as `CLIVE_SUBMIT`.
     context.executionObservable.subscribe('tests', (execution) => {
       if (execution.runType !== 'run') return;
       const passed = execution.generalTestResults.filter(Boolean).length;

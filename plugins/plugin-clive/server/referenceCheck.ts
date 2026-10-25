@@ -267,7 +267,14 @@ export async function judgeWithChecks(
     return { ...result, criteria, referenceCheck: null };
   }
 
-  const ref = await check(phase, artifact, problem.reference_solution, executor, studentFunction(problem));
+  const fn = studentFunction(problem);
+  const ref: CheckResult =
+    (problem.functions ?? []).length > 0 && !fn
+      ? {
+          status: 'unavailable',
+          reason: 'The problem defines several functions and it is unclear which one the student writes.'
+        }
+      : await check(phase, artifact, problem.reference_solution, executor, fn);
   const computed = ref.status === 'checked';
 
   const applied: CriterionDoc[] = criteria.map((c) =>

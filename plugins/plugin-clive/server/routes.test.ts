@@ -511,6 +511,35 @@ describe('CLive plugin routes', () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it('never hands the page a judge’s guidance, its evidence, or a stuck diagnosis', async () => {
+    // The prototype's leak sweep (`tests/test_student.py`), for every route a student page calls.
+    const failing = CASE_VERDICTS.map((v) =>
+      v.criterion_id === 'case_is_concrete' ? { ...v, verdict: 'FAIL', evidence: 'EVIDENCE_MARKER' } : v
+    );
+    state.queue = [
+      { verdicts: failing },
+      { ...NUDGE, situation: 'not_a_case' },
+      { diagnosis: 'DIAGNOSIS_MARKER', feedback: 'Which value comes first?' },
+      CODE_REPLY
+    ];
+    const bodies = [
+      (await post('/submit', casesBody())).body,
+      (await post('/stuck', stuckBody())).body,
+      (await post('/code-feedback', codeBody())).body,
+      (await (await app()).inject({ method: 'GET', url: '/plugin-api/clive/boot' })).body
+    ].join('\n');
+
+    expect(bodies).not.toContain('EVIDENCE_MARKER');
+    expect(bodies).not.toContain('DIAGNOSIS_MARKER');
+    for (const phase of ['problem_definition', 'case_design', 'algorithm_design', 'implement']) {
+      for (const criterion of rubricDoc(phase).criteria) {
+        for (const line of (criterion.guidance ?? '').split('\n').map((l) => l.trim())) {
+          if (line.length > 30) expect(bodies, `${criterion.id} guidance`).not.toContain(line);
+        }
+      }
+    }
+  });
+
   it('writes the stuck record with the diagnosis', async () => {
     state.queue = [{ diagnosis: 'Does not connect “leftover” with a remainder.', feedback: 'How many fit?' }];
     await post('/stuck', stuckBody());

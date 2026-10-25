@@ -368,6 +368,22 @@ describe('reference check', () => {
     expect(result).toMatchObject({ status: 'unavailable' });
   });
 
+  it('is unavailable, not broken, when it cannot tell which of several functions the student writes', async () => {
+    const two = { ...SUM, id: 'g', name: 'g' };
+    const problem = {
+      ...PROBLEM,
+      reference_solution: 'int f(int a,int b){return 1;} int g(int a,int b){return 2;}',
+      functions: [SUM, two]
+    };
+    const phase = phaseDoc('case_design');
+    const criteria = rubricDoc('case_design').criteria;
+    const verdicts = criteria
+      .filter((c) => c.check !== 'reference')
+      .map((c) => ({ criterion_id: c.id, verdict: 'PASS', evidence: '', confidence: 'high' }));
+    const result = await judgeWithChecks(phase, problem, CASES_ARTIFACT, criteria, 1, [], fakeProvider({ verdicts }));
+    expect(result.referenceCheck).toMatchObject({ status: 'unavailable' });
+  });
+
   it('is unavailable without a reference solution', async () => {
     const result = await check(phaseDoc('case_design'), CASES_ARTIFACT, '', undefined);
     expect(result).toMatchObject({ status: 'unavailable' });

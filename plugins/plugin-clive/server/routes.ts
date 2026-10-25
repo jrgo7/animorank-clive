@@ -390,9 +390,6 @@ class CLiveAPI extends ServerAPI {
         reply.send({ hasApiKey: getProvider().hasApiKey(), live_check: liveTable() })
       );
 
-      // The prototype's `/api/student/log-check`: prove the session's history is
-      // still writable, before a participant sits down. The check's own entry is
-      // the `CLIVE_LOG_CHECK` the researcher reads later.
       // The live reasoning window (Ctrl+Shift+L) and the events it polls. Loopback
       // only: the reasoning weighs requirements the student has not been shown.
       app.get('/live', async (request, reply) => {
@@ -415,6 +412,9 @@ class CLiveAPI extends ServerAPI {
         return reply.send(eventsAfter(parsed.data.session, parsed.data.after));
       });
 
+      // The prototype's `/api/student/log-check`: prove the session's history is
+      // still writable, before a participant sits down. The check's own entry is
+      // the `CLIVE_LOG_CHECK` the researcher reads later.
       app.post('/log-check', async (request, reply) => {
         const parsed = logCheckSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
