@@ -13,10 +13,11 @@ import { textArtifact, textPrior, type PriorArtifact } from '../artifact';
 import type { FailingCriterion } from '../criteria';
 import type { FunctionDef } from '../problem';
 import type { CriterionDoc, FieldDoc } from './load';
-import { NUDGE_DOC, STUCK_DOC, type PhaseDoc } from './load';
+import { NUDGE_CODE_DOC, NUDGE_DOC, STUCK_DOC, type PhaseDoc } from './load';
 
 export const NUDGE_SYSTEM = NUDGE_DOC.system_prompt;
 export const STUCK_SYSTEM = STUCK_DOC.system_prompt;
+export const NUDGE_CODE_SYSTEM = NUDGE_CODE_DOC.system_prompt;
 
 /** What every template reads as the problem. */
 export interface ProblemForPrompt {
@@ -121,6 +122,11 @@ function problemForTemplate(problem: ProblemForPrompt): Record<string, unknown> 
     starter_code: problem.starter_code
   };
   if (problem.public_test_cases.length) out.public_test_cases = problem.public_test_cases;
+  if (problem.functions?.length) {
+    out.function_signatures = problem.functions.map(
+      (fn) => `${fn.returnType} ${fn.name}(${fn.parameters.map((p) => `${p.type} ${p.name}`).join(', ')})`
+    );
+  }
   return out;
 }
 
@@ -191,5 +197,32 @@ export function renderStuckPrompt(context: {
     statement: context.statement,
     prior_artifacts: priorForTemplate(context.priorArtifacts),
     history: context.history.length ? context.history : undefined
+  });
+}
+
+/** The code nudge's run: compile errors, or the public cases and how many hidden ones failed. */
+export interface CodeRunForPrompt {
+  compiled: boolean;
+  compilerOutput: string;
+  cases: { input: string; expected: string; actual: string; passed: boolean }[];
+  hiddenFailed: number;
+}
+
+export function renderCodeNudgePrompt(context: {
+  problem: ProblemForPrompt;
+  code: string;
+  run: CodeRunForPrompt;
+  priorArtifacts: PriorArtifact[];
+  history: { situation: string; focus: string; nudge: string }[];
+  attempt: number;
+}): string {
+  return render(NUDGE_CODE_DOC.user_template, {
+    problem: problemForTemplate(context.problem),
+    code: context.code,
+    run: context.run,
+    prior_artifacts: priorForTemplate(context.priorArtifacts),
+    // `undefined`, never `[]`: nunjucks treats an empty array as truthy.
+    history: context.history.length ? context.history : undefined,
+    attempt: context.attempt
   });
 }

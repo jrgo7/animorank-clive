@@ -14,7 +14,7 @@ import { rubricDoc } from './content/load';
 import { toResponseVerdicts } from './routes';
 import type { SessionLogEntry } from './sessionLog';
 
-const state = vi.hoisted(() => ({ queue: [] as unknown[], calls: 0 }));
+const state = vi.hoisted(() => ({ queue: [] as unknown[], calls: 0, users: [] as string[] }));
 const log = vi.hoisted(() => ({
   owns: true,
   fail: false,
@@ -30,7 +30,8 @@ vi.mock('./problem', () => ({
     statement: 'Read two numbers and print their product.',
     starter_code: '',
     public_test_cases: [{ input: '4 6', output: '24' }],
-    reference_solution: ''
+    reference_solution: '',
+    functions: []
   })
 }));
 
@@ -42,8 +43,9 @@ vi.mock('./providers', () => ({
     modelPrefixes: ['fake-'],
     ownsModel: () => true,
     hasApiKey: () => true,
-    judgeJson: async () => {
+    judgeJson: async (options: { user: string }) => {
       state.calls += 1;
+      state.users.push(options.user);
       const next = state.queue.shift();
       if (next instanceof Error) throw next;
       return { parsed: next ?? {}, model: 'fake-model', inputTokens: 0, outputTokens: 0 };
@@ -169,6 +171,7 @@ describe('CLive plugin routes', () => {
   beforeEach(() => {
     state.queue = [];
     state.calls = 0;
+    state.users = [];
     log.owns = true;
     log.fail = false;
     log.written = [];
@@ -395,6 +398,65 @@ describe('CLive plugin routes', () => {
       ['nudge', 2]
     ]);
     expect((entry('CLIVE_SUBMIT').data as SubmitRecord).response.nudge?.focus_id).toBe('case_is_concrete');
+  });
+
+  const codeBody = (overrides: Record<string, unknown> = {}) => ({
+    sessionId: SESSION,
+    problemId: 'p',
+    code: 'int main(void) { return 0; }',
+    runType: 'run',
+    attempt: 1,
+    priorArtifacts: [],
+    history: [],
+    run: {
+      compiled: true,
+      compilerOutput: '',
+      cases: [{ input: '4 6', expected: '24', actual: '0', passed: false }],
+      hiddenFailed: 0
+    },
+    ...overrides
+  });
+  const CODE_REPLY = {
+    situation: 'departs_from_plan',
+    summary: 'One fails.',
+    focus: 'step 2',
+    nudge: 'Look at step 2.'
+  };
+
+  it('answers failing Implement code with its situation and feedback', async () => {
+    state.queue = [CODE_REPLY];
+    const response = await post('/code-feedback', codeBody());
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(CODE_REPLY);
+  });
+
+  it('writes the code-feedback call, then its record', async () => {
+    state.queue = [CODE_REPLY];
+    await post('/code-feedback', codeBody());
+    expect(types()).toEqual(['CLIVE_LLM_CALL', 'CLIVE_CODE_FEEDBACK']);
+    expect(entry('CLIVE_LLM_CALL').data).toMatchObject({ during: 'code-feedback', purpose: 'nudge_code' });
+    expect(entry('CLIVE_CODE_FEEDBACK').data).toMatchObject({
+      problem_id: 'p',
+      run_type: 'run',
+      attempt: 1,
+      code: 'int main(void) { return 0; }',
+      response: CODE_REPLY
+    });
+  });
+
+  it('refuses code feedback into a practice session that is not yours', async () => {
+    log.owns = false;
+    const response = await post('/code-feedback', codeBody());
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('shows the model only the last five earlier replies', async () => {
+    state.queue = [CODE_REPLY];
+    const history = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ situation: 'other', focus: `turn-${n}`, nudge: `reply ${n}` }));
+    await post('/code-feedback', codeBody({ history }));
+    expect(state.users[0]).toContain('turn-3');
+    expect(state.users[0]).toContain('turn-7');
+    expect(state.users[0]).not.toContain('turn-2');
   });
 
   it('writes the stuck record with the diagnosis', async () => {

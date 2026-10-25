@@ -10,6 +10,7 @@ import { phaseDoc, rubricDoc } from './content/load';
 import { JudgeError } from './content/errors';
 import { judge } from './judge';
 import { nudge } from './nudge';
+import { codeNudge, type CodeRun } from './codeNudge';
 import type { Provider } from './providers';
 import { publicTestRun } from './publicTests';
 import { check, judgeWithChecks, outputsMatch } from './referenceCheck';
@@ -335,5 +336,84 @@ describe('steps.cut', () => {
   it('rejects an unknown step', () => {
     const phase = phaseDoc('case_design');
     expect(() => cut(phase, {}, rubricDoc('case_design').criteria, 'nope')).toThrow(JudgeError);
+  });
+});
+
+describe('code nudge', () => {
+  const RUN_FAILING: CodeRun = {
+    compiled: true,
+    compilerOutput: '',
+    cases: [{ input: 'checkSecretCode(612, 123450002)', expected: '1', actual: '0', passed: false }],
+    hiddenFailed: 0
+  };
+  const REPLY = {
+    situation: 'plan_is_wrong',
+    summary: 'One case fails.',
+    focus: 'your plan',
+    nudge: 'Line one\nLine two'
+  };
+
+  function capturing(parsed: unknown): { provider: Provider; users: string[] } {
+    const users: string[] = [];
+    const base = fakeProvider(parsed);
+    return {
+      users,
+      provider: {
+        ...base,
+        judgeJson: async (options) => {
+          users.push(options.user);
+          return base.judgeJson(options);
+        }
+      }
+    };
+  }
+
+  it('returns the situation and feedback the model chose', async () => {
+    const { provider } = capturing(REPLY);
+    expect(await codeNudge(PROBLEM, 'int main(void){}', RUN_FAILING, [], [], 1, provider)).toEqual(REPLY);
+  });
+
+  it('turns a situation the Implement phase does not list into other', async () => {
+    const { provider } = capturing({ ...REPLY, situation: 'banana' });
+    expect((await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider)).situation).toBe('other');
+  });
+
+  it('shows the compiler errors when the program did not compile', async () => {
+    const { provider, users } = capturing(REPLY);
+    const run: CodeRun = {
+      compiled: false,
+      compilerOutput: "error: expected ';' before 'if'",
+      cases: [],
+      hiddenFailed: 0
+    };
+    await codeNudge(PROBLEM, '', run, [], [], 1, provider);
+    expect(users[0]).toContain('COMPILER ERRORS');
+    expect(users[0]).toContain("expected ';' before 'if'");
+  });
+
+  it('tells the model only how many hidden cases failed', async () => {
+    const { provider, users } = capturing(REPLY);
+    await codeNudge(PROBLEM, '', { ...RUN_FAILING, hiddenFailed: 1 }, [], [], 1, provider);
+    expect(users[0]).toContain('1 case the student has not seen');
+  });
+
+  it('shows a function problem its signature', async () => {
+    const { provider, users } = capturing(REPLY);
+    const problem = {
+      ...PROBLEM,
+      functions: [
+        {
+          id: 'f',
+          name: 'checkSecretCode',
+          parameters: [
+            { name: 'nAlice', type: 'int' },
+            { name: 'nGuest', type: 'int' }
+          ],
+          returnType: 'int'
+        }
+      ]
+    };
+    await codeNudge(problem, '', RUN_FAILING, [], [], 1, provider);
+    expect(users[0]).toContain('int checkSecretCode(int nAlice, int nGuest)');
   });
 });

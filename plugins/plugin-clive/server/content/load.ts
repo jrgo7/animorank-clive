@@ -18,6 +18,7 @@ import algorithmDesignCriteriaYaml from '../../content/criteria/algorithm_design
 import implementCriteriaYaml from '../../content/criteria/implement.yaml?raw';
 import nudgeYaml from '../../content/base/nudge.yaml?raw';
 import stuckYaml from '../../content/base/stuck.yaml?raw';
+import nudgeCodeYaml from '../../content/base/nudge_code.yaml?raw';
 import diagnosticsYaml from '../../content/base/diagnostics.yaml?raw';
 import outputSchemaRaw from '../../content/base/output_schema.json?raw';
 import { JudgeError } from './errors';
@@ -235,6 +236,10 @@ function normaliseDiagnostics(doc: DiagnosticsDoc, name: string): DiagnosticsDoc
 }
 
 export const NUDGE_DOC: PromptDoc = normalisePrompt(parseFile(nudgeYaml, 'base/nudge.yaml'), 'base/nudge.yaml');
+export const NUDGE_CODE_DOC: PromptDoc = normalisePrompt(
+  parseFile(nudgeCodeYaml, 'base/nudge_code.yaml'),
+  'base/nudge_code.yaml'
+);
 export const STUCK_DOC: PromptDoc = normalisePrompt(parseFile(stuckYaml, 'base/stuck.yaml'), 'base/stuck.yaml');
 
 export const DIAGNOSTICS_DOC: DiagnosticsDoc = normaliseDiagnostics(

@@ -27,6 +27,13 @@ export const NudgeSchema = z.object({
   nudge: z.string()
 });
 
+export const CodeNudgeSchema = z.object({
+  situation: z.string(),
+  summary: z.string(),
+  focus: z.string(),
+  nudge: z.string()
+});
+
 export const StuckSchema = z.object({
   /** The idea the student lacks, for the researcher: `student.stuck` logs it and the page never gets it. */
   diagnosis: z.string(),

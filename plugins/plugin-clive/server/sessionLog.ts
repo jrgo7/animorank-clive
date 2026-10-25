@@ -24,10 +24,14 @@ import type { LlmCall } from './llmCalls';
 export const SESSION_LOG_TYPES = {
   submit: 'CLIVE_SUBMIT',
   stuck: 'CLIVE_STUCK',
+  codeFeedback: 'CLIVE_CODE_FEEDBACK',
   llmCall: 'CLIVE_LLM_CALL',
   error: 'CLIVE_ERROR',
   logCheck: 'CLIVE_LOG_CHECK'
 } as const;
+
+/** Which route a model call served. */
+export type RequestKind = 'submit' | 'stuck' | 'code-feedback';
 
 export interface SessionLogEntry {
   type: string;
@@ -103,7 +107,7 @@ export async function writeSessionLog(sessionId: string, entries: SessionLogEntr
  * history reads them in the order they were made even when two finish times
  * collide.
  */
-export function llmCallEntries(during: 'submit' | 'stuck', calls: LlmCall[]): SessionLogEntry[] {
+export function llmCallEntries(during: RequestKind, calls: LlmCall[]): SessionLogEntry[] {
   let previous = -Infinity;
   return calls.map((call, index) => {
     previous = Math.max(Date.parse(call.started) + call.latency_ms, previous + 1);
@@ -122,7 +126,7 @@ export function llmCallEntries(during: 'submit' | 'stuck', calls: LlmCall[]): Se
  * written in the same millisecond would otherwise sort either side of it.
  */
 export function requestEntries(
-  during: 'submit' | 'stuck',
+  during: RequestKind,
   calls: LlmCall[],
   record: { type: string; data: Record<string, unknown> }
 ): SessionLogEntry[] {

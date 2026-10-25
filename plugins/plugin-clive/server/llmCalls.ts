@@ -17,7 +17,7 @@ import { JudgeError } from './content/errors';
 import type { JudgeJsonOptions, Provider, ProviderResult } from './providers';
 
 /** What a call was for: one per model call a CLive route makes. */
-export type LlmPurpose = 'judge' | 'nudge' | 'stuck';
+export type LlmPurpose = 'judge' | 'nudge' | 'nudge_code' | 'stuck';
 
 /** One model call, named the way the prototype's `llm_call` lines are, so an analysis reads the same fields. */
 export interface LlmCall {

@@ -24,6 +24,7 @@ import type { PublicTestRun } from './content/templates';
 import { judge, type JudgeOutcome, type Verdict } from './judge';
 import { liveTable } from './live';
 import { captureLlmCalls } from './llmCalls';
+import { codeNudge } from './codeNudge';
 import { nudge } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
@@ -35,6 +36,7 @@ import {
   requestEntries,
   SESSION_LOG_TYPES,
   writeSessionLog,
+  type RequestKind,
   type SessionLogEntry
 } from './sessionLog';
 import { cut, isPerStep } from './steps';
@@ -61,6 +63,33 @@ const submitSchema = z.object({
   priorArtifacts: priorArtifactsSchema.default([]),
   step: z.string().optional(),
   code: z.string().optional()
+});
+
+/** The most earlier replies a feedback call is shown: enough to notice a repeat. */
+const HISTORY_KEPT = 5;
+
+const codeFeedbackSchema = z.object({
+  /** The practice session the request is recorded in; it must be the caller's. */
+  sessionId: z.uuid(),
+  problemId: z.string(),
+  code: z.string().default(''),
+  runType: z.enum(['run', 'submit']),
+  attempt: z.number().int().positive().default(1),
+  priorArtifacts: priorArtifactsSchema.default([]),
+  history: z
+    .array(z.object({ situation: z.string(), focus: z.string(), nudge: z.string() }))
+    .max(50)
+    .default([]),
+  // Public cases only: there is no field a hidden case's input or output could arrive in.
+  run: z.object({
+    compiled: z.boolean(),
+    compilerOutput: z.string().max(20000).default(''),
+    cases: z
+      .array(z.object({ input: z.string(), expected: z.string(), actual: z.string(), passed: z.boolean() }))
+      .max(50)
+      .default([]),
+    hiddenFailed: z.number().int().min(0).default(0)
+  })
 });
 
 const logCheckSchema = z.object({
@@ -312,7 +341,7 @@ async function refusal(
 }
 
 /** The record of a request that failed, with what it asked for. */
-function errorRecord(call: 'submit' | 'stuck', asked: Record<string, unknown>, error: unknown) {
+function errorRecord(call: RequestKind, asked: Record<string, unknown>, error: unknown) {
   return {
     type: SESSION_LOG_TYPES.error,
     data: { call, ...asked, error: error instanceof Error ? error.message : String(error) }
@@ -385,6 +414,55 @@ class CLiveAPI extends ServerAPI {
           requestEntries('submit', calls, { type: SESSION_LOG_TYPES.submit, data: record })
         );
         return reply.send(response);
+      });
+
+      // After a Run or Submit that did not pass: which situation the student is in,
+      // and one thing to do next. The page asks for it on its own.
+      app.post('/code-feedback', async (request, reply) => {
+        const parsed = codeFeedbackSchema.safeParse(request.body);
+        if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        const body = parsed.data;
+        try {
+          const refused = await refusal(request, body);
+          if (refused) return sendError(reply, refused.message, refused.code);
+        } catch (error) {
+          return handle(reply, error);
+        }
+
+        const asked = {
+          problem_id: body.problemId,
+          run_type: body.runType,
+          attempt: body.attempt,
+          code: body.code,
+          run: body.run
+        };
+        const { calls, result } = await captureLlmCalls(async () =>
+          codeNudge(
+            await loadCLiveProblem(body.problemId),
+            body.code,
+            body.run,
+            body.priorArtifacts,
+            body.history.slice(-HISTORY_KEPT),
+            body.attempt
+          )
+        );
+        if (!result.ok) {
+          await keep(
+            request,
+            body.sessionId,
+            requestEntries('code-feedback', calls, errorRecord('code-feedback', asked, result.error))
+          );
+          return handle(reply, result.error);
+        }
+        await keep(
+          request,
+          body.sessionId,
+          requestEntries('code-feedback', calls, {
+            type: SESSION_LOG_TYPES.codeFeedback,
+            data: { ...asked, response: result.value }
+          })
+        );
+        return reply.send(result.value);
       });
 
       app.post('/stuck', async (request, reply) => {
