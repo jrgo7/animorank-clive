@@ -18,6 +18,9 @@ interface AnyResult {
   compilerOutput?: string;
 }
 
+/** The most compiler output a code-feedback request carries (the route's own limit). */
+const COMPILER_OUTPUT_MAX = 20000;
+
 /**
  * A function argument or return value as text. Test case data is plain JSON
  * (`{ data: { value } }`), but the page hydrates run results into `TypeValue`
@@ -65,7 +68,11 @@ export function toCodeRun(results: readonly unknown[]): CodeRun {
       (typeof r.compilerOutput === 'string' && r.compilerOutput.trim() !== '')
   );
   if (failedToCompile) {
-    return { compiled: false, compilerOutput: failedToCompile.compilerOutput ?? '', cases: [], hiddenFailed: 0 };
+    // The first errors are the ones that matter, and the route refuses more than 20 000 characters.
+    const output = failedToCompile.compilerOutput ?? '';
+    const kept =
+      output.length > COMPILER_OUTPUT_MAX ? `${output.slice(0, COMPILER_OUTPUT_MAX - 20)}\n… (cut short)` : output;
+    return { compiled: false, compilerOutput: kept, cases: [], hiddenFailed: 0 };
   }
   return {
     compiled: true,

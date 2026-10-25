@@ -152,3 +152,17 @@ describe('quick fixes', () => {
     expect(wantsCodeFeedback(reached, true, [{ success: true }])).toBe(false);
   });
 });
+
+describe('long compiler output', () => {
+  it('keeps the start of very long compiler output, so the request is never refused', () => {
+    const result = {
+      success: false,
+      testCaseInfo: { public: true, type: 'stdio', data: { input: '1', output: '1' } },
+      runInfo: {},
+      compilerOutput: 'error: x\n'.repeat(5000)
+    };
+    const run = toCodeRun([result]);
+    expect(run.compilerOutput.length).toBeLessThanOrEqual(20000);
+    expect(run.compilerOutput.startsWith('error: x')).toBe(true);
+  });
+});
