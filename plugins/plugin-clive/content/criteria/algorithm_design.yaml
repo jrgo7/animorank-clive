@@ -18,7 +18,7 @@
 
 id: criteria.algorithm_design
 phase: algorithm_design
-version: 6
+version: 7
 
 criteria:
   - id: not_c_code
@@ -42,6 +42,7 @@ criteria:
     explain: >-
       Include a step that reads each input the program takes.
     guidance: |
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way. A step that takes the parameters, or names them as given, consumes them.
       PASS if the design accounts for reading each input the problem supplies,
       including repetition where the count is read at runtime ('repeat n times:
       read the next score').
@@ -56,11 +57,31 @@ criteria:
       Include a step that prints (or returns) the answer, in the exact form the problem
       asks for.
     guidance: |
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way. A step that says what the function returns produces the output.
       PASS if some step states what is emitted and it matches the output format the
       problem statement fixes (rounding, decimal places, ordering, wording). The step need
       not be the last one.
       FAIL if the plan computes an answer but never says it is output, or outputs
       something in a shape the statement does not ask for.
+
+  - id: traceable_on_own_case
+    text: Your steps can be carried out by hand on your own case.
+    gate: gating
+    fields: [steps]
+    not_met: "You should make each step something you could do by hand, then follow your own case through them."
+    explain: >-
+      Take the first case you wrote in Cases and follow it through your steps, one at a time. Each step
+      should be something you could actually do with those numbers, and the last should give your
+      expected output.
+    guidance: |
+      Take the student's typical case from EARLIER PHASES (the Cases phase: its input and expected output)
+      and trace it through the steps exactly as written.
+      FAIL if a step cannot be carried out as written -- it restates the goal ("each section must sum and
+      match", "compute the answer") without saying how -- or if the trace does not reach the case's
+      expected output.
+      PASS if every step can be done by hand on that case and the trace reaches the expected output.
+      PASS when no case from Cases is given to trace.
+      Judge whether the plan can be followed, not whether it is the best plan.
 
   # ---- Advisory: extra understanding, never blocking -------------------------
 

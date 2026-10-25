@@ -11,7 +11,7 @@
 
 id: criteria.implement
 phase: implement
-version: 4
+version: 5
 
 criteria:
   - id: follows_own_design
@@ -21,6 +21,7 @@ criteria:
     explain: >-
       The program should carry out the steps you planned in Design, in the same order.
     guidance: |
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
       PASS if a reader holding the Design beside the code can match the plan's steps onto
       the program -- the same work happening in the same order. Extra code the plan did
       not mention is fine when it serves a step (reading input, printing the result).
@@ -37,6 +38,7 @@ criteria:
       The variables in the program should match the values your Design said it keeps
       track of.
     guidance: |
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
       PASS if each thing the Design named as state -- a counter, a total, a flag, a running
       best-so-far -- exists in the program, and the program does not silently depend on state the plan
       never mentioned. Names need not match; roles must.
@@ -52,6 +54,7 @@ criteria:
       Each case you worked out in Cases should have something in the code written for
       it.
     guidance: |
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
       PASS if, for each case the student worked out in the Cases phase, the code contains
       something that addresses it -- the main calculation, a guard, a branch, an
       initialisation, or a loop structure that plainly covers it.

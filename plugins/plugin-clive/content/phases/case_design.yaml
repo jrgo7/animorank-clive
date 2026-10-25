@@ -7,6 +7,7 @@ layout: steps
 judge: per_step
 created: 2026-08-20
 changelog: |
+  criteria v9 (2026-10-25): a correct expected output with wrong reasoning passes outputs_are_correct; misquoting a rule is a work_is_shown matter (jm_uy, prototype). A function problem's case input is its arguments.
   v13: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
   v12: Cases 3-5 (`case_3`..`case_5`, `added: true`): a student who has passed Cases 1 and 2 may add up to three more, each judged, none required, through a "ready to move on?" question on the student page (2026-10-05 consultation; spec 2026-10-06-more-cases-design.md). Same prompt, hint and example as Case 2.
   v11: Two cases asked for the same way ("Case 1", "Case 2", same question and hint) instead of a typical and an edge case; Justin's call after the wording round, where "edge case" kept leading students to input the problem forbids (which still fails). The "break it" draft wording is not used for the same reason. Rubric v7 drops `edge_is_boundary`. The page refuses a Case 2 whose input repeats Case 1's. Field ids are unchanged so logs and the Design carry-forward line up. Wording is a draft for the author to revise.

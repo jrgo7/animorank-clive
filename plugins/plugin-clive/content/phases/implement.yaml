@@ -30,6 +30,8 @@ order: 4
 gate: tests
 created: 2026-09-07
 changelog: >
+  criteria v5 (2026-10-25): function problems -- parameters are inputs, the return value is the output.
+
   v10: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
 
   v9: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over. The team's edit dropped the no-AI sentence; Justin kept it.

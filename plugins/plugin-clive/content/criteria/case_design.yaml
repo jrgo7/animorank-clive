@@ -27,7 +27,7 @@
 
 id: criteria.case_design
 phase: case_design
-version: 8
+version: 9
 
 criteria:
   - id: case_is_concrete
@@ -39,6 +39,7 @@ criteria:
       Give actual input values and the output you expect -- not a description, and not
       one of the examples you were given.
     guidance: |
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way. A case's input is then the arguments the function is given, in any clear form ('612, 123456789' or 'checkSecretCode(612, 123456789)').
       PASS if the case's input and expected output are both literal values a program could
       actually be run against.
       FAIL if either is described only in the abstract ('a list of scores', 'the
@@ -54,6 +55,7 @@ criteria:
       Under How I got it, show the steps -- the arithmetic, the running total -- not only
       the answer.
     guidance: |
+      FAIL working that misquotes a rule of the problem, even when the output is right.
       PASS if How I got it shows the intermediate work that produces the output -- a
       running total, a comparison, a per-step trace, an arithmetic expression with the
       case's values in it.
@@ -70,6 +72,8 @@ criteria:
       The expected output has to be the right value for the input. Work it out again
       against the problem's rule.
     guidance: |
+      Judge only the claimed value. A correct value with wrong reasoning PASSes; the reasoning is judged under work_is_shown.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
       Compute the case yourself against the problem statement before judging. Judge the
       value the student is claiming, not how they wrote it down.
       PASS if the claimed value is the right one for its input.

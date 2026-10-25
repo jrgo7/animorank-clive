@@ -6,6 +6,8 @@ order: 3
 layout: steps
 created: 2026-08-20
 changelog: >
+  criteria v7 (2026-10-25): new gating traceable_on_own_case -- the plan must be traceable by hand on the student's own case. Avril's plan restated the problem ('each section must sum and match'), passed, and left her unable to code it. Function problems: parameters are inputs, the return value is the output.
+
   v11: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
 
   v10: Wording revised by the team in docs/UI Text.md (2026-10-05) and imported; Google Docs artifacts (en dashes, escaped characters, renumbered sub-steps) were not carried over.

@@ -27,7 +27,7 @@
 
 id: criteria.problem_definition
 phase: problem_definition
-version: 7
+version: 8
 
 criteria:
   - id: novel_wording
@@ -51,6 +51,8 @@ criteria:
     explain: >-
       Give each input a C type -- int, float, double or char -- not just "a number". Does your input contain decimal places? Is it supposed to be a single letter?
     guidance: |
+      PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double). FAIL only words that name no type.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
       PASS if each input names a definite type a C programmer could declare --
       'int', 'float', 'double', 'char'.
       FAIL for vague placeholders such as 'a number', 'some values', 'the data',
@@ -66,6 +68,8 @@ criteria:
       If the program prints a single value, give its C type -- int, float, double or char.
       If it prints text or a pattern of several values, describe exactly how it looks instead.
     guidance: |
+      PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double). FAIL only words that name no type.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
       PASS if each value the program prints on its own (a number or a single character)
       names a definite type a C programmer could declare -- 'int', 'float', 'double', 'char'.
       PASS if the output is formatted text -- words, or several values set inside a fixed
@@ -104,6 +108,7 @@ criteria:
       Say which input the program reads first and what comes after it -- for example,
       "first height, then weight". If it reads only one thing, say that.
     guidance: |
+      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
       PASS if the artifact makes the reading order recoverable -- numbering the inputs,
       saying which is read first, or describing a count that is read before the values
       it governs.

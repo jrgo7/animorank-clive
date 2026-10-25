@@ -58,3 +58,21 @@ describe('CLive content loading', () => {
     expect(() => rubricDoc('nope')).toThrow(/Unknown CLive phase/);
   });
 });
+
+describe('rubric fixes from round 6', () => {
+  it('requires a Design plan that can be traced by hand on the student’s own case', () => {
+    const traceable = rubricDoc('algorithm_design').criteria.find((c) => c.id === 'traceable_on_own_case');
+    expect(traceable).toMatchObject({ gate: 'gating', fields: ['steps'] });
+  });
+
+  it('accepts plain words for a C type, and reads a function’s parameters as its inputs', () => {
+    const inputTypes = rubricDoc('problem_definition').criteria.find((c) => c.id === 'input_types');
+    expect(inputTypes?.guidance).toContain('integer');
+    expect(inputTypes?.guidance).toContain('parameters');
+  });
+
+  it('never fails a correct expected output for its reasoning', () => {
+    const outputs = rubricDoc('case_design').criteria.find((c) => c.id === 'outputs_are_correct');
+    expect(outputs?.guidance).toContain('A correct value with wrong reasoning PASSes');
+  });
+});

@@ -27,6 +27,7 @@ order: 1
 layout: steps
 created: 2026-08-18
 changelog: |
+  criteria v8 (2026-10-25): input_types/output_types accept plain type words ('integer', 'whole number', 'character') -- Magni's 'integer' failed while Avril's passed in round 6 -- and every criterion reads a function's parameters as its inputs and its return value as its output (Red Wildlings is a function problem).
   v15: The Outputs question asks what the program must print rather than "give back", which a student could read as `return` (2026-10-10).
 
   v14: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
