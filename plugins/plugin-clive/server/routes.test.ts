@@ -475,6 +475,24 @@ describe('CLive plugin routes', () => {
     expect(state.users[1]).not.toContain('nudge-2');
   });
 
+  async function getFrom(ip: string, url: string) {
+    const instance = await app();
+    return instance.inject({ method: 'GET', url: `/plugin-api/clive${url}`, remoteAddress: ip });
+  }
+
+  it('serves the live reasoning feed only to the machine the app runs on', async () => {
+    // A session no other test has called a model in, so its feed is empty.
+    const QUIET = '00000000-0000-4000-8000-000000000000';
+    const away = await getFrom('10.0.0.5', `/live/events?session=${QUIET}&after=0`);
+    expect(away.statusCode).toBe(403);
+    const here = await getFrom('127.0.0.1', `/live/events?session=${QUIET}&after=0`);
+    expect(here.statusCode).toBe(200);
+    expect(here.json()).toMatchObject({ events: [], last: 0 });
+    const page = await getFrom('::1', `/live?session=${QUIET}`);
+    expect(page.statusCode).toBe(200);
+    expect(page.headers['content-type']).toContain('text/html');
+  });
+
   it('writes the stuck record with the diagnosis', async () => {
     state.queue = [{ diagnosis: 'Does not connect “leftover” with a remainder.', feedback: 'How many fit?' }];
     await post('/stuck', stuckBody());

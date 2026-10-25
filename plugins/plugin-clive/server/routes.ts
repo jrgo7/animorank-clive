@@ -25,6 +25,8 @@ import { judge, type JudgeOutcome, type Verdict } from './judge';
 import { liveTable } from './live';
 import { captureLlmCalls } from './llmCalls';
 import { codeNudge } from './codeNudge';
+import { eventsAfter, watching } from './liveFeed';
+import { livePage } from './livePage';
 import { nudge } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
@@ -96,6 +98,10 @@ const codeFeedbackSchema = z.object({
     hiddenFailed: z.number().int().min(0).default(0)
   })
 });
+
+/** The live reasoning window reads the model's thinking: only from the machine the app runs on. */
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const liveQuerySchema = z.object({ session: z.uuid(), after: z.coerce.number().int().min(0).default(0) });
 
 const logCheckSchema = z.object({
   /** The practice session whose history the check writes into; it must be the caller's. */
@@ -375,6 +381,22 @@ class CLiveAPI extends ServerAPI {
       // The prototype's `/api/student/log-check`: prove the session's history is
       // still writable, before a participant sits down. The check's own entry is
       // the `CLIVE_LOG_CHECK` the researcher reads later.
+      // The live reasoning window (Ctrl+Shift+L) and the events it polls. Loopback
+      // only: the reasoning weighs requirements the student has not been shown.
+      app.get('/live', async (request, reply) => {
+        if (!LOOPBACK.has(request.ip)) return sendError(reply, 'Only from the machine CLive runs on.', 403);
+        const parsed = liveQuerySchema.safeParse(request.query);
+        if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        return reply.type('text/html; charset=utf-8').send(livePage(parsed.data.session));
+      });
+
+      app.get('/live/events', async (request, reply) => {
+        if (!LOOPBACK.has(request.ip)) return sendError(reply, 'Only from the machine CLive runs on.', 403);
+        const parsed = liveQuerySchema.safeParse(request.query);
+        if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        return reply.send(eventsAfter(parsed.data.session, parsed.data.after));
+      });
+
       app.post('/log-check', async (request, reply) => {
         const parsed = logCheckSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
@@ -399,7 +421,7 @@ class CLiveAPI extends ServerAPI {
           return handle(reply, error);
         }
 
-        const { calls, result } = await captureLlmCalls(() => submit(body));
+        const { calls, result } = await captureLlmCalls(() => watching(body.sessionId, () => submit(body)));
         if (!result.ok) {
           const asked = {
             phase_id: body.phase,
@@ -445,13 +467,15 @@ class CLiveAPI extends ServerAPI {
           run: body.run
         };
         const { calls, result } = await captureLlmCalls(async () =>
-          codeNudge(
-            await loadCLiveProblem(body.problemId),
-            body.code,
-            body.run,
-            body.priorArtifacts,
-            body.history.slice(-HISTORY_KEPT),
-            body.attempt
+          watching(body.sessionId, async () =>
+            codeNudge(
+              await loadCLiveProblem(body.problemId),
+              body.code,
+              body.run,
+              body.priorArtifacts,
+              body.history.slice(-HISTORY_KEPT),
+              body.attempt
+            )
           )
         );
         if (!result.ok) {
@@ -493,7 +517,7 @@ class CLiveAPI extends ServerAPI {
           history: body.history,
           artifact: studentWork(body)
         };
-        const { calls, result } = await captureLlmCalls(() => askStuck(body));
+        const { calls, result } = await captureLlmCalls(() => watching(body.sessionId, () => askStuck(body)));
         if (!result.ok) {
           await keep(
             request,

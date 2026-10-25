@@ -15,6 +15,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { JudgeError } from './content/errors';
 import type { JudgeJsonOptions, Provider, ProviderResult } from './providers';
+import { callEnded, callStarted, reasoning } from './liveFeed';
 
 /** What a call was for: one per model call a CLive route makes. */
 export type LlmPurpose = 'judge' | 'nudge' | 'nudge_code' | 'stuck';
@@ -81,8 +82,14 @@ export async function callModel(
     system: options.system,
     user: options.user
   };
+  const live = callStarted(purpose);
   try {
-    const result = await provider.judgeJson(options);
+    const result = await provider.judgeJson({ ...options, onReasoning: (chunk) => reasoning(live, chunk) });
+    callEnded(live, {
+      latency_ms: Math.round(performance.now() - t0),
+      output_tokens: result.outputTokens,
+      error: null
+    });
     active.getStore()?.push({
       ...base,
       model: result.model,
@@ -98,6 +105,11 @@ export async function callModel(
     });
     return result;
   } catch (error) {
+    callEnded(live, {
+      latency_ms: Math.round(performance.now() - t0),
+      output_tokens: null,
+      error: error instanceof Error ? error.message : String(error)
+    });
     active.getStore()?.push({
       ...base,
       model: null,

@@ -69,12 +69,21 @@
   let overrideOpen = $state(false);
 
   /**
-   * Ctrl+Shift+Y opens the researcher override, wherever focus is (the code
+   * Ctrl+Shift+Y opens the researcher override and Ctrl+Shift+L the live reasoning window, wherever focus is (the code
    * editor and text boxes included: the listener runs in the capture phase).
    */
   $effect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'y') {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
+        // The live reasoning window: a separate small window, so it can sit on another screen.
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(
+          `/plugin-api/clive/live?session=${encodeURIComponent(context.practiceSession.id)}`,
+          'clive-live',
+          'popup,width=520,height=760'
+        );
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         e.stopPropagation();
         overrideOpen = !overrideOpen;

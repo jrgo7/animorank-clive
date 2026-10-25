@@ -71,6 +71,7 @@ export class DeepSeekProvider extends BaseProvider {
           // the read to unknown, and the typeof check validates it.
           if ('reasoning_content' in delta && typeof delta.reasoning_content === 'string') {
             reasoningParts.push(delta.reasoning_content);
+            options.onReasoning?.(delta.reasoning_content);
           }
           if (typeof delta.content === 'string' && delta.content) textParts.push(delta.content);
           finishReason = choice.finish_reason ?? finishReason;
