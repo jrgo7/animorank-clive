@@ -88,11 +88,17 @@ export default class CLivePlugin extends ClientPlugin {
 
     // Prove the session's history accepts writes before the student settles in.
     // Independent of clangd, so a slow handshake cannot delay it.
-    void checkLog(context.practiceSession.id, context.problem.id).catch((error: unknown) => {
-      // The thing being checked is the history write, so a failure cannot be
-      // recorded in it; the console is what is left, and the page still opens.
-      console.warn('CLive could not check the session log', error);
-    });
+    void checkLog(context.practiceSession.id, context.problem.id)
+      .then((answer) => {
+        session.logging = { ok: answer.ok, reason: answer.error };
+      })
+      .catch((error: unknown) => {
+        // The thing being checked is the history write, so a failure cannot be
+        // recorded in it: the phase strip shows NOT LOGGING instead, and the page
+        // still opens.
+        session.logging = { ok: false, reason: error instanceof Error ? error.message : String(error) };
+        console.warn('CLive could not check the session log', error);
+      });
 
     // Live C diagnostics start now rather than when Implement opens, so clangd
     // has the whole session to load in (13 MB, and a second or two to start) --

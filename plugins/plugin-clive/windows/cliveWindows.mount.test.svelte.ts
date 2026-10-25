@@ -136,6 +136,49 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  it('moves a stuck student on to the next phase, recorded as an override', () => {
+    stubBoot();
+    const events: { type: string; data: Record<string, unknown> }[] = [];
+    const context = stubContext('override-move', { opened: [], closed: [], events });
+    const session = cliveSessionFor(context);
+    session.moveOn(0, 'stuck');
+    expect(session.phases[0].advanced).toBe(true);
+    expect(session.phases[1].unlocked).toBe(true);
+    expect(session.current).toBe(1);
+    expect(events.filter((e) => e.type === 'CLIVE_RESEARCHER_OVERRIDE')).toEqual([
+      {
+        type: 'CLIVE_RESEARCHER_OVERRIDE',
+        data: { from_phase: 'problem_definition', to_phase: 'case_design', attempt: 1, reason: 'stuck' }
+      }
+    ]);
+  });
+
+  it('does not override a phase already passed', () => {
+    stubBoot();
+    const context = stubContext('override-passed');
+    const session = cliveSessionFor(context);
+    session.pass(0);
+    session.moveOn(0, 'x');
+    expect(session.phases[0].advanced).toBe(false);
+    expect(session.current).toBe(0);
+  });
+
+  it('shows an overridden phase as moved on, and a red badge when the session is not logging', () => {
+    stubBoot();
+    const context = stubContext('override-strip');
+    const session = cliveSessionFor(context);
+    session.moveOn(0, '');
+    session.logging = { ok: false, reason: 'database down' };
+    const app = mount(PhaseTrackWindow, { target: document.body, props: { context } });
+    flushSync();
+    expect(document.body.textContent).toContain('Moved on');
+    const badge = Array.from(document.querySelectorAll('[title]')).find((el) =>
+      el.textContent?.includes('NOT LOGGING')
+    );
+    expect(badge?.getAttribute('title')).toBe('database down');
+    unmount(app);
+  });
+
   it('mounts every phase window without writing state from a derived', () => {
     stubBoot();
 

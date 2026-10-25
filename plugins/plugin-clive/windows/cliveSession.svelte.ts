@@ -6,6 +6,7 @@ import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
 import { codeFeedback, fetchBoot, type NudgeTurn } from './api';
 import { LatestOnly, toCodeRun } from './codeFeedback';
+import { CLIVE_EVENT } from './telemetry';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import {
   PHASES,
@@ -207,6 +208,8 @@ export class CliveSession {
   hasApiKey: boolean = $state(true);
   /** Whether the walkthrough has been offered (and dismissed) for this practice session. */
   tutorialSeen: boolean = $state(false);
+  /** Whether this session's history accepted the log check; null until it answers. */
+  logging: { ok: boolean; reason: string } | null = $state(null);
   /** Whether saved CLive work was found for this session, for `CLIVE_PROBLEM_LOAD`. */
   public readonly restored: boolean;
 
@@ -431,6 +434,27 @@ export class CliveSession {
     if (!this.phases[index]?.unlocked) return;
     this.current = index;
     this.error = null;
+  }
+
+  /**
+   * A researcher's override: move the student on from `index` without a pass. The
+   * phase is marked `advanced` (it reads "Moved on", never "Passed") and the
+   * override is recorded. Does nothing for a passed phase or the last one.
+   */
+  moveOn(index: number, reason: string): void {
+    const state = this.phases[index];
+    const next = PHASES[index + 1];
+    if (!state || !next || state.passed) return;
+    state.advanced = true;
+    this.phases[index + 1].unlocked = true;
+    this.open(index + 1);
+    this.telemetry.record(CLIVE_EVENT.researcherOverride, {
+      from_phase: PHASES[index].phase,
+      to_phase: next.phase,
+      attempt: state.attempt,
+      reason
+    });
+    this.persist();
   }
 
   /** Marks a phase passed and unlocks the next one. */

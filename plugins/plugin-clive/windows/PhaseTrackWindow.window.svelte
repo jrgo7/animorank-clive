@@ -4,6 +4,7 @@
   import { PHASES } from './phase';
   import { showPhaseWindows } from './phaseWindows';
   import TutorialDialog from './TutorialDialog.svelte';
+  import OverrideDialog from './OverrideDialog.svelte';
   import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
@@ -61,8 +62,36 @@
     if (st.passed) return 'Passed';
     if (!st.unlocked) return 'Locked';
     if (i === session.current) return 'In progress';
-    if (st.advanced) return 'Not passed';
+    if (st.advanced) return 'Moved on';
     return 'Open';
+  }
+
+  let overrideOpen = $state(false);
+
+  /**
+   * Ctrl+Shift+Y opens the researcher override, wherever focus is (the code
+   * editor and text boxes included: the listener runs in the capture phase).
+   */
+  $effect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        e.stopPropagation();
+        overrideOpen = !overrideOpen;
+      } else if (e.key === 'Escape' && overrideOpen) {
+        overrideOpen = false;
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+
+  function override(reason: string): void {
+    const from = session.current;
+    overrideOpen = false;
+    session.moveOn(from, reason);
+    const next = PHASES[session.current];
+    if (session.current !== from && next) context.openWindow(`clive:${next.phase}`);
   }
 
   function open(i: number): void {
@@ -113,7 +142,15 @@
 
 <div class="flex h-full flex-col gap-3 overflow-y-auto p-4">
   <div class="flex items-center justify-between gap-3">
-    <span class="font-mono text-[11.5px] text-base-content/50">CLive</span>
+    <span class="flex items-center gap-2 font-mono text-[11.5px] text-base-content/50">
+      CLive
+      {#if session.logging && !session.logging.ok}
+        <span
+          class="badge badge-error badge-sm font-bold"
+          title={session.logging.reason}>NOT LOGGING</span
+        >
+      {/if}
+    </span>
     <Button
       class="btn-ghost btn-xs"
       type="button"
@@ -144,6 +181,14 @@
     <p class="text-xs text-base-content/60">
       Passed phases stay open. Click one to reread or change it. Changes carry into later phases and never lock you out.
     </p>
+  {/if}
+  {#if overrideOpen && PHASES[session.current + 1] && !session.phases[session.current].passed}
+    <OverrideDialog
+      from={PHASES[session.current].label}
+      to={PHASES[session.current + 1].label}
+      onconfirm={override}
+      oncancel={() => (overrideOpen = false)}
+    />
   {/if}
   {#if tutorialOpen}
     <TutorialDialog onclose={closeTutorial} />

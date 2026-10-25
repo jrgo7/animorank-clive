@@ -39,6 +39,8 @@
  *   changed, as `[{ line, kind }]` — never the code, which the next run or
  *   submit already records.
  * - `CLIVE_LIVE_RAW_TOGGLE` — `{ on }`: the "show the compiler's own words" box.
+ * - `CLIVE_RESEARCHER_OVERRIDE` — `{ from_phase, to_phase, attempt, reason }`: a researcher
+ *   moved the student on without a pass (Ctrl+Shift+Y).
  * - `CLIVE_LOG_CHECK` — `{ nonce }`: written by the server's log check, then
  *   read back; the entry being there is the proof the history accepts writes.
  */
@@ -54,5 +56,6 @@ export const CLIVE_EVENT = {
   liveCheckFailed: 'CLIVE_LIVE_CHECK_FAILED',
   liveCheck: 'CLIVE_LIVE_CHECK',
   liveRawToggle: 'CLIVE_LIVE_RAW_TOGGLE',
+  researcherOverride: 'CLIVE_RESEARCHER_OVERRIDE',
   logCheck: 'CLIVE_LOG_CHECK'
 } as const;
