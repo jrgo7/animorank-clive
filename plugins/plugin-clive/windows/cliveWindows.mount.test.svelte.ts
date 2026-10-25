@@ -136,6 +136,42 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  it('shows the student their own Design, numbered, while they write the code', () => {
+    stubBoot();
+    const context = stubContext('design-panel');
+    const session = cliveSessionFor(context);
+    session.phases[3].unlocked = true;
+    session.phases[2].artifact.steps = [
+      { text: 'Read the two numbers.', level: 0 },
+      { text: 'Split the guest number into three sections.', level: 0 },
+      { text: 'Sum the digits of each section.', level: 1 }
+    ];
+    const app = mountPhase(context, 3);
+    flushSync();
+    const panel = document.querySelector('[data-design-panel]');
+    expect(panel?.textContent).toContain('Your design');
+    const rows = Array.from(panel?.querySelectorAll('[data-design-step]') ?? []).map((el) =>
+      el.textContent?.replace(/\s+/g, ' ').trim()
+    );
+    expect(rows).toEqual([
+      '1. Read the two numbers.',
+      '2. Split the guest number into three sections.',
+      'a. Sum the digits of each section.'
+    ]);
+    unmount(app);
+  });
+
+  it('says so when there is no design to show yet', () => {
+    stubBoot();
+    const context = stubContext('design-panel-empty');
+    const session = cliveSessionFor(context);
+    session.phases[3].unlocked = true;
+    const app = mountPhase(context, 3);
+    flushSync();
+    expect(document.querySelector('[data-design-panel]')?.textContent).toContain("You haven't written a design yet.");
+    unmount(app);
+  });
+
   it('moves a stuck student on to the next phase, recorded as an override', () => {
     stubBoot();
     const events: { type: string; data: Record<string, unknown> }[] = [];

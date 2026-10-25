@@ -6,9 +6,11 @@
   import Checkbox from '$lib/components/ui/checkboxes/Checkbox.svelte';
   import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
+  import DesignPanel from './DesignPanel.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
-  import { PHASES } from './phase';
+  import { PHASES, type OutlineRow } from './phase';
   import { MORE_TO_FIX } from './feedback';
+  import { CLIVE_EVENT } from './telemetry';
   import { askStuck, submitPhase, type JudgeContext } from './api';
   import { live } from './live.svelte';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -94,6 +96,15 @@
   const olderCode = $derived(phaseState.codeFeedback.slice(1));
   const latestStuck = $derived(phaseState.stuck[0]);
   const olderStuck = $derived(phaseState.stuck.slice(1));
+
+  /** The Design outline, as the Design phase holds it; blank before the student writes one. */
+  const designSteps = $derived((session.phases[2].artifact.steps ?? []) as OutlineRow[]);
+
+  function editDesign(): void {
+    session.open(2);
+    context.telemetry.record(CLIVE_EVENT.phaseOpen, { phase: PHASES[2].phase, via: 'design_panel' });
+    context.openWindow(`clive:${PHASES[2].phase}`);
+  }
 
   function save(): void {
     session.persist();
@@ -200,6 +211,11 @@
         examples. Press Submit when it works for a final check against test cases you haven't seen. Print only what the
         problem asks for, with no extra messages like "Enter a number:". Don't use AI tools like ChatGPT.
       </p>
+
+      <DesignPanel
+        steps={designSteps}
+        onedit={editDesign}
+      />
 
       <!-- The code field has no editor of its own: the student writes it next door, in
            AnimoRank's Code Editor window, and this window only says so and adds the
