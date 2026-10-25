@@ -1,0 +1,97 @@
+[
+  {
+    "tag": "avril-problem",
+    "source": "port",
+    "phase": "problem_definition",
+    "expect": null
+  },
+  {
+    "tag": "avril-cases",
+    "source": "port",
+    "phase": "case_design",
+    "expect": {
+      "normal_cases:1": ["wrong_shape_input"],
+      "normal_cases:*": ["rule_not_worked"]
+    }
+  },
+  {
+    "tag": "avril-design",
+    "source": "port",
+    "phase": "algorithm_design",
+    "expect": {
+      "*": ["restates_problem", "not_traceable"]
+    },
+    "includePassed": true
+  },
+  {
+    "tag": "avril-runs",
+    "source": "port-runs",
+    "expect": {
+      "*": ["syntax_following_plan"]
+    }
+  },
+  {
+    "tag": "10-01_1-implement",
+    "source": "proto",
+    "participant": "10-01_1",
+    "problem": "compute_age",
+    "phase": "implement",
+    "attempts": [1, 2, 3, 4, 5, 6, 7, 8],
+    "expect": {
+      "*": ["plan_is_wrong"]
+    }
+  },
+  {
+    "tag": "126-Chr-cases",
+    "source": "proto",
+    "participant": "126-Chr",
+    "problem": "military_time",
+    "phase": "case_design",
+    "attempts": [1, 2, 3, 4, 5, 6],
+    "expect": {
+      "*": ["not_a_case", "wrong_answer", "low_effort", "rule_not_worked"]
+    }
+  },
+  {
+    "tag": "A-candies-implement",
+    "source": "proto",
+    "participant": "10_06-126-R",
+    "problem": "candies",
+    "phase": "implement",
+    "attempts": [2, 3],
+    "expect": {
+      "*": ["departs_from_plan"]
+    }
+  },
+  {
+    "tag": "A2-candies-implement",
+    "source": "proto",
+    "participant": "10_06-126-Rt",
+    "problem": "candies",
+    "phase": "implement",
+    "attempts": [1, 2, 3],
+    "expect": {
+      "*": ["departs_from_plan"]
+    }
+  },
+  {
+    "tag": "jm_uy-cases",
+    "source": "proto",
+    "participant": "jm_uy",
+    "problem": "crowley_path",
+    "phase": "case_design",
+    "attempts": [1],
+    "expect": {
+      "*": ["right_answer_wrong_reason"]
+    }
+  },
+  {
+    "tag": "J-runs",
+    "source": "proto-runs",
+    "participant": "10_06-126-J",
+    "problem": "military_time",
+    "expect": {
+      "*": ["syntax_following_plan"]
+    }
+  }
+]

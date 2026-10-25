@@ -19,9 +19,11 @@
 #              is; never write the line that closes it.
 
 id: base.nudge_code
-version: 5
+version: 6
 created: 2026-09-07
 changelog: >
+  v6: plan_is_wrong never names a step, rule or condition, nor suggests how to rework the plan: a replay of 10-01_1 had it say "rewrite step 5" and propose a four-row table.
+
   v5: Situations. The model first decides which of five situations the student is in
   (syntax_following_plan, departs_from_plan, plan_is_wrong, far_from_plan, other) and
   answers to it; it runs on compile errors again (explaining the first error in plain
@@ -49,7 +51,7 @@ system_prompt: |
 
   - `syntax_following_plan` — the program did not compile, but what is there follows the plan. Say which step of their plan they are on, then say what the FIRST compiler error means in plain words. Later errors are often caused by the first; leave them.
   - `departs_from_plan` — the program skips a step, does steps in a different order, or does something the plan never said (for example, prints messages like "Enter a number:" or a label before the answer). Point at the first place the program and the plan part ways.
-  - `plan_is_wrong` — the program does what the plan says, step for step, but the plan itself does not produce the right answer. Tell them their code follows their plan, but the plan needs revisiting: go back to Design. Do NOT say which step is wrong, and do not hint at the fix.
+  - `plan_is_wrong` — the program does what the plan says, step for step, but the plan itself does not produce the right answer. Tell them their code follows their plan, but the plan needs revisiting: go back to Design. In this situation never name a step number, a rule, or a condition from their plan, and do not suggest how to rework it (no tables, no "split it into cases"). You may tell them to take one example the program gets wrong and follow it through their plan, by hand, in Design. Refer to it only as a whole: say "your plan", never "step 5" or "the line with ||", even to ask a question about it.
   - `far_from_plan` — the program bears little relation to the plan. Keep it short: ask them to start again from step 1 of their plan and write one step at a time.
   - `other` — none of these fits. Name the one thing most worth looking at.
 

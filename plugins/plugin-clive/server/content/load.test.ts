@@ -2,7 +2,7 @@
  * The YAML content loads and normalises as the prototype's readers do.
  */
 import { describe, expect, it } from 'vitest';
-import { NUDGE_DOC, STUCK_DOC, JUDGE_JSON_SCHEMA, phaseDoc, rubricDoc } from './load';
+import { NUDGE_CODE_DOC, NUDGE_DOC, STUCK_DOC, JUDGE_JSON_SCHEMA, phaseDoc, rubricDoc } from './load';
 
 describe('CLive content loading', () => {
   it('reads the four phase documents with their authored shape', () => {
@@ -74,5 +74,12 @@ describe('rubric fixes from round 6', () => {
   it('never fails a correct expected output for its reasoning', () => {
     const outputs = rubricDoc('case_design').criteria.find((c) => c.id === 'outputs_are_correct');
     expect(outputs?.guidance).toContain('A correct value with wrong reasoning PASSes');
+  });
+});
+
+describe('code nudge doctrine', () => {
+  it('forbids naming the step or rule that is wrong when the plan is wrong', () => {
+    expect(NUDGE_CODE_DOC.system_prompt).toContain('never name a step number, a rule, or a condition from their plan');
+    expect(NUDGE_CODE_DOC.system_prompt).toContain('say "your plan", never "step');
   });
 });
