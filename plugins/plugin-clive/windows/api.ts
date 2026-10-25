@@ -69,6 +69,39 @@ export interface StuckContext extends Omit<JudgeContext, 'step'> {
  * The stuck reply is the feedback alone: the diagnosis the model made goes to the
  * server's log, never to the page.
  */
+/** A failing Run or Submit, as the code-feedback call may see it (`./codeFeedback.ts`). */
+export interface CodeRun {
+  compiled: boolean;
+  compilerOutput: string;
+  cases: { input: string; expected: string; actual: string; passed: boolean }[];
+  hiddenFailed: number;
+}
+
+/** One reply about the student's code. */
+export interface CodeFeedbackReply {
+  situation: string;
+  summary: string;
+  focus: string;
+  nudge: string;
+}
+
+export interface CodeFeedbackContext {
+  sessionId: string;
+  problemId: string;
+  code: string;
+  runType: 'run' | 'submit';
+  attempt: number;
+  priorArtifacts: JudgeContext['priorArtifacts'];
+  /** Earlier replies about this code, oldest first. */
+  history: { situation: string; focus: string; nudge: string }[];
+  run: CodeRun;
+}
+
+/** After a Run or Submit that did not pass: which situation the student is in, and one thing to do. */
+export async function codeFeedback(ctx: CodeFeedbackContext): Promise<CodeFeedbackReply> {
+  return call('/code-feedback', ctx);
+}
+
 export async function askStuck(ctx: StuckContext): Promise<{ feedback: string }> {
   return call('/stuck', ctx);
 }

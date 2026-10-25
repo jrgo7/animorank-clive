@@ -90,6 +90,8 @@
   const nudgeError = $derived(current.result?.nudge_error);
   const verdicts = $derived(current.result?.verdicts ?? []);
   const missingIds = $derived(current.result?.missing_ids ?? []);
+  const latestCode = $derived(phaseState.codeFeedback[0]);
+  const olderCode = $derived(phaseState.codeFeedback.slice(1));
   const latestStuck = $derived(phaseState.stuck[0]);
   const olderStuck = $derived(phaseState.stuck.slice(1));
 
@@ -317,6 +319,40 @@
             </div>
             {#if thinkNote}<div class="text-xs">{thinkNote}</div>{/if}
           </div>
+        </div>
+      {/if}
+
+      {#if session.codeFeedbackBusy}
+        <div
+          class="flex items-center gap-2.5 rounded-box border border-base-content/10 bg-base-200 p-4 text-sm text-base-content/70"
+          role="status"
+        >
+          <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary"></span>
+          <span>CLive is looking at your code…</span>
+        </div>
+      {:else if latestCode}
+        <div class="flex flex-col gap-2 rounded-box border-l-[3px] border-warning bg-base-200 p-5">
+          <h3 class="font-display text-base font-bold text-warning">
+            About your last {latestCode.runType === 'submit' ? 'Submit' : 'Run'}
+          </h3>
+          {#each latestCode.nudge.split('\n').filter((line) => line.trim()) as line, i (i)}
+            <p
+              class="max-w-[66ch] text-[15px] leading-relaxed"
+              data-code-feedback-line
+            >
+              {line}
+            </p>
+          {/each}
+          {#if olderCode.length}
+            <details class="border-t border-base-content/10 pt-2.5">
+              <summary class="cursor-pointer text-sm text-base-content/70">Earlier ({olderCode.length})</summary>
+              <div class="mt-2 flex flex-col gap-2.5">
+                {#each olderCode as entry, i (i)}
+                  <p class="text-sm leading-relaxed whitespace-pre-line text-base-content/70">{entry.nudge}</p>
+                {/each}
+              </div>
+            </details>
+          {/if}
         </div>
       {/if}
 

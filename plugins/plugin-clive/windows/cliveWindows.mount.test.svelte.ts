@@ -120,6 +120,22 @@ describe('CLive windows', () => {
     );
   }
 
+  it('shows the latest code feedback in Implement, one line per line', () => {
+    stubBoot();
+    const context = stubContext('mount-code-feedback');
+    const session = cliveSessionFor(context);
+    session.phases[3].unlocked = true;
+    session.phases[3].codeFeedback = [
+      { attempt: 1, runType: 'run', situation: 'departs_from_plan', focus: 'step 2', nudge: 'Line one\nLine two' }
+    ];
+    const app = mountPhase(context, 3);
+    flushSync();
+    expect(document.body.textContent).toContain('About your last Run');
+    const lines = Array.from(document.querySelectorAll('[data-code-feedback-line]')).map((el) => el.textContent);
+    expect(lines).toEqual(['Line one', 'Line two']);
+    unmount(app);
+  });
+
   it('mounts every phase window without writing state from a derived', () => {
     stubBoot();
 

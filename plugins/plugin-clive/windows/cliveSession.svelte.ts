@@ -4,7 +4,8 @@ import type { JsonValue } from '@zenstackhq/orm';
 import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
-import { fetchBoot } from './api';
+import { codeFeedback, fetchBoot } from './api';
+import { LatestOnly, toCodeRun } from './codeFeedback';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import {
   PHASES,
@@ -94,6 +95,8 @@ interface PersistedState {
     stuckDraft: string;
     /** Whether the phase's opening was left behind (a problem opens on its statement alone). */
     read: boolean;
+    /** Replies about the code after failing Runs and Submits, newest first (Implement). */
+    codeFeedback?: CodeFeedbackEntry[];
   }[];
 }
 
@@ -120,6 +123,15 @@ function completeArtifact(config: PhaseConfig, saved: unknown, startingCode: str
       return [field.id, missing ? blankValueFor(field, startingCode) : (value as ArtifactValue)];
     })
   );
+}
+
+/** One reply about the student's code after a Run or Submit that did not pass. */
+export interface CodeFeedbackEntry {
+  attempt: number;
+  runType: 'run' | 'submit';
+  situation: string;
+  focus: string;
+  nudge: string;
 }
 
 /** One phase's working state: what the student has written, and what came back for it. */
@@ -149,6 +161,8 @@ export class PhaseState {
    * statement alone, with Next to the first question.
    */
   read: boolean = $state(false);
+  /** Replies about the code after failing Runs and Submits, newest first (Implement only). */
+  codeFeedback: CodeFeedbackEntry[] = $state([]);
 
   constructor(config: PhaseConfig, startingCode: string, unlocked: boolean) {
     this.artifact = Object.fromEntries(config.artifactFields.map((f) => [f.id, blankValueFor(f, startingCode)]));
@@ -174,6 +188,13 @@ export class CliveSession {
    * `ImplementWindow.window.svelte`), not something this plugin's UI does itself.
    */
   busy: 'stuck' | 'submit' | null = $state(null);
+  /** How many replies about the code are on their way; separate from `busy`, they never block the page. */
+  codeFeedbackPending: number = $state(0);
+  /** Whether a reply about the code is on its way. */
+  get codeFeedbackBusy(): boolean {
+    return this.codeFeedbackPending > 0;
+  }
+  private readonly codeFeedbackRequests = new LatestOnly();
   busySince: number | null = $state(null);
   error: string | null = $state(null);
   /** Whether a model provider is configured; the Hint button is disabled when not. */
@@ -228,7 +249,8 @@ export class CliveSession {
         stuck: saved.stuck ?? [],
         stuckDraft: typeof saved.stuckDraft === 'string' ? saved.stuckDraft : '',
         // A session saved before a problem opened on its statement alone has already started.
-        read: typeof saved.read === 'boolean' ? saved.read : true
+        read: typeof saved.read === 'boolean' ? saved.read : true,
+        codeFeedback: Array.isArray(saved.codeFeedback) ? saved.codeFeedback : []
       });
     });
     return true;
@@ -251,7 +273,8 @@ export class CliveSession {
         result: $state.snapshot(phase.result) as JudgeResult | null,
         stuck: $state.snapshot(phase.stuck) as StuckEntry[],
         stuckDraft: phase.stuckDraft,
-        read: phase.read
+        read: phase.read,
+        codeFeedback: $state.snapshot(phase.codeFeedback) as CodeFeedbackEntry[]
       }))
     };
     // The shape is a plain JSON object; `PersistedState` only documents it for restore,
@@ -330,6 +353,52 @@ export class CliveSession {
     state.result = result;
     if (result.passed) this.pass(index);
     else state.attempt += 1;
+  }
+
+  /**
+   * Ask what to say about code that failed a Run or Submit, and keep the reply on
+   * Implement. Only the newest request's reply is kept; a failed request leaves
+   * the earlier feedback as it was.
+   */
+  async requestCodeFeedback(
+    context: SolveWindowContext,
+    execution: { runType: 'run' | 'submit'; publicTestResults: readonly unknown[]; submittedCode: string }
+  ): Promise<void> {
+    const index = PHASES.findIndex((p) => p.phase === 'implement');
+    const state = this.phases[index];
+    const attempt = state.codeFeedback.length + 1;
+    const history = state.codeFeedback
+      .slice(0, 5)
+      .reverse()
+      .map(({ situation, focus, nudge }) => ({ situation, focus, nudge }));
+    this.codeFeedbackPending += 1;
+    try {
+      const { current, value } = await this.codeFeedbackRequests.run(() =>
+        codeFeedback({
+          sessionId: this.sessionId,
+          problemId: context.problem.id,
+          code: execution.submittedCode,
+          runType: execution.runType,
+          attempt,
+          priorArtifacts: this.priorArtifacts(index),
+          history,
+          run: toCodeRun(execution.publicTestResults)
+        })
+      );
+      if (!current) return;
+      state.codeFeedback.unshift({
+        attempt,
+        runType: execution.runType,
+        situation: value.situation,
+        focus: value.focus,
+        nudge: value.nudge
+      });
+      this.persist();
+    } catch (cause) {
+      this.error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      this.codeFeedbackPending -= 1;
+    }
   }
 
   /** Opens an already-unlocked phase; does nothing for one the student hasn't reached. */
