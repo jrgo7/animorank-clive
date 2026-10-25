@@ -483,6 +483,12 @@ describe('code nudge', () => {
     expect((await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider)).situation).toBe('other');
   });
 
+  it('calls a failing case’s result what the program gave, not what it printed', async () => {
+    const { provider, users } = capturing(REPLY);
+    await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider);
+    expect(users[0]).toContain('expected "1", got "0"');
+  });
+
   it('shows the compiler errors when the program did not compile', async () => {
     const { provider, users } = capturing(REPLY);
     const run: CodeRun = {

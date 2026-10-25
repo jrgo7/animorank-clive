@@ -118,7 +118,7 @@ user_template: |
   {% else %}
   WHAT FAILED
   {% for c in run.cases %}
-  - {{ "passed" if c.passed else "FAILED" }}: input {{ c.input | tojson }}, expected {{ c.expected | tojson }}, printed {{ c.actual | tojson }}
+  - {{ "passed" if c.passed else "FAILED" }}: input {{ c.input | tojson }}, expected {{ c.expected | tojson }}, got {{ c.actual | tojson }}
   {% endfor %}
   {% if run.hiddenFailed %}
   - {{ run.hiddenFailed }} case{{ "s" if run.hiddenFailed > 1 else "" }} the student has not seen also failed. You are not told what they contain, and must not speculate about them.

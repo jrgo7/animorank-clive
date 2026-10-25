@@ -35,10 +35,12 @@ function caseOf(result: AnyResult): CodeRun['cases'][number] {
     const ret = (
       result.runInfo as { comparisons?: { symbol?: string; expected?: Value; actual?: Value }[] } | undefined
     )?.comparisons?.find((c) => c.symbol === 'return');
+    // A run that crashed or was stopped has no comparison to read: say so instead of sending blanks.
+    const failure = (result.runInfo as { failure?: string } | undefined)?.failure;
     return {
       input: (data?.parameters ?? []).map((p) => valueText(p.value)).join(', '),
       expected: valueText(ret?.expected),
-      actual: valueText(ret?.actual),
+      actual: failure ? `(${failure})` : valueText(ret?.actual),
       passed: result.success
     };
   }
@@ -78,6 +80,15 @@ export function implementReached(phases: readonly { unlocked: boolean }[]): bool
   return phases[phases.length - 1]?.unlocked === true;
 }
 
+/** Whether a Run or Submit gets code feedback: a model to ask, Implement reached, and something failed. */
+export function wantsCodeFeedback(
+  phases: readonly { unlocked: boolean }[],
+  hasApiKey: boolean,
+  results: readonly { success: boolean }[]
+): boolean {
+  return hasApiKey && implementReached(phases) && shouldAsk(results);
+}
+
 /** Whether a Run or Submit is worth answering: anything at all failed. */
 export function shouldAsk(results: readonly { success: boolean }[]): boolean {
   return results.some((r) => !r.success);
@@ -94,5 +105,10 @@ export class LatestOnly {
     const id = ++this.latest;
     const value = await work();
     return { current: id === this.latest, value };
+  }
+
+  /** Make any request still on its way stale, so its reply is dropped. */
+  cancel(): void {
+    this.latest += 1;
   }
 }

@@ -429,6 +429,11 @@ export class CliveSession {
     }
   }
 
+  /** A Run or Submit that passed: any reply still coming about older code is no longer about this code. */
+  dropPendingCodeFeedback(): void {
+    this.codeFeedbackRequests.cancel();
+  }
+
   /** Opens an already-unlocked phase; does nothing for one the student hasn't reached. */
   open(index: number): void {
     if (!this.phases[index]?.unlocked) return;

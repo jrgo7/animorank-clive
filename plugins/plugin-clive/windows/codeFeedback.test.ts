@@ -3,7 +3,7 @@
  * and keeping only the newest reply when Runs overlap.
  */
 import { describe, expect, it } from 'vitest';
-import { implementReached, LatestOnly, shouldAsk, toCodeRun } from './codeFeedback';
+import { implementReached, LatestOnly, shouldAsk, toCodeRun, wantsCodeFeedback } from './codeFeedback';
 
 const intValue = (value: string) => ({ type: 'int', options: {}, data: { value } });
 
@@ -122,5 +122,33 @@ describe('review fixes', () => {
     expect(implementReached([{ unlocked: true }, { unlocked: true }, { unlocked: true }, { unlocked: false }])).toBe(
       false
     );
+  });
+});
+
+describe('quick fixes', () => {
+  it('drops an older reply once a later Run has passed', async () => {
+    const latest = new LatestOnly();
+    let release: (v: string) => void = () => {};
+    const pending = latest.run(() => new Promise<string>((resolve) => (release = resolve)));
+    latest.cancel();
+    release('old');
+    expect(await pending).toEqual({ current: false, value: 'old' });
+  });
+
+  it('tells the model a function case crashed or timed out instead of sending blanks', () => {
+    const result = {
+      success: false,
+      testCaseInfo: { public: true, type: 'function', data: { parameters: [{ value: intValue('1') }] } },
+      runInfo: { failure: 'timeout' }
+    };
+    expect(toCodeRun([result]).cases[0]).toMatchObject({ actual: '(timeout)', passed: false });
+  });
+
+  it('asks for feedback only with a model to ask, Implement reached, and something failing', () => {
+    const reached = [{ unlocked: true }, { unlocked: true }, { unlocked: true }, { unlocked: true }];
+    const failing = [{ success: false }];
+    expect(wantsCodeFeedback(reached, true, failing)).toBe(true);
+    expect(wantsCodeFeedback(reached, false, failing)).toBe(false);
+    expect(wantsCodeFeedback(reached, true, [{ success: true }])).toBe(false);
   });
 });
