@@ -21,6 +21,7 @@ import { judge, type JudgeOutcome, type Verdict } from './judge';
 import type { PriorArtifact } from './artifact';
 import { defaultExecutor, normaliseOutput, runProgram, type ProgramRun } from './program';
 import type { Provider } from './providers';
+import type { FunctionDef } from './problem';
 
 /** The exit status a reference solution uses for input its problem does not allow. */
 export const OUT_OF_RULES_EXIT = 3;
@@ -98,6 +99,38 @@ function collectRows(phase: PhaseDoc, artifact: Record<string, unknown>): RefRow
   return out;
 }
 
+/** How each C type the harness can call is read from stdin and printed. */
+const IO: Record<string, { read: string; print: string }> = {
+  int: { read: '%d', print: '%d' },
+  long: { read: '%ld', print: '%ld' },
+  float: { read: '%f', print: '%g' },
+  double: { read: '%lf', print: '%g' },
+  char: { read: ' %c', print: '%c' }
+};
+
+/**
+ * A function problem's reference with a `main` that reads each argument from
+ * stdin, calls the function, and prints what it returns — so a student's case row
+ * can be run through it like a program's. The reference is returned unchanged when
+ * it already has a `main`; `null` when a type is one the harness cannot read.
+ */
+export function functionHarness(reference: string, fn: FunctionDef): string | null {
+  if (/\bmain\s*\(/.test(reference)) return reference;
+  if (fn.parameters.some((p) => !IO[p.type])) return null;
+  if (fn.returnType !== 'void' && !IO[fn.returnType]) return null;
+  const vars = fn.parameters.map(
+    (p, i) => `  ${p.type} a${i};\n  if (scanf("${IO[p.type].read}", &a${i}) != 1) return 3;`
+  );
+  const call = `${fn.name}(${fn.parameters.map((_, i) => `a${i}`).join(', ')})`;
+  const body = fn.returnType === 'void' ? `  ${call};` : `  printf("${IO[fn.returnType].print}\\n", ${call});`;
+  return `${reference}\n\n#include <stdio.h>\nint main(void)\n{\n${vars.join('\n')}\n${body}\n  return 0;\n}\n`;
+}
+
+/** A case row as stdin: commas or any run of whitespace between values become one space. */
+export function caseStdin(input: string): string {
+  return `${input.replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean).join(' ')}\n`;
+}
+
 /**
  * Run the student's rows through the problem's reference solution. `status` is
  * `unavailable` or `error` when nothing can be computed, else `checked`.
@@ -106,11 +139,19 @@ export async function check(
   phase: PhaseDoc,
   artifact: Record<string, unknown>,
   referenceSolution: string,
-  executor?: CodeExecutor
+  executor?: CodeExecutor,
+  fn?: FunctionDef
 ): Promise<CheckResult> {
-  const reference = referenceSolution ?? '';
+  let reference = referenceSolution ?? '';
   if (!reference.trim()) {
     return { status: 'unavailable', reason: 'This problem has no reference solution.' };
+  }
+  if (fn) {
+    const wrapped = functionHarness(reference, fn);
+    if (wrapped === null) {
+      return { status: 'unavailable', reason: 'The reference is a function whose types CLive cannot call.' };
+    }
+    reference = wrapped;
   }
 
   const prose = phase.artifact_fields
@@ -133,7 +174,7 @@ export async function check(
     for (const row of toRun) {
       let outcome: ProgramRun;
       try {
-        outcome = await runProgram(runner, reference, row.input);
+        outcome = await runProgram(runner, reference, fn ? caseStdin(row.input) : row.input);
       } catch (error) {
         return { status: 'error', reason: `The reference could not run: ${describe(error)}` };
       }
@@ -167,6 +208,19 @@ export interface JudgedWithChecks extends JudgeOutcome {
 }
 
 /**
+ * The function the student writes, for a function problem: the only one defined,
+ * or else the one the starter code names outside the slots the student edits.
+ * Undefined when it cannot be told, which leaves the reference run as a program.
+ */
+function studentFunction(problem: ProblemForPrompt): FunctionDef | undefined {
+  const fns = problem.functions ?? [];
+  if (fns.length <= 1) return fns[0];
+  const fixed = problem.starter_code.replace(/%slot[^%]*%[\s\S]*?%endslot[^%]*%/g, '');
+  const named = fns.filter((f) => new RegExp(`\\b${f.name}\\s*\\(`).test(fixed));
+  return named.length === 1 ? named[0] : undefined;
+}
+
+/**
  * `judge()`, with each `check: reference` criterion computed instead where it
  * can be. When the reference cannot be computed, that criterion is downgraded to
  * advisory in the returned `criteria` — callers must take gates from there, not
@@ -188,7 +242,7 @@ export async function judgeWithChecks(
     return { ...result, criteria, referenceCheck: null };
   }
 
-  const ref = await check(phase, artifact, problem.reference_solution, executor);
+  const ref = await check(phase, artifact, problem.reference_solution, executor, studentFunction(problem));
   const computed = ref.status === 'checked';
 
   const applied: CriterionDoc[] = criteria.map((c) =>

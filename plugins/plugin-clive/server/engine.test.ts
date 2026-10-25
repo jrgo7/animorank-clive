@@ -13,7 +13,7 @@ import { nudge } from './nudge';
 import { codeNudge, type CodeRun } from './codeNudge';
 import type { Provider } from './providers';
 import { publicTestRun } from './publicTests';
-import { check, judgeWithChecks, outputsMatch } from './referenceCheck';
+import { caseStdin, check, functionHarness, judgeWithChecks, outputsMatch } from './referenceCheck';
 import { cut, isPerStep } from './steps';
 import { stuck } from './stuck';
 import type { ProblemForPrompt } from './content/templates';
@@ -291,6 +291,62 @@ describe('reference check', () => {
 
     const broken = await check(phase, CASES_ARTIFACT, 'x', new FakeExecutor(() => execution(1, 0, '')));
     expect(broken).toMatchObject({ status: 'error' });
+  });
+
+  const SUM = {
+    id: 'f',
+    name: 'f',
+    parameters: [
+      { name: 'a', type: 'int' },
+      { name: 'b', type: 'int' }
+    ],
+    returnType: 'int'
+  };
+
+  it('wraps a function reference in a main that reads its arguments and prints what it returns', () => {
+    const code = functionHarness('int f(int a, int b){return a+b;}', SUM) ?? '';
+    expect(code).toContain('int f(int a, int b){return a+b;}');
+    expect(code).toContain('main(');
+    expect(code.match(/scanf\("%d", &/g)).toHaveLength(2);
+    expect(code).toContain('printf("%d\\n", f(');
+  });
+
+  it('cannot wrap a function whose parameter type it does not know', () => {
+    expect(
+      functionHarness('int f(char *s){return 0;}', { ...SUM, parameters: [{ name: 's', type: 'char *' }] })
+    ).toBeNull();
+  });
+
+  it('leaves a reference that already has a main as it is', () => {
+    const own = 'int f(int a,int b){return a+b;}\nint main(void){return 0;}';
+    expect(functionHarness(own, SUM)).toBe(own);
+  });
+
+  it('reads a case row typed with commas or extra spaces', () => {
+    expect(caseStdin('612, 123456789')).toBe('612 123456789\n');
+    expect(caseStdin('  1\n 2 ')).toBe('1 2\n');
+  });
+
+  it('runs a function reference through its generated main, on the row as typed', async () => {
+    const seen: { code: string; stdin: string }[] = [];
+    const executor = new FakeExecutor((request) => {
+      seen.push({
+        code: request.files[0].content.toString('utf8'),
+        stdin: request.processes[1].stdin?.toString('utf8') ?? ''
+      });
+      return execution(0, 0, '1\n');
+    });
+    const artifact = { normal_cases: [{ input: '612, 123456789', output: '1', working: 'w' }] };
+    const result = await check(phaseDoc('case_design'), artifact, 'int f(int a, int b){return 1;}', executor, SUM);
+    expect(result).toMatchObject({ status: 'checked', verdict: 'PASS' });
+    expect(seen[0].code).toContain('main(');
+    expect(seen[0].stdin).toBe('612 123456789\n');
+  });
+
+  it('is unavailable for a function it cannot call', async () => {
+    const fn = { ...SUM, parameters: [{ name: 's', type: 'char *' }] };
+    const result = await check(phaseDoc('case_design'), CASES_ARTIFACT, 'int f(char *s){return 0;}', undefined, fn);
+    expect(result).toMatchObject({ status: 'unavailable' });
   });
 
   it('is unavailable without a reference solution', async () => {
