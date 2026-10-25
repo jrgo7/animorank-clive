@@ -3,7 +3,7 @@
  * and keeping only the newest reply when Runs overlap.
  */
 import { describe, expect, it } from 'vitest';
-import { LatestOnly, shouldAsk, toCodeRun } from './codeFeedback';
+import { implementReached, LatestOnly, shouldAsk, toCodeRun } from './codeFeedback';
 
 const intValue = (value: string) => ({ type: 'int', options: {}, data: { value } });
 
@@ -86,5 +86,41 @@ describe('LatestOnly', () => {
     expect(await second).toEqual({ current: true, value: 'second' });
     releaseFirst('first');
     expect(await first).toEqual({ current: false, value: 'first' });
+  });
+});
+
+describe('review fixes', () => {
+  it('reads a function case’s values from the hydrated TypeValues the page holds', () => {
+    // What hydrateResults leaves in runInfo: class instances whose own field is `.value`,
+    // serialising back to `{ type, data: { value } }`.
+    const hydrated = (value: string) => ({
+      value: { value },
+      toJSON: () => ({ type: 'int', options: {}, data: { value } })
+    });
+    const result = {
+      success: false,
+      testCaseInfo: { public: true, type: 'function', data: { parameters: [{ value: intValue('612') }] } },
+      runInfo: { comparisons: [{ symbol: 'return', expected: hydrated('1'), actual: hydrated('0'), result: false }] }
+    };
+    expect(toCodeRun([result]).cases[0]).toMatchObject({ expected: '1', actual: '0' });
+  });
+
+  it('recognises a stdio program that did not compile by its compiler output', () => {
+    const result = {
+      success: false,
+      testCaseInfo: { public: true, type: 'stdio', data: { input: '1', output: '1' } },
+      runInfo: { expected: '1', actual: '' },
+      compilerOutput: "main.c:3: error: expected ';'"
+    };
+    expect(toCodeRun([result])).toMatchObject({ compiled: false, compilerOutput: "main.c:3: error: expected ';'" });
+  });
+
+  it('asks for Implement feedback once Implement is reached, whichever phase is open', () => {
+    expect(implementReached([{ unlocked: true }, { unlocked: true }, { unlocked: true }, { unlocked: true }])).toBe(
+      true
+    );
+    expect(implementReached([{ unlocked: true }, { unlocked: true }, { unlocked: true }, { unlocked: false }])).toBe(
+      false
+    );
   });
 });

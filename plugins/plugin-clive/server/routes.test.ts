@@ -65,6 +65,7 @@ vi.mock('./sessionLog', async (importOriginal) => {
   return {
     ...actual,
     ownsPracticeSession: async () => log.owns,
+    ownsAnyPracticeSession: async () => log.owns,
     writeSessionLog: async (_sessionId: string, entries: SessionLogEntry[]) => {
       if (log.fail) throw new Error('database down');
       log.written.push(...entries);
@@ -477,7 +478,12 @@ describe('CLive plugin routes', () => {
 
   async function getFrom(ip: string, url: string) {
     const instance = await app();
-    return instance.inject({ method: 'GET', url: `/plugin-api/clive${url}`, remoteAddress: ip });
+    return instance.inject({
+      method: 'GET',
+      url: `/plugin-api/clive${url}`,
+      remoteAddress: ip,
+      headers: { [PLUGIN_API_USER_HEADER]: 'user-1' }
+    });
   }
 
   it('serves the live reasoning feed only to the machine the app runs on', async () => {
@@ -491,6 +497,18 @@ describe('CLive plugin routes', () => {
     const page = await getFrom('::1', `/live?session=${QUIET}`);
     expect(page.statusCode).toBe(200);
     expect(page.headers['content-type']).toContain('text/html');
+  });
+
+  it('serves the live feed only for a session the signed-in user owns', async () => {
+    log.owns = false;
+    const instance = await app();
+    const response = await instance.inject({
+      method: 'GET',
+      url: `/plugin-api/clive/live/events?session=${SESSION}&after=0`,
+      remoteAddress: '127.0.0.1',
+      headers: { [PLUGIN_API_USER_HEADER]: 'user-1' }
+    });
+    expect(response.statusCode).toBe(403);
   });
 
   it('writes the stuck record with the diagnosis', async () => {

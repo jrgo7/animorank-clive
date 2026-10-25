@@ -131,6 +131,24 @@ export function caseStdin(input: string): string {
   return `${input.replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean).join(' ')}\n`;
 }
 
+const NUMBER_TOKEN = /[-+]?\d+(?:\.\d+)?/g;
+
+/**
+ * A function case row as stdin for the generated `main`, or `null` when its
+ * values cannot be read. Students write the arguments in several forms --
+ * `612, 123456789`, `checkSecretCode(612, 123456789)`, `nAlice = 612, ...`, a
+ * nine-digit number grouped as `123,456,789` -- so the numbers are pulled out
+ * rather than split on commas. A row with the wrong number of values is not
+ * computable: the criterion falls back to the judge, rather than calling the
+ * student's case out of the rules.
+ */
+export function functionArgs(input: string, fn: FunctionDef): string | null {
+  if (fn.parameters.some((p) => p.type === 'char')) return caseStdin(input);
+  const ungrouped = input.replace(/\d{1,3}(?:,\d{3})+(?!\d)/g, (m) => m.replace(/,/g, ''));
+  const numbers = ungrouped.match(NUMBER_TOKEN) ?? [];
+  return numbers.length === fn.parameters.length ? `${numbers.join(' ')}\n` : null;
+}
+
 /**
  * Run the student's rows through the problem's reference solution. `status` is
  * `unavailable` or `error` when nothing can be computed, else `checked`.
@@ -174,7 +192,14 @@ export async function check(
     for (const row of toRun) {
       let outcome: ProgramRun;
       try {
-        outcome = await runProgram(runner, reference, fn ? caseStdin(row.input) : row.input);
+        const stdin = fn ? functionArgs(row.input, fn) : row.input;
+        if (stdin === null) {
+          return {
+            status: 'unavailable',
+            reason: `${row.label}: its values could not be read as the function's arguments.`
+          };
+        }
+        outcome = await runProgram(runner, reference, stdin);
       } catch (error) {
         return { status: 'error', reason: `The reference could not run: ${describe(error)}` };
       }

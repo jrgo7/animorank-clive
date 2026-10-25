@@ -13,9 +13,10 @@ const ORPHAN_CALLS = 'CLIVE_ORPHAN_CALLS';
 const LLM_CALL = 'CLIVE_LLM_CALL';
 
 /** The request a record's calls belong to. */
-const SERVED_BY: Record<string, 'submit' | 'stuck'> = {
+const SERVED_BY: Record<string, 'submit' | 'stuck' | 'code-feedback'> = {
   CLIVE_SUBMIT: 'submit',
-  CLIVE_STUCK: 'stuck'
+  CLIVE_STUCK: 'stuck',
+  CLIVE_CODE_FEEDBACK: 'code-feedback'
 };
 
 /**
@@ -48,7 +49,7 @@ export function attachCalls(entries: SessionLogEntry[]): CliveLogEvent[] {
     const data = asRecord(entry.data);
     const during =
       entry.type === 'CLIVE_ERROR'
-        ? data.call === 'submit' || data.call === 'stuck'
+        ? data.call === 'submit' || data.call === 'stuck' || data.call === 'code-feedback'
           ? data.call
           : null
         : (SERVED_BY[entry.type] ?? null);

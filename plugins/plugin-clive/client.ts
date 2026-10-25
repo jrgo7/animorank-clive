@@ -19,7 +19,7 @@ import { PHASE_PLACEMENT_REFERENCE, PHASES, PROBLEM_INFO_WINDOW_KEY } from './wi
 import { showPhaseWindows } from './windows/phaseWindows';
 import { CLIVE_EVENT } from './windows/telemetry';
 import { checkLog } from './windows/api';
-import { shouldAsk } from './windows/codeFeedback';
+import { implementReached, shouldAsk } from './windows/codeFeedback';
 
 /** The key the log view is registered under, in the plugin's own namespace. */
 const LOG_VIEW = 'events';
@@ -66,10 +66,10 @@ export default class CLivePlugin extends ClientPlugin {
     // outcome is recorded from the execution event. The code itself is already
     // in the telemetry hook's `RUN_ATTEMPT` entry; Submit is recorded
     // server-side as `CLIVE_SUBMIT`.
-    // A Run or Submit that did not pass, while the student is in Implement: CLive
+    // A Run or Submit that did not pass, once the student has reached Implement: CLive
     // answers on its own with the situation it sees and one thing to do.
     context.executionObservable.subscribe('tests', (execution) => {
-      if (PHASES[session.current]?.phase !== 'implement') return;
+      if (!implementReached(session.phases)) return;
       if (!shouldAsk(execution.publicTestResults)) return;
       void session.requestCodeFeedback(context, execution);
     });

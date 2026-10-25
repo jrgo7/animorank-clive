@@ -13,7 +13,7 @@ import { nudge } from './nudge';
 import { codeNudge, type CodeRun } from './codeNudge';
 import type { Provider } from './providers';
 import { publicTestRun } from './publicTests';
-import { caseStdin, check, functionHarness, judgeWithChecks, outputsMatch } from './referenceCheck';
+import { caseStdin, check, functionArgs, functionHarness, judgeWithChecks, outputsMatch } from './referenceCheck';
 import { cut, isPerStep } from './steps';
 import { stuck } from './stuck';
 import type { ProblemForPrompt } from './content/templates';
@@ -349,6 +349,25 @@ describe('reference check', () => {
     expect(result).toMatchObject({ status: 'unavailable' });
   });
 
+  it('reads a function case row in the forms students write it', () => {
+    expect(functionArgs('612, 123,456,002', SUM)).toBe('612 123456002\n');
+    expect(functionArgs('checkSecretCode(612, 123456002)', SUM)).toBe('612 123456002\n');
+    expect(functionArgs('nAlice = 612, nGuest = 123456002', SUM)).toBe('612 123456002\n');
+    expect(functionArgs('612', SUM)).toBeNull();
+  });
+
+  it('cannot compute a function case whose values it cannot read, rather than calling it out of rules', async () => {
+    const artifact = { normal_cases: [{ input: '612', output: '1', working: 'w' }] };
+    const result = await check(
+      phaseDoc('case_design'),
+      artifact,
+      'int f(int a, int b){return 1;}',
+      new FakeExecutor(() => execution(0, 3, '')),
+      SUM
+    );
+    expect(result).toMatchObject({ status: 'unavailable' });
+  });
+
   it('is unavailable without a reference solution', async () => {
     const result = await check(phaseDoc('case_design'), CASES_ARTIFACT, '', undefined);
     expect(result).toMatchObject({ status: 'unavailable' });
@@ -451,6 +470,12 @@ describe('code nudge', () => {
   it('returns the situation and feedback the model chose', async () => {
     const { provider } = capturing(REPLY);
     expect(await codeNudge(PROBLEM, 'int main(void){}', RUN_FAILING, [], [], 1, provider)).toEqual(REPLY);
+  });
+
+  it('reads a reply with no situation as other', async () => {
+    const { situation: _omit, ...noSituation } = REPLY;
+    const { provider } = capturing(noSituation);
+    expect((await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider)).situation).toBe('other');
   });
 
   it('turns a situation the Implement phase does not list into other', async () => {

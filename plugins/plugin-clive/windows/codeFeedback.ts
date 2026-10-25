@@ -18,7 +18,15 @@ interface AnyResult {
   compilerOutput?: string;
 }
 
-const valueText = (v: Value | undefined) => String(v?.data?.value ?? '');
+/**
+ * A function argument or return value as text. Test case data is plain JSON
+ * (`{ data: { value } }`), but the page hydrates run results into `TypeValue`
+ * instances, which serialise back to that shape through `toJSON`.
+ */
+function valueText(v: (Value & { toJSON?: () => unknown }) | undefined): string {
+  const plain = (typeof v?.toJSON === 'function' ? v.toJSON() : v) as Value | undefined;
+  return String(plain?.data?.value ?? '');
+}
 
 function caseOf(result: AnyResult): CodeRun['cases'][number] {
   const info = result.testCaseInfo;
@@ -47,7 +55,13 @@ function caseOf(result: AnyResult): CodeRun['cases'][number] {
 /** The run as the code-feedback call sees it: compile errors, or the public cases and a hidden count. */
 export function toCodeRun(results: readonly unknown[]): CodeRun {
   const all = results as AnyResult[];
-  const failedToCompile = all.find((r) => (r.runInfo as { failure?: string } | undefined)?.failure === 'compile_error');
+  // A function case marks a failed compile in `runInfo.failure`; a stdio case only
+  // carries the compiler's output.
+  const failedToCompile = all.find(
+    (r) =>
+      (r.runInfo as { failure?: string } | undefined)?.failure === 'compile_error' ||
+      (typeof r.compilerOutput === 'string' && r.compilerOutput.trim() !== '')
+  );
   if (failedToCompile) {
     return { compiled: false, compilerOutput: failedToCompile.compilerOutput ?? '', cases: [], hiddenFailed: 0 };
   }
@@ -57,6 +71,11 @@ export function toCodeRun(results: readonly unknown[]): CodeRun {
     cases: all.filter((r) => r.testCaseInfo?.public !== false).map(caseOf),
     hiddenFailed: all.filter((r) => r.testCaseInfo?.public === false && !r.success).length
   };
+}
+
+/** Whether the student has reached Implement: feedback on their code follows them back to earlier phases. */
+export function implementReached(phases: readonly { unlocked: boolean }[]): boolean {
+  return phases[phases.length - 1]?.unlocked === true;
 }
 
 /** Whether a Run or Submit is worth answering: anything at all failed. */

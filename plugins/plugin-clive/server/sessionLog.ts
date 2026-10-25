@@ -47,6 +47,11 @@ export async function ownsPracticeSession(userId: string, sessionId: string, pro
   return count > 0;
 }
 
+/** Whether `sessionId` is one of `userId`'s practice sessions, on any problem. */
+export async function ownsAnyPracticeSession(userId: string, sessionId: string): Promise<boolean> {
+  return (await db.practiceSession.count({ where: { id: sessionId, student_id: userId } })) > 0;
+}
+
 /** The answer to a log check, for the page that asked: the prototype's `session_log.check` shape. */
 interface LogCheckResult {
   ok: boolean;

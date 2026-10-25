@@ -57,6 +57,16 @@ describe('CLive log folding', () => {
     expect(events[0].calls).toEqual([judge]);
   });
 
+  it('attaches a code-feedback call to its record, and a failed one to its error', () => {
+    const call = entry('CLIVE_LLM_CALL', '2026-10-21T10:00:00.100Z', { during: 'code-feedback', seq: 1 });
+    const record = entry('CLIVE_CODE_FEEDBACK', '2026-10-21T10:00:00.200Z', { run_type: 'run' });
+    const failedCall = entry('CLIVE_LLM_CALL', '2026-10-21T10:00:00.300Z', { during: 'code-feedback', seq: 1 });
+    const error = entry('CLIVE_ERROR', '2026-10-21T10:00:00.400Z', { call: 'code-feedback' });
+    const events = attachCalls(newestFirst([record, call, error, failedCall]));
+    expect(events.some((e) => e.entry.type === 'CLIVE_ORPHAN_CALLS')).toBe(false);
+    expect(events.find((e) => e.entry.type === 'CLIVE_CODE_FEEDBACK')?.calls).toEqual([call]);
+  });
+
   it('returns calls still held at the end as one orphan entry', () => {
     const first = entry('CLIVE_LLM_CALL', '2026-10-21T10:00:00.100Z', { during: 'submit', seq: 1 });
     const second = entry('CLIVE_LLM_CALL', '2026-10-21T10:00:00.200Z', { during: 'submit', seq: 2 });

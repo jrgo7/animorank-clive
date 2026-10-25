@@ -30,7 +30,7 @@ export const NudgeSchema = z.object({
 });
 
 export const CodeNudgeSchema = z.object({
-  situation: z.string(),
+  situation: z.string().default('other'),
   summary: z.string(),
   focus: z.string(),
   nudge: z.string()

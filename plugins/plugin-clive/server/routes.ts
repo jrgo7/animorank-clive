@@ -34,6 +34,7 @@ import { publicTestRun } from './publicTests';
 import { judgeWithChecks, type CheckResult } from './referenceCheck';
 import {
   checkSessionLog,
+  ownsAnyPracticeSession,
   ownsPracticeSession,
   requestEntries,
   SESSION_LOG_TYPES,
@@ -354,6 +355,17 @@ async function refusal(
   return null;
 }
 
+/**
+ * Whether the signed-in user owns a practice session, on any problem: the live
+ * window names only the session. Loopback alone is not enough where the bridge
+ * cannot tell the client's address.
+ */
+async function ownsSession(request: FastifyRequest, sessionId: string): Promise<boolean> {
+  const userId = requestUserId(request);
+  if (!userId) return false;
+  return ownsAnyPracticeSession(userId, sessionId);
+}
+
 /** The record of a request that failed, with what it asked for. */
 function errorRecord(call: RequestKind, asked: Record<string, unknown>, error: unknown) {
   return {
@@ -387,6 +399,9 @@ class CLiveAPI extends ServerAPI {
         if (!LOOPBACK.has(request.ip)) return sendError(reply, 'Only from the machine CLive runs on.', 403);
         const parsed = liveQuerySchema.safeParse(request.query);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        if (!(await ownsSession(request, parsed.data.session))) {
+          return sendError(reply, 'This practice session is not yours.', 403);
+        }
         return reply.type('text/html; charset=utf-8').send(livePage(parsed.data.session));
       });
 
@@ -394,6 +409,9 @@ class CLiveAPI extends ServerAPI {
         if (!LOOPBACK.has(request.ip)) return sendError(reply, 'Only from the machine CLive runs on.', 403);
         const parsed = liveQuerySchema.safeParse(request.query);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        if (!(await ownsSession(request, parsed.data.session))) {
+          return sendError(reply, 'This practice session is not yours.', 403);
+        }
         return reply.send(eventsAfter(parsed.data.session, parsed.data.after));
       });
 
