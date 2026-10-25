@@ -23,7 +23,8 @@ const PROBLEM: ProblemForPrompt = {
   statement: 'Read two numbers and print their product.',
   public_test_cases: [{ input: '4 6', output: '24' }],
   starter_code: '',
-  reference_solution: ''
+  reference_solution: '',
+  functions: []
 };
 
 function fakeProvider(parsed: unknown): Provider {

@@ -32,7 +32,8 @@ const PROBLEM: ProblemForPrompt = {
     { input: '1', output: '1' }
   ],
   starter_code: '',
-  reference_solution: ''
+  reference_solution: '',
+  functions: []
 };
 
 const ROW = { input: '4 6', output: '24', working: '4 * 6 = 24.' };

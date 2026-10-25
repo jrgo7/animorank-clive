@@ -11,6 +11,7 @@
 import nunjucks from 'nunjucks';
 import { textArtifact, textPrior, type PriorArtifact } from '../artifact';
 import type { FailingCriterion } from '../criteria';
+import type { FunctionDef } from '../problem';
 import type { CriterionDoc, FieldDoc } from './load';
 import { NUDGE_DOC, STUCK_DOC, type PhaseDoc } from './load';
 
@@ -25,6 +26,8 @@ export interface ProblemForPrompt {
   starter_code: string;
   public_test_cases: { input: string; output: string }[];
   reference_solution: string;
+  /** The functions the problem asks for, when it is a function problem; empty otherwise. */
+  functions: FunctionDef[];
 }
 
 /** One earlier turn of the nudge's conversation seam. */
