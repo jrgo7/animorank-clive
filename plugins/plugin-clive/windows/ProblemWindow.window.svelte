@@ -40,15 +40,16 @@
   const SUMMARY_HINT = "One or two sentences is enough, as if explaining to a classmate who hasn't read the problem.";
   const SUMMARY_EXAMPLE = "The program asks for a rectangle's length and width and prints its area.";
 
-  const INPUTS_QUESTION = 'Next, state what the program is given. What values does it read?';
+  const INPUTS_QUESTION =
+    'Next, state what the program is given. What values does it read in, or what parameters does its function take?';
   const INPUTS_HINT =
-    'List each value in the order the program reads it. Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so.';
+    'List each value in order (the order it reads them, or the order of the parameters). Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so.';
   const INPUTS_EXAMPLE =
     '1. length: an int from 1 to 100.\n2. width: an int from 1 to 100.\nLength is read first, then width.';
 
-  const OUTPUTS_QUESTION = 'Then state what it must print. What should the program display?';
+  const OUTPUTS_QUESTION = 'Then state what it must produce. What should it print, or what should its function return?';
   const OUTPUTS_HINT =
-    'If it prints a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough.';
+    'If it prints or returns a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough.';
   const OUTPUTS_EXAMPLE = 'The area as an int, for example, 24.';
 
   let session = $derived(cliveSessionFor(context));

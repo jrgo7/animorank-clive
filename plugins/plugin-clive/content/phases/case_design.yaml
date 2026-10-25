@@ -37,8 +37,8 @@ artifact_fields:
 - id: normal_cases
   label: Case 1
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
-  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
+  hint: Write the values you would give it, then work out by hand what should come out, and show how.
   example:
   - input: 4 6
     output: '24'
@@ -46,8 +46,8 @@ artifact_fields:
 - id: edge_cases
   label: Case 2
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
-  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
+  hint: Write the values you would give it, then work out by hand what should come out, and show how.
   example:
   - input: 1 1
     output: '1'
@@ -56,8 +56,8 @@ artifact_fields:
   label: Case 3
   added: true
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
-  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
+  hint: Write the values you would give it, then work out by hand what should come out, and show how.
   example:
   - input: 1 1
     output: '1'
@@ -66,8 +66,8 @@ artifact_fields:
   label: Case 4
   added: true
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
-  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
+  hint: Write the values you would give it, then work out by hand what should come out, and show how.
   example:
   - input: 1 1
     output: '1'
@@ -76,8 +76,8 @@ artifact_fields:
   label: Case 5
   added: true
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?
-  hint: Type the input as you would in the program, then work out the output by hand and show how.
+  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
+  hint: Write the values you would give it, then work out by hand what should come out, and show how.
   example:
   - input: 1 1
     output: '1'

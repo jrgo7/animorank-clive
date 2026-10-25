@@ -36,8 +36,8 @@
     'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.';
 
   const CASE_QUESTION =
-    'Pick some values and solve the problem by hand, the way your program will have to. What would you type in, what should it display, and how did you get there?';
-  const CASE_HINT = 'Type the input as you would in the program, then work out the output by hand and show how.';
+    'Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?';
+  const CASE_HINT = 'Write the values you would give it, then work out by hand what should come out, and show how.';
 
   /** The worked cases the example shows: a normal one for Case 1, an edge one after it. */
   const NORMAL_EXAMPLE: CaseRow[] = [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }];
