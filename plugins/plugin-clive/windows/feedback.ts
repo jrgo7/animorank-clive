@@ -141,3 +141,20 @@ export function fieldMark(result: JudgeResult | null | undefined, fieldId: strin
   if (state?.blocking.length) return 'bad';
   return result.passed && state?.advisory.length ? 'look' : 'ok';
 }
+
+/** The box of a case each Cases requirement is about. */
+const CASE_PART: Record<string, 'input' | 'output' | 'working'> = {
+  case_is_concrete: 'input',
+  outputs_are_correct: 'output',
+  output_format_matches_statement: 'output',
+  work_is_shown: 'working'
+};
+
+/**
+ * Which box of a case the current feedback is about, so the page can mark it:
+ * a round 6 note found the feedback named the problem but left the student to
+ * guess which box to change.
+ */
+export function casePartFor(focusId: string | undefined): 'input' | 'output' | 'working' | null {
+  return (focusId && CASE_PART[focusId]) || null;
+}

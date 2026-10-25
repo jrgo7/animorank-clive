@@ -161,6 +161,41 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  it('marks the box of the case the feedback is about', () => {
+    stubBoot();
+    const context = stubContext('case-part');
+    const session = cliveSessionFor(context);
+    session.phases[1].unlocked = true;
+    session.current = 1;
+    session.phases[1].stepResults.normal_cases = {
+      passed: false,
+      attempt: 2,
+      result: {
+        passed: false,
+        verdicts: [],
+        missing_ids: [],
+        advisory_unmet: [],
+        nudge: {
+          summary: 's',
+          nudge: 'Which numbers?',
+          reason: 'r',
+          focus_id: 'work_is_shown',
+          focus_text: 'You show how you got the expected output.',
+          focus_not_met: 'Show the numbers.',
+          focus_fields: ['normal_cases'],
+          failing: [{ id: 'work_is_shown', text: 'You show how you got the expected output.' }]
+        }
+      }
+    };
+    const app = mountPhase(context, 1);
+    flushSync();
+    const flagged = Array.from(document.querySelectorAll('[data-case-part-flagged]')).map((el) =>
+      el.getAttribute('aria-label')
+    );
+    expect(flagged).toEqual(['How I got it, Case 1']);
+    unmount(app);
+  });
+
   it('says so when there is no design to show yet', () => {
     stubBoot();
     const context = stubContext('design-panel-empty');

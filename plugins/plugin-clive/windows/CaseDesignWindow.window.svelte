@@ -10,7 +10,7 @@
   import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
   import { PHASES, duplicateOf, isFilled, maxAdded, rowsOf, type CaseRow } from './phase';
-  import { fieldFeedback, fieldMark } from './feedback';
+  import { casePartFor, fieldFeedback, fieldMark } from './feedback';
   import { askStuck, submitPhase, type JudgeContext } from './api';
   import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -78,6 +78,9 @@
   let openField = $derived(fields[openIndex]);
 
   let current = $derived(session.stateFor(1, openField.id));
+  /** The box of this case the feedback is about, while the case has not passed. */
+  const flaggedPart = $derived(current.passed ? null : casePartFor(current.result?.nudge?.focus_id));
+  const FLAGGED = 'textarea-error';
 
   /**
    * Whether this case is still empty: Submit waits only for something to judge,
@@ -329,8 +332,9 @@
               <span>Input</span>
               <Textarea
                 rows={2}
-                class="font-mono text-sm"
+                class="font-mono text-sm {flaggedPart === 'input' ? FLAGGED : ''}"
                 aria-label={`Input, ${openField.label}`}
+                data-case-part-flagged={flaggedPart === 'input' ? '' : undefined}
                 bind:value={row.input}
                 disabled={!!session.busy}
                 oninput={save}
@@ -340,8 +344,9 @@
               <span>Expected output</span>
               <Textarea
                 rows={2}
-                class="font-mono text-sm"
+                class="font-mono text-sm {flaggedPart === 'output' ? FLAGGED : ''}"
                 aria-label={`Expected output, ${openField.label}`}
+                data-case-part-flagged={flaggedPart === 'output' ? '' : undefined}
                 bind:value={row.output}
                 disabled={!!session.busy}
                 oninput={save}
@@ -352,7 +357,9 @@
             <span>How I got it</span>
             <Textarea
               rows={3}
+              class={flaggedPart === 'working' ? FLAGGED : ''}
               aria-label={`How I got it, ${openField.label}`}
+              data-case-part-flagged={flaggedPart === 'working' ? '' : undefined}
               bind:value={row.working}
               disabled={!!session.busy}
               oninput={save}
