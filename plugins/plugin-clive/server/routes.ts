@@ -62,7 +62,12 @@ const submitSchema = z.object({
   attempt: z.number().int().positive().default(1),
   priorArtifacts: priorArtifactsSchema.default([]),
   step: z.string().optional(),
-  code: z.string().optional()
+  code: z.string().optional(),
+  /** Earlier nudges in this phase (or step), oldest first; only the last few are shown to the model. */
+  history: z
+    .array(z.object({ attempt: z.number(), situation: z.string(), focus_id: z.string(), nudge: z.string() }))
+    .max(50)
+    .default([])
 });
 
 /** The most earlier replies a feedback call is shown: enough to notice a repeat. */
@@ -135,6 +140,7 @@ interface SubmitResponse {
   missing_ids: string[];
   advisory_unmet: string[];
   nudge?: {
+    situation: string;
     summary: string;
     nudge: string;
     reason: string;
@@ -253,9 +259,11 @@ async function submit(
         applied,
         outcome.verdicts,
         body.attempt,
-        body.priorArtifacts
+        body.priorArtifacts,
+        body.history.slice(-HISTORY_KEPT)
       );
       response.nudge = {
+        situation: n.situation,
         summary: n.summary,
         nudge: n.nudge,
         reason: n.reason,

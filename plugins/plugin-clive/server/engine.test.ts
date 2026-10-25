@@ -133,6 +133,30 @@ describe('nudge', () => {
     );
   });
 
+  it('returns the situation the model decided the student is in', async () => {
+    const provider = fakeProvider({
+      situation: 'rule_not_worked',
+      summary: 's',
+      focus_id: 'work_is_shown',
+      reason: 'r',
+      nudge: 'n'
+    });
+    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, verdicts, 1, [], [], provider);
+    expect(result.situation).toBe('rule_not_worked');
+  });
+
+  it('turns a situation the phase does not list into other', async () => {
+    const provider = fakeProvider({
+      situation: 'plan_is_wrong',
+      summary: 's',
+      focus_id: 'work_is_shown',
+      reason: 'r',
+      nudge: 'n'
+    });
+    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, verdicts, 1, [], [], provider);
+    expect(result.situation).toBe('other');
+  });
+
   it('rejects when nothing is blocking', async () => {
     const passing = verdicts.map((v) => ({ ...v, verdict: 'PASS' as const }));
     await expect(nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, passing, 1, [], [], fakeProvider({}))).rejects.toThrow(

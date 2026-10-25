@@ -4,7 +4,7 @@ import type { JsonValue } from '@zenstackhq/orm';
 import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
-import { codeFeedback, fetchBoot } from './api';
+import { codeFeedback, fetchBoot, type NudgeTurn } from './api';
 import { LatestOnly, toCodeRun } from './codeFeedback';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import {
@@ -45,6 +45,8 @@ export interface Verdict {
 }
 
 export interface NudgeResult {
+  /** Which situation the model decided the student is in. */
+  situation?: string;
   summary: string;
   nudge: string;
   reason: string;
@@ -97,6 +99,8 @@ interface PersistedState {
     read: boolean;
     /** Replies about the code after failing Runs and Submits, newest first (Implement). */
     codeFeedback?: CodeFeedbackEntry[];
+    /** Earlier nudges, oldest first, by step field id (or `phase` for an all-at-once phase). */
+    feedbackHistory?: Record<string, NudgeTurn[]>;
   }[];
 }
 
@@ -163,6 +167,8 @@ export class PhaseState {
   read: boolean = $state(false);
   /** Replies about the code after failing Runs and Submits, newest first (Implement only). */
   codeFeedback: CodeFeedbackEntry[] = $state([]);
+  /** Earlier nudges, oldest first, by step field id (or `phase` for an all-at-once phase). */
+  feedbackHistory: Record<string, NudgeTurn[]> = $state({});
 
   constructor(config: PhaseConfig, startingCode: string, unlocked: boolean) {
     this.artifact = Object.fromEntries(config.artifactFields.map((f) => [f.id, blankValueFor(f, startingCode)]));
@@ -250,7 +256,8 @@ export class CliveSession {
         stuckDraft: typeof saved.stuckDraft === 'string' ? saved.stuckDraft : '',
         // A session saved before a problem opened on its statement alone has already started.
         read: typeof saved.read === 'boolean' ? saved.read : true,
-        codeFeedback: Array.isArray(saved.codeFeedback) ? saved.codeFeedback : []
+        codeFeedback: Array.isArray(saved.codeFeedback) ? saved.codeFeedback : [],
+        feedbackHistory: saved.feedbackHistory ?? {}
       });
     });
     return true;
@@ -274,7 +281,8 @@ export class CliveSession {
         stuck: $state.snapshot(phase.stuck) as StuckEntry[],
         stuckDraft: phase.stuckDraft,
         read: phase.read,
-        codeFeedback: $state.snapshot(phase.codeFeedback) as CodeFeedbackEntry[]
+        codeFeedback: $state.snapshot(phase.codeFeedback) as CodeFeedbackEntry[],
+        feedbackHistory: $state.snapshot(phase.feedbackHistory) as Record<string, NudgeTurn[]>
       }))
     };
     // The shape is a plain JSON object; `PersistedState` only documents it for restore,
@@ -331,11 +339,27 @@ export class CliveSession {
       .every((field) => this.stateFor(index, field.id).passed);
   }
 
+  /** Earlier nudges for a phase (or one of its steps), oldest first, the last five. */
+  historyFor(index: number, key = 'phase'): NudgeTurn[] {
+    return (this.phases[index].feedbackHistory[key] ?? []).slice(-5);
+  }
+
+  /** Keeps a nudge the student was shown, so the next one can tell it is repeating itself. */
+  private remember(index: number, key: string, attempt: number, result: JudgeResult): void {
+    const n = result.nudge;
+    if (!n) return;
+    const state = this.phases[index];
+    const turns = state.feedbackHistory[key] ?? [];
+    turns.push({ attempt, situation: n.situation ?? 'other', focus_id: n.focus_id, nudge: n.nudge });
+    state.feedbackHistory[key] = turns.slice(-20);
+  }
+
   /** Records one step's result and passes the phase once every required step has passed. */
   completeStep(index: number, fieldId: string, result: JudgeResult): void {
     const config = PHASES[index];
     const state = this.phases[index];
     const step = state.stepResults[fieldId] ?? { result: null, passed: false, attempt: 1 };
+    this.remember(index, fieldId, step.attempt, result);
     step.result = result;
     if (result.passed) step.passed = true;
     else step.attempt += 1;
@@ -350,6 +374,7 @@ export class CliveSession {
   /** Records an all-at-once phase's result. */
   recordResult(index: number, result: JudgeResult): void {
     const state = this.phases[index];
+    this.remember(index, 'phase', state.attempt, result);
     state.result = result;
     if (result.passed) this.pass(index);
     else state.attempt += 1;

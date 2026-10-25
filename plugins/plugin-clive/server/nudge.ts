@@ -14,8 +14,11 @@ import { renderNudgePrompt, NUDGE_SYSTEM, type HistoryTurn, type ProblemForPromp
 import type { Verdict } from './judge';
 import { callModel } from './llmCalls';
 import { getProvider, type Provider } from './providers';
+import { situationOr } from './situations';
 
 export interface NudgeOutcome {
+  /** Which situation the model decided the student is in; `other` when it named none the phase lists. */
+  situation: string;
   summary: string;
   focus_id: string;
   focus_text: string;
@@ -80,6 +83,7 @@ export async function nudge(
 
   const focus = failures.find((c) => c.id === parsed.focus_id);
   return {
+    situation: situationOr(phase.phase, parsed.situation),
     summary: parsed.summary,
     focus_id: parsed.focus_id,
     focus_text: focus?.text ?? '',

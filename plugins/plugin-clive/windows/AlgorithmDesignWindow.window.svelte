@@ -152,7 +152,8 @@
         problemId: context.problem.id,
         artifact: phaseState.artifact,
         attempt,
-        priorArtifacts: session.priorArtifacts(2)
+        priorArtifacts: session.priorArtifacts(2),
+        history: session.historyFor(2)
       };
       const result: JudgeResult = await submitPhase(payload);
       session.recordResult(2, result);

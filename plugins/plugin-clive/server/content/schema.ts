@@ -21,6 +21,8 @@ export const JudgeResultSchema = z.object({
 });
 
 export const NudgeSchema = z.object({
+  /** Which situation the student is in (`../situations.ts`); `other` when the model gave none. */
+  situation: z.string().default('other'),
   summary: z.string(),
   focus_id: z.string(),
   reason: z.string(),

@@ -194,6 +194,7 @@
         artifact: phaseState.artifact,
         attempt,
         priorArtifacts: session.priorArtifacts(1),
+        history: session.historyFor(1, step),
         step
       };
       const result: JudgeResult = await submitPhase(payload);

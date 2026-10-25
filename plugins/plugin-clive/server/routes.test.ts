@@ -459,6 +459,22 @@ describe('CLive plugin routes', () => {
     expect(state.users[0]).not.toContain('turn-2');
   });
 
+  it('shows the nudge only the last five earlier nudges, and returns its situation', async () => {
+    const failing = CASE_VERDICTS.map((v) => (v.criterion_id === 'case_is_concrete' ? { ...v, verdict: 'FAIL' } : v));
+    state.queue = [{ verdicts: failing }, { ...NUDGE, situation: 'not_a_case' }];
+    const history = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+      attempt: n,
+      situation: 'other',
+      focus_id: 'case_is_concrete',
+      nudge: `nudge-${n}`
+    }));
+    const response = await post('/submit', casesBody({ history }));
+    expect(response.json().nudge.situation).toBe('not_a_case');
+    expect(state.users[1]).toContain('nudge-3');
+    expect(state.users[1]).toContain('nudge-7');
+    expect(state.users[1]).not.toContain('nudge-2');
+  });
+
   it('writes the stuck record with the diagnosis', async () => {
     state.queue = [{ diagnosis: 'Does not connect “leftover” with a remainder.', feedback: 'How many fit?' }];
     await post('/stuck', stuckBody());

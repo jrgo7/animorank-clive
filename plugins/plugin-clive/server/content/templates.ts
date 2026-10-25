@@ -31,10 +31,12 @@ export interface ProblemForPrompt {
   functions: FunctionDef[];
 }
 
-/** One earlier turn of the nudge's conversation seam. */
+/** One earlier nudge in a phase (or step): what the student was told, and why. */
 export interface HistoryTurn {
-  role: 'hint';
-  text: string;
+  attempt: number;
+  situation: string;
+  focus_id: string;
+  nudge: string;
 }
 
 /** One earlier stuck ask in a phase and the reply to it, oldest first. */
@@ -165,7 +167,7 @@ export function renderNudgePrompt(context: {
   history: HistoryTurn[];
 }): string {
   return render(NUDGE_DOC.user_template, {
-    phase: { label: context.phase.label, task_description: context.phase.task_description },
+    phase: { id: context.phase.phase, label: context.phase.label, task_description: context.phase.task_description },
     problem: problemForTemplate(context.problem),
     artifact: textArtifact(context.artifact),
     artifact_fields: context.phase.artifact_fields,

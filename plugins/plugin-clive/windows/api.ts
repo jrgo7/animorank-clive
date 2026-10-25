@@ -46,10 +46,20 @@ export interface JudgeContext {
   step?: string;
   /** The current code, for the Implement phase's plan-vs-code judge. */
   code?: string;
+  /** Earlier nudges in this phase (or step), oldest first. */
+  history?: NudgeTurn[];
+}
+
+/** One earlier nudge: what the student was told, and the situation it answered. */
+export interface NudgeTurn {
+  attempt: number;
+  situation: string;
+  focus_id: string;
+  nudge: string;
 }
 
 /** What a stuck ask sends: what the student says is hard, and where they are. */
-export interface StuckContext extends Omit<JudgeContext, 'step'> {
+export interface StuckContext extends Omit<JudgeContext, 'step' | 'history'> {
   statement: string;
   /** The field the student is on, when the phase shows exactly one. */
   fieldId: string | null;

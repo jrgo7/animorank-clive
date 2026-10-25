@@ -160,9 +160,24 @@ describe('prompt parity with the Jinja2 originals', () => {
       failures,
       attempt: 2,
       priorArtifacts: PRIOR,
-      history: [{ role: 'hint', text: 'Look at the input shape.' }]
+      history: [
+        { attempt: 1, situation: 'rule_not_worked', focus_id: 'work_is_shown', nudge: 'Look at the input shape.' }
+      ]
     });
     expect(rendered).toBe(golden.nudge_user);
+  });
+
+  it('shows the nudge its earlier turns with their situation and requirement, and the phase id', () => {
+    const phase = phaseDoc('case_design');
+    const failures = failingGates(rubricDoc('case_design').criteria, VERDICTS);
+    const base = { phase, problem: PROBLEM, artifact: ARTIFACTS.case_design, failures, attempt: 2, priorArtifacts: [] };
+    const withHistory = renderNudgePrompt({
+      ...base,
+      history: [{ attempt: 1, situation: 'rule_not_worked', focus_id: 'work_is_shown', nudge: 'Which numbers?' }]
+    });
+    expect(withHistory).toContain('situation rule_not_worked, about [work_is_shown]: Which numbers?');
+    expect(withHistory).toContain('(`case_design`)');
+    expect(renderNudgePrompt({ ...base, history: [] })).not.toContain('CONVERSATION SO FAR');
   });
 
   it('renders the stuck template byte-for-byte with nothing else to go on', () => {
