@@ -41,7 +41,13 @@ export default defineConfig(({ mode }) => {
       include: ['src/**/*.{test,spec}.{js,ts}', 'plugins/**/*.{test,spec}.{js,ts}']
     },
     optimizeDeps: {
-      include: ['monaco-editor/esm/vs/editor/editor.main']
+      include: [
+        'monaco-editor/esm/vs/editor/editor.main',
+        // Plugin windows load after the page, so their dependencies are found
+        // late; one found late re-bundles the lot and blanks the open page until
+        // it is reloaded. CLive's icons that the app itself does not use:
+        '@iconify-svelte/fa6-solid/lightbulb'
+      ]
     },
     server: {
       allowedHosts: true,

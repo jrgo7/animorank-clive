@@ -45,6 +45,17 @@ describe('CLive logs view', () => {
     expect(text).not.toContain('Session started');
   });
 
+  it('names the participant the researcher tagged, and lists the tagging and any override', () => {
+    const text = render([
+      entry('CLIVE_RESEARCHER_OVERRIDE', '2026-10-21T10:05:00.000Z', { from_phase: 'problem_definition' }),
+      entry('CLIVE_PARTICIPANT', '2026-10-21T10:01:00.000Z', { participant: 'P07' }),
+      entry('CLIVE_SESSION_START', '2026-10-21T10:00:00.000Z', {})
+    ]);
+    expect(text).toContain('participant P07');
+    expect(text).toContain('Participant tagged');
+    expect(text).toContain('Researcher override');
+  });
+
   it('renders the timeline with its navigation, runs, submits, stuck asks and calls', () => {
     const logs = [
       entry('CLIVE_SUBMIT', '2026-10-21T10:00:20.000Z', {

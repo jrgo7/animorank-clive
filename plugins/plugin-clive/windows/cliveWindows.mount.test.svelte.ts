@@ -158,6 +158,40 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  it('tags the session with a participant from the researcher dialog, even on the last phase', async () => {
+    const asked: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith('/participant')) {
+          asked.push(JSON.parse(String(init?.body)));
+          return new Response(JSON.stringify({ sessionId: 'mount-participant' }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ hasApiKey: true }), { status: 200 });
+      })
+    );
+    const context = stubContext('mount-participant');
+    const session = cliveSessionFor(context);
+    session.phases.forEach((phase) => (phase.unlocked = true));
+    session.current = 3;
+    session.overrideOpen = true;
+    const app = mount(PhaseTrackWindow, { target: document.body, props: { context } });
+    flushSync();
+    // No phase after Implement, so no move-on; the participant section is still there.
+    expect(document.body.textContent).not.toContain('Move on to');
+    const input = document.querySelector('[data-participant] input') as HTMLInputElement;
+    input.value = 'P07';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    clickButton('Tag this session');
+    await vi.waitFor(() => expect(session.participant).toBe('P07'));
+    expect(asked).toEqual([
+      { sessionId: 'mount-participant', problemId: 'problem-1', participant: 'P07', next: false }
+    ]);
+    expect(session.overrideOpen).toBe(false);
+    unmount(app);
+  });
+
   it('numbers Implement attempts by Run and Submit, not by replies', async () => {
     const attempts: number[] = [];
     vi.stubGlobal(

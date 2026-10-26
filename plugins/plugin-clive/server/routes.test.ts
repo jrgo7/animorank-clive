@@ -20,7 +20,10 @@ const log = vi.hoisted(() => ({
   fail: false,
   written: [] as SessionLogEntry[],
   check: true,
-  checked: [] as string[]
+  checked: [] as string[],
+  writtenTo: [] as string[],
+  tagged: [] as { sessionId: string; participant: string }[],
+  started: [] as { userId: string; problemId: string }[]
 }));
 
 vi.mock('./problem', () => ({
@@ -66,9 +69,17 @@ vi.mock('./sessionLog', async (importOriginal) => {
     ...actual,
     ownsPracticeSession: async () => log.owns,
     ownsAnyPracticeSession: async () => log.owns,
-    writeSessionLog: async (_sessionId: string, entries: SessionLogEntry[]) => {
+    writeSessionLog: async (sessionId: string, entries: SessionLogEntry[]) => {
       if (log.fail) throw new Error('database down');
+      log.writtenTo.push(sessionId);
       log.written.push(...entries);
+    },
+    tagParticipant: async (sessionId: string, participant: string) => {
+      log.tagged.push({ sessionId, participant });
+    },
+    startNextSession: async (userId: string, problemId: string) => {
+      log.started.push({ userId, problemId });
+      return NEXT_SESSION;
     },
     checkSessionLog: async (sessionId: string) => {
       log.checked.push(sessionId);
@@ -78,6 +89,7 @@ vi.mock('./sessionLog', async (importOriginal) => {
 });
 
 const SESSION = '123e4567-e89b-42d3-a456-426614174000';
+const NEXT_SESSION = '223e4567-e89b-42d3-a456-426614174000';
 
 const CASE_VERDICTS = [
   { criterion_id: 'case_is_concrete', verdict: 'PASS', evidence: '4 6', confidence: 'high' },
@@ -178,6 +190,36 @@ describe('CLive plugin routes', () => {
     log.written = [];
     log.check = true;
     log.checked = [];
+    log.writtenTo = [];
+    log.tagged = [];
+    log.started = [];
+  });
+
+  it('tags the practice session with a participant, and logs it', async () => {
+    const res = await post('/participant', { sessionId: SESSION, problemId: 'p', participant: ' P07 ', next: false });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ sessionId: SESSION });
+    expect(log.tagged).toEqual([{ sessionId: SESSION, participant: 'P07' }]);
+    expect(log.started).toEqual([]);
+    expect(log.writtenTo).toEqual([SESSION]);
+    expect(log.written.map((e) => [e.type, e.data])).toEqual([['CLIVE_PARTICIPANT', { participant: 'P07' }]]);
+  });
+
+  it('starts a fresh session for the next participant, tagged, leaving this one as it is', async () => {
+    const res = await post('/participant', { sessionId: SESSION, problemId: 'p', participant: 'P08', next: true });
+    expect(res.json()).toEqual({ sessionId: NEXT_SESSION });
+    expect(log.started).toEqual([{ userId: 'user-1', problemId: 'p' }]);
+    expect(log.tagged).toEqual([{ sessionId: NEXT_SESSION, participant: 'P08' }]);
+    expect(log.writtenTo).toEqual([NEXT_SESSION]);
+    expect(log.written[0].data).toEqual({ participant: 'P08', previous_session: SESSION });
+  });
+
+  it('refuses a participant tag on a practice session that is not yours', async () => {
+    log.owns = false;
+    const res = await post('/participant', { sessionId: SESSION, problemId: 'p', participant: 'P07', next: true });
+    expect(res.statusCode).toBe(403);
+    expect(log.tagged).toEqual([]);
+    expect(log.started).toEqual([]);
   });
 
   it('answers /boot', async () => {

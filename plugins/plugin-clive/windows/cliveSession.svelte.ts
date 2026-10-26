@@ -4,7 +4,7 @@ import type { JsonValue } from '@zenstackhq/orm';
 import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
-import { codeFeedback, fetchBoot, type NudgeTurn } from './api';
+import { codeFeedback, fetchBoot, setParticipant, type NudgeTurn } from './api';
 import { implementReached, LatestOnly, toCodeRun, wantsCodeFeedback } from './codeFeedback';
 import { CLIVE_EVENT } from './telemetry';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -208,8 +208,10 @@ export class CliveSession {
   hasApiKey: boolean = $state(true);
   /** Whether the walkthrough has been offered (and dismissed) for this practice session. */
   tutorialSeen: boolean = $state(false);
-  /** Whether the researcher override (Ctrl+Shift+Y) is showing; not persisted. */
+  /** Whether the researcher dialog (Ctrl+Shift+Y) is showing; not persisted. */
   overrideOpen: boolean = $state(false);
+  /** Who is working in this session, as the researcher tagged it; '' when untagged. */
+  participant: string = $state('');
   /** Whether this session's history accepted the log check; null until it answers. */
   logging: { ok: boolean; reason: string } | null = $state(null);
   /** Whether saved CLive work was found for this session, for `CLIVE_PROBLEM_LOAD`. */
@@ -225,6 +227,8 @@ export class CliveSession {
     this.telemetry = context.telemetry;
     this.phases = PHASES.map((config, i) => new PhaseState(config, context.editorState.code, i === 0));
     this.restored = this.restore(context.practiceSession.extension_data, context.editorState.code);
+    const tag = (context.practiceSession.extension_data as Record<string, unknown> | null)?.clive_participant;
+    this.participant = typeof tag === 'string' ? tag : '';
     void this.refreshBoot();
   }
 
@@ -455,6 +459,17 @@ export class CliveSession {
   /** A Run or Submit that passed: any reply still coming about older code is no longer about this code. */
   private dropPendingCodeFeedback(): void {
     this.codeFeedbackRequests.cancel();
+  }
+
+  /**
+   * The researcher's participant tag. Tags this session, or (`next`) starts a fresh
+   * session on this problem tagged for the next participant, and returns the id of
+   * the session the page should now be on.
+   */
+  async tagParticipant(problemId: string, participant: string, next: boolean): Promise<string> {
+    const { sessionId } = await setParticipant({ sessionId: this.sessionId, problemId, participant, next });
+    if (!next) this.participant = participant.trim();
+    return sessionId;
   }
 
   /** Opens an already-unlocked phase; does nothing for one the student hasn't reached. */

@@ -17,7 +17,10 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { JsonValue } from '@zenstackhq/orm';
+import type { User } from '@auth/sveltekit';
 import { db } from '$lib/zenstack';
+import { PracticeSessionService } from '$lib/practiceSession/practiceSessionService';
+import { ServerRegistryProvider } from '$lib/registry/server';
 import type { LlmCall } from './llmCalls';
 
 /** The entry types the server writes. The page writes the rest (`CLIVE_PROBLEM_LOAD`, `CLIVE_PHASE_OPEN`, …). */
@@ -27,7 +30,8 @@ export const SESSION_LOG_TYPES = {
   codeFeedback: 'CLIVE_CODE_FEEDBACK',
   llmCall: 'CLIVE_LLM_CALL',
   error: 'CLIVE_ERROR',
-  logCheck: 'CLIVE_LOG_CHECK'
+  logCheck: 'CLIVE_LOG_CHECK',
+  participant: 'CLIVE_PARTICIPANT'
 } as const;
 
 /** Which route a model call served. */
@@ -50,6 +54,33 @@ export async function ownsPracticeSession(userId: string, sessionId: string, pro
 /** Whether `sessionId` is one of `userId`'s practice sessions, on any problem. */
 export async function ownsAnyPracticeSession(userId: string, sessionId: string): Promise<boolean> {
   return (await db.practiceSession.count({ where: { id: sessionId, student_id: userId } })) > 0;
+}
+
+/**
+ * The key a session's participant tag is kept under in `extension_data`: its own
+ * top-level key, which the page's saves (they merge top-level keys) never touch.
+ */
+export const PARTICIPANT_KEY = 'clive_participant';
+
+/** Tag a practice session with the participant working in it. */
+export async function tagParticipant(sessionId: string, participant: string): Promise<void> {
+  const session = await db.practiceSession.findUnique({ where: { id: sessionId }, select: { extension_data: true } });
+  const data = (session?.extension_data ?? {}) as Record<string, JsonValue>;
+  await db.practiceSession.update({
+    where: { id: sessionId },
+    data: { extension_data: { ...data, [PARTICIPANT_KEY]: participant } }
+  });
+}
+
+/**
+ * A fresh practice session on the same problem, for the next participant at a
+ * shared machine. Opening the problem goes to the newest session, so this one is
+ * where they land; the earlier one is left exactly as it was.
+ */
+export async function startNextSession(userId: string, problemId: string): Promise<string | null> {
+  const service = await ServerRegistryProvider.instance().getService(PracticeSessionService);
+  const next = await service.create({ problemId, user: { id: userId } as User });
+  return next?.id ?? null;
 }
 
 /** The answer to a log check, for the page that asked: the prototype's `session_log.check` shape. */

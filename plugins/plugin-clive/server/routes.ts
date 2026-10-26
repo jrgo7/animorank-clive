@@ -38,6 +38,8 @@ import {
   ownsPracticeSession,
   requestEntries,
   SESSION_LOG_TYPES,
+  startNextSession,
+  tagParticipant,
   writeSessionLog,
   type RequestKind,
   type SessionLogEntry
@@ -103,6 +105,15 @@ const codeFeedbackSchema = z.object({
 /** The live reasoning window reads the model's thinking: only from the machine the app runs on. */
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const liveQuerySchema = z.object({ session: z.uuid(), after: z.coerce.number().int().min(0).default(0) });
+
+const participantSchema = z.object({
+  /** The session the researcher is in; it must be the caller's. */
+  sessionId: z.uuid(),
+  problemId: z.string(),
+  participant: z.string().trim().min(1).max(100),
+  /** Start a fresh session for this participant instead of tagging the current one. */
+  next: z.boolean().default(false)
+});
 
 const logCheckSchema = z.object({
   /** The practice session whose history the check writes into; it must be the caller's. */
@@ -426,6 +437,33 @@ class CLiveAPI extends ServerAPI {
           return handle(reply, error);
         }
         return reply.send(await checkSessionLog(body.sessionId));
+      });
+
+      // The researcher's participant tag (Ctrl+Shift+Y): names who is working in this
+      // session, or starts a fresh one for the next participant at a shared machine.
+      app.post('/participant', async (request, reply) => {
+        const parsed = participantSchema.safeParse(request.body);
+        if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        const body = parsed.data;
+        try {
+          const refused = await refusal(request, body);
+          if (refused) return sendError(reply, refused.message, refused.code);
+          const target = body.next ? await startNextSession(requestUserId(request)!, body.problemId) : body.sessionId;
+          if (!target) return sendError(reply, 'Could not start a new session.', 500);
+          await tagParticipant(target, body.participant);
+          await writeSessionLog(target, [
+            {
+              type: SESSION_LOG_TYPES.participant,
+              data: body.next
+                ? { participant: body.participant, previous_session: body.sessionId }
+                : { participant: body.participant },
+              timestamp: new Date()
+            }
+          ]);
+          return reply.send({ sessionId: target });
+        } catch (error) {
+          return handle(reply, error);
+        }
       });
 
       app.post('/submit', async (request, reply) => {

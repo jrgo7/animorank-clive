@@ -66,6 +66,14 @@
     return 'Open';
   }
 
+  /** Tag this session, or start the next participant's and go to it. */
+  async function participant(tag: string, next: boolean): Promise<void> {
+    const target = await session.tagParticipant(context.problem.id, tag, next);
+    session.overrideOpen = false;
+    // A full load, so every window starts on the new session's own state.
+    if (next) window.location.assign(`/problem/${context.problem.id}/${target}`);
+  }
+
   function override(reason: string): void {
     const from = session.current;
     session.overrideOpen = false;
@@ -167,11 +175,15 @@
     {/each}
   </div>
 
-  {#if session.overrideOpen && PHASES[session.current + 1] && !session.phases[session.current].passed}
+  {#if session.overrideOpen}
     <OverrideDialog
       from={PHASES[session.current].label}
-      to={PHASES[session.current + 1].label}
+      to={PHASES[session.current + 1] && !session.phases[session.current].passed
+        ? PHASES[session.current + 1].label
+        : null}
+      participant={session.participant}
       onconfirm={override}
+      onparticipant={participant}
       oncancel={() => (session.overrideOpen = false)}
     />
   {/if}

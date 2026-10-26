@@ -12,6 +12,11 @@
 
   const events = $derived(attachCalls(context.logs.filter((entry) => entry.type.startsWith(CLIVE_PREFIX))));
 
+  /** Who worked in this session, as the researcher last tagged it. */
+  const participant = $derived(
+    String(asRecord(events.findLast((event) => event.entry.type === 'CLIVE_PARTICIPANT')?.entry.data).participant ?? '')
+  );
+
   /** The first moment these logs recorded, for each row's `+m:ss`. */
   const start = $derived(events[0]?.entry.timestamp ?? null);
 
@@ -51,6 +56,8 @@
     CLIVE_LIVE_CHECK: 'Live check',
     CLIVE_LIVE_RAW_TOGGLE: "Compiler's own words",
     CLIVE_LOG_CHECK: 'Log check',
+    CLIVE_PARTICIPANT: 'Participant tagged',
+    CLIVE_RESEARCHER_OVERRIDE: 'Researcher override',
     CLIVE_ORPHAN_CALLS: 'Model calls with no event after them'
   };
 
@@ -92,7 +99,12 @@
 
 <section class="flex flex-col gap-3">
   <div class="flex flex-wrap items-baseline justify-between gap-2">
-    <h2 class="font-display text-lg font-semibold">CLive events</h2>
+    <h2 class="font-display text-lg font-semibold">
+      CLive events{#if participant}<span
+          class="ml-2 text-sm font-normal text-base-content/70"
+          data-participant-tag>· participant {participant}</span
+        >{/if}
+    </h2>
     <span class="text-xs text-base-content/60">
       {events.length} entries · {counts.calls} model calls · {counts.submits} submit{counts.submits === 1 ? '' : 's'} · {counts.stuck}
       stuck ask{counts.stuck === 1 ? '' : 's'} · {counts.runs} run{counts.runs === 1 ? '' : 's'}{#if counts.errors > 0}

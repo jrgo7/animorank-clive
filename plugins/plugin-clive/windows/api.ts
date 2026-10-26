@@ -112,6 +112,19 @@ export async function codeFeedback(ctx: CodeFeedbackContext): Promise<CodeFeedba
   return call('/code-feedback', ctx);
 }
 
+/**
+ * Tag this session with the participant working in it, or (`next`) start a fresh
+ * session for the next participant: the answer names the session they are now in.
+ */
+export async function setParticipant(ctx: {
+  sessionId: string;
+  problemId: string;
+  participant: string;
+  next: boolean;
+}): Promise<{ sessionId: string }> {
+  return call('/participant', ctx);
+}
+
 export async function askStuck(ctx: StuckContext): Promise<{ feedback: string }> {
   return call('/stuck', ctx);
 }
