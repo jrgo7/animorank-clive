@@ -7,6 +7,7 @@
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
   import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
+  import { isFunctionProblem } from './problemKind';
   import { PHASES, isFilled } from './phase';
   import { fieldFeedback, fieldMark, startHere } from './feedback';
   import { askStuck, submitPhase, type JudgeContext } from './api';
@@ -31,28 +32,48 @@
   /** The phase after this one, for the "Phase passed" line and the way on. */
   const nextPhase = PHASES[1];
 
-  /** The sample problem each question's example answers, shown above the example. */
-  const EXAMPLE_PROBLEM =
-    'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.';
-
-  const SUMMARY_QUESTION =
-    'When solving a problem, the very first thing you should do is understand it. In your own words, what is the program supposed to do?';
+  /**
+   * The words of each question, for a problem that reads and prints and for one that
+   * asks for a function, each with a sample problem of its own kind that the examples
+   * answer. The server keeps one general copy of the questions (the phase YAML), which
+   * covers both.
+   */
+  const PROGRAM_COPY = {
+    exampleProblem:
+      'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.',
+    summaryQuestion:
+      'When solving a problem, the very first thing you should do is understand it. In your own words, what is the program supposed to do?',
+    summaryExample: "The program asks for a rectangle's length and width and prints its area.",
+    inputsQuestion: 'Next, state what the program is given. What values does it read in?',
+    inputsHint:
+      'List each value in the order it reads them. Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so. An int holds whole numbers up to about two billion.',
+    inputsExample:
+      '1. length: an int from 1 to 100.\n2. width: an int from 1 to 100.\nLength is read first, then width.',
+    outputsQuestion: 'Then state what it must produce. What should it print?',
+    outputsHint:
+      'If it prints a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough.',
+    outputsExample: 'The area as an int, for example, 24.'
+  };
+  const FUNCTION_COPY = {
+    exampleProblem:
+      'Write a function int getArea(int nLength, int nWidth) that returns the area of a rectangle whose\nlength and width are each a whole number of centimeters from 1 to 100.',
+    summaryQuestion:
+      'When solving a problem, the very first thing you should do is understand it. In your own words, what is the function supposed to do?',
+    summaryExample: "The function is given a rectangle's length and width and returns its area.",
+    inputsQuestion: 'Next, state what the function is given. What parameters does it take?',
+    inputsHint:
+      'List each parameter in order. Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so. An int holds whole numbers up to about two billion.',
+    inputsExample:
+      '1. nLength: an int from 1 to 100.\n2. nWidth: an int from 1 to 100.\nThe length is the first parameter, then the width.',
+    outputsQuestion: 'Then state what it must produce. What should the function return?',
+    outputsHint:
+      'Give the C type of the value it returns (int, float, double or char), and say what the value means. If it prints instead, say exactly what that looks like.',
+    outputsExample: 'It returns the area as an int, for example, 24.'
+  };
   const SUMMARY_HINT = "One or two sentences is enough, as if explaining to a classmate who hasn't read the problem.";
-  const SUMMARY_EXAMPLE = "The program asks for a rectangle's length and width and prints its area.";
-
-  const INPUTS_QUESTION =
-    'Next, state what the program is given. What values does it read in, or what parameters does its function take?';
-  const INPUTS_HINT =
-    'List each value in order (the order it reads them, or the order of the parameters). Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so. An int holds whole numbers up to about two billion.';
-  const INPUTS_EXAMPLE =
-    '1. length: an int from 1 to 100.\n2. width: an int from 1 to 100.\nLength is read first, then width.';
-
-  const OUTPUTS_QUESTION = 'Then state what it must produce. What should it print, or what should its function return?';
-  const OUTPUTS_HINT =
-    'If it prints or returns a single value, give its C type (int, float, double or char). If it prints, say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough. If a function returns a value, its type and what it means are enough.';
-  const OUTPUTS_EXAMPLE = 'The area as an int, for example, 24.';
 
   let session = $derived(cliveSessionFor(context));
+  let copy = $derived(isFunctionProblem(context.problem.extension_data) ? FUNCTION_COPY : PROGRAM_COPY);
   let phaseState = $derived(session.phases[0]);
   let fields = $derived(session.inPlay(0));
 
@@ -280,13 +301,13 @@
       <div class="flex flex-col gap-5">
         {#if openField.id === 'summary'}
           <div class="flex flex-col gap-1.5">
-            <span class="text-sm font-semibold">{SUMMARY_QUESTION}</span>
+            <span class="text-sm font-semibold">{copy.summaryQuestion}</span>
             <span class="text-xs text-base-content/60">{SUMMARY_HINT}</span>
             <details class="text-xs">
               <summary class="w-fit cursor-pointer font-medium text-primary">Show an example</summary>
-              <p class="mt-1.5 text-xs text-base-content/70">{EXAMPLE_PROBLEM}</p>
+              <p class="mt-1.5 text-xs text-base-content/70">{copy.exampleProblem}</p>
               <pre
-                class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{SUMMARY_EXAMPLE}</pre>
+                class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{copy.summaryExample}</pre>
             </details>
             <Textarea
               rows={4}
@@ -297,13 +318,13 @@
           </div>
         {:else if openField.id === 'inputs'}
           <div class="flex flex-col gap-1.5">
-            <span class="text-sm font-semibold">{INPUTS_QUESTION}</span>
-            <span class="text-xs text-base-content/60">{INPUTS_HINT}</span>
+            <span class="text-sm font-semibold">{copy.inputsQuestion}</span>
+            <span class="text-xs text-base-content/60">{copy.inputsHint}</span>
             <details class="text-xs">
               <summary class="w-fit cursor-pointer font-medium text-primary">Show an example</summary>
-              <p class="mt-1.5 text-xs text-base-content/70">{EXAMPLE_PROBLEM}</p>
+              <p class="mt-1.5 text-xs text-base-content/70">{copy.exampleProblem}</p>
               <pre
-                class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{INPUTS_EXAMPLE}</pre>
+                class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{copy.inputsExample}</pre>
             </details>
             <Textarea
               rows={4}
@@ -314,13 +335,13 @@
           </div>
         {:else}
           <div class="flex flex-col gap-1.5">
-            <span class="text-sm font-semibold">{OUTPUTS_QUESTION}</span>
-            <span class="text-xs text-base-content/60">{OUTPUTS_HINT}</span>
+            <span class="text-sm font-semibold">{copy.outputsQuestion}</span>
+            <span class="text-xs text-base-content/60">{copy.outputsHint}</span>
             <details class="text-xs">
               <summary class="w-fit cursor-pointer font-medium text-primary">Show an example</summary>
-              <p class="mt-1.5 text-xs text-base-content/70">{EXAMPLE_PROBLEM}</p>
+              <p class="mt-1.5 text-xs text-base-content/70">{copy.exampleProblem}</p>
               <pre
-                class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{OUTPUTS_EXAMPLE}</pre>
+                class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{copy.outputsExample}</pre>
             </details>
             <Textarea
               rows={3}

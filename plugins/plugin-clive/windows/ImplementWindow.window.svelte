@@ -7,6 +7,7 @@
   import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
   import DesignPanel from './DesignPanel.svelte';
+  import { isFunctionProblem } from './problemKind';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
   import { PHASES, type OutlineRow } from './phase';
   import { MORE_TO_FIX } from './feedback';
@@ -43,6 +44,7 @@
   const LIVE_BOX = "Show the compiler's own words";
 
   let session = $derived(cliveSessionFor(context));
+  let functionProblem = $derived(isFunctionProblem(context.problem.extension_data));
   let phaseState = $derived(session.phases[3]);
 
   let current = $derived(session.stateFor(3, 'code'));
@@ -208,9 +210,14 @@
 
       <p class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed text-base-content/70">
         Now translate your plan into C, one step at a time. Your design is beside your code. Press Run to test it on the
-        examples. Press Submit when it works for a final check against test cases you haven't seen. Print or return only
-        what the problem asks for, with no extra messages like "Enter a number:". If the problem asks for a function,
-        write that function and any helpers it needs; you don't write main. Don't use AI tools like ChatGPT.
+        examples. Press Submit when it works for a final check against test cases you haven't seen.
+        {#if functionProblem}
+          Write the function the problem asks for, and any helpers it needs; you don't write main. Return only what the
+          problem asks for, and print nothing it doesn't ask for.
+        {:else}
+          Print only what the problem asks for, with no extra messages like "Enter a number:".
+        {/if}
+        Don't use AI tools like ChatGPT.
       </p>
 
       <DesignPanel
@@ -223,7 +230,9 @@
            plan-vs-code judge below. -->
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-semibold">{codeField.label}</span>
-        <span class="text-xs text-base-content/60">Your whole program, or the function the problem asks for.</span>
+        <span class="text-xs text-base-content/60"
+          >{functionProblem ? 'Write the function the problem asks for.' : 'Write your whole program here.'}</span
+        >
 
         <div
           class="rounded-lg border border-dashed border-base-content/20 bg-base-200 px-3 py-2.5 text-sm text-base-content/60"

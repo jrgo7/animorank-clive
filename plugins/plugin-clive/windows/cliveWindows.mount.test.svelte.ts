@@ -356,6 +356,42 @@ describe('CLive windows', () => {
     });
   });
 
+  it('shows a function problem a function example in every phase, and main only to a program problem', () => {
+    stubBoot();
+    const texts = (functionProblem: boolean): string[] =>
+      PHASES.map((phase, index) => {
+        const context = stubContext(`kind-${functionProblem}-${phase.id}`);
+        if (functionProblem) {
+          (context.problem as { extension_data?: unknown }).extension_data = {
+            builtin_testCase_function: { functions: { 'fn-1': { name: 'getArea', parameters: [] } } }
+          };
+        }
+        const session = cliveSessionFor(context);
+        session.phases[0].read = true;
+        // Each phase opens only once the one before has passed; this test is about the words.
+        for (const phaseState of session.phases) phaseState.unlocked = true;
+        const app = mountPhase(context, index);
+        flushSync();
+        const text = document.body.textContent ?? '';
+        unmount(app);
+        return text;
+      });
+
+    const [problem, cases, design, implement] = texts(true);
+    expect(problem).toContain('getArea');
+    expect(problem).toContain('what is the function supposed to do?');
+    expect(cases).toContain('4, 6');
+    expect(design).toContain('Return the total.');
+    expect(implement).toContain("you don't write main");
+
+    const [programProblem, programCases, programDesign, programImplement] = texts(false);
+    expect(programProblem).toContain('Print the area.');
+    expect(programProblem).not.toContain('getArea');
+    expect(programCases).not.toContain('4, 6');
+    expect(programDesign).toContain('Print the total.');
+    expect(programImplement).not.toContain('main');
+  });
+
   it('opens a phase whose saved work is missing its fields', () => {
     stubBoot();
     const context = stubContext('mount-empty-artifact');

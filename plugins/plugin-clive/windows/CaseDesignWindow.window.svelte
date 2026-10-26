@@ -9,6 +9,7 @@
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
   import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
+  import { isFunctionProblem } from './problemKind';
   import { PHASES, duplicateOf, isFilled, maxAdded, rowsOf, type CaseRow } from './phase';
   import { casePartFor, fieldFeedback, fieldMark } from './feedback';
   import { askStuck, submitPhase, type JudgeContext } from './api';
@@ -31,20 +32,33 @@
   /** The phase after this one, for the "Phase passed" line and the way on. */
   const nextPhase = PHASES[2];
 
-  /** The sample problem each case's example answers, shown above the example. */
-  const EXAMPLE_PROBLEM =
-    'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.';
-
-  const CASE_QUESTION =
-    'Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?';
-  const CASE_HINT =
-    'Write the values you would give it (for a function, its arguments in order, separated by commas), then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.';
-
-  /** The worked cases the example shows: a normal one for Case 1, an edge one after it. */
-  const NORMAL_EXAMPLE: CaseRow[] = [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }];
-  const EDGE_EXAMPLE: CaseRow[] = [
-    { input: '1 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
-  ];
+  /**
+   * The question, hint and worked cases, for a problem that reads and prints and for
+   * one that asks for a function, each with a sample problem of its own kind: a normal
+   * case for Case 1, an edge one after it.
+   */
+  const PROGRAM_COPY = {
+    exampleProblem:
+      'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.',
+    question:
+      'Pick some values and solve the problem by hand, the way your program will have to. What values would you type in, what should come out, and how did you get there?',
+    hint: 'Write the values you would type in, then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.',
+    normalExample: [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }] as CaseRow[],
+    edgeExample: [
+      { input: '1 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
+    ] as CaseRow[]
+  };
+  const FUNCTION_COPY = {
+    exampleProblem:
+      'Write a function int getArea(int nLength, int nWidth) that returns the area of a rectangle whose\nlength and width are each a whole number of centimeters from 1 to 100.',
+    question:
+      'Pick some values and solve the problem by hand, the way your function will have to. What values would you pass to the function, what should it return, and how did you get there?',
+    hint: 'Write the values you would pass it, in the order of its parameters and separated by commas, then work out by hand what it should return, and show how. Use values of your own, not the examples in the problem.',
+    normalExample: [{ input: '4, 6', output: '24', working: '4 * 6 = 24.' }] as CaseRow[],
+    edgeExample: [
+      { input: '1, 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
+    ] as CaseRow[]
+  };
 
   /** A case example, rendered the way the prototype showed it. */
   function exampleCasesText(rows: CaseRow[]): string {
@@ -59,6 +73,7 @@
   }
 
   let session = $derived(cliveSessionFor(context));
+  let copy = $derived(isFunctionProblem(context.problem.extension_data) ? FUNCTION_COPY : PROGRAM_COPY);
   let phaseState = $derived(session.phases[1]);
   let fields = $derived(session.inPlay(1));
 
@@ -309,15 +324,15 @@
       </p>
 
       <div class="flex flex-col gap-1.5">
-        <span class="text-sm font-semibold">{CASE_QUESTION}</span>
-        <span class="text-xs text-base-content/60">{CASE_HINT}</span>
+        <span class="text-sm font-semibold">{copy.question}</span>
+        <span class="text-xs text-base-content/60">{copy.hint}</span>
 
         <details class="text-xs">
           <summary class="w-fit cursor-pointer font-medium text-primary">Show an example</summary>
-          <p class="mt-1.5 text-xs text-base-content/70">{EXAMPLE_PROBLEM}</p>
+          <p class="mt-1.5 text-xs text-base-content/70">{copy.exampleProblem}</p>
           <pre
             class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{exampleCasesText(
-              openField.id === 'normal_cases' ? NORMAL_EXAMPLE : EDGE_EXAMPLE
+              openField.id === 'normal_cases' ? copy.normalExample : copy.edgeExample
             )}</pre>
         </details>
 

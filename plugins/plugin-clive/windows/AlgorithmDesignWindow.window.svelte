@@ -9,6 +9,7 @@
   import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
   import { fieldFeedback } from './feedback';
+  import { isFunctionProblem } from './problemKind';
   import {
     PHASES,
     STEP_LEVELS,
@@ -41,26 +42,45 @@
   /** The phase after this one, for the "Phase passed" line and the way on. */
   const nextPhase = PHASES[3];
 
-  /** The sample problem the example answers, shown above it. */
-  const EXAMPLE_PROBLEM = 'Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.';
-
   const QUESTION =
     'Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.';
   const HINT =
-    'Place one action per step, and say how to do it, not only what you get: plain arithmetic such as "divide by 10" is fine. If you do the same thing to several values, write it once and say which values. You may use indentation to express conditional or repeating statements. For a function, start from its parameters and end with what it returns.';
+    'Place one action per step, and say how to do it, not only what you get: plain arithmetic such as "divide by 10" is fine. ' +
+    'If you do the same thing to several values, write it once and say which values. ' +
+    'You may use indentation to express conditional or repeating statements.';
 
-  /** The worked outline the example shows, numbered and indented the way the editor does. */
-  const EXAMPLE_ROWS: OutlineRow[] = [
-    { text: 'Read n.', level: 0 },
-    { text: 'Set the total to 0 and the counter to 1.', level: 0 },
-    { text: 'While the counter is at most n:', level: 0 },
-    { text: 'Add the counter to the total.', level: 1 },
-    { text: 'Add 1 to the counter.', level: 1 },
-    { text: 'Print the total.', level: 0 }
-  ];
-  const EXAMPLE_TEXT = outlineText(EXAMPLE_ROWS);
+  /**
+   * The sample problem and its worked outline, numbered and indented the way the editor
+   * does, for a problem that reads and prints and for one that asks for a function.
+   */
+  const PROGRAM_COPY = {
+    exampleProblem: 'Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.',
+    hint: HINT,
+    exampleText: outlineText([
+      { text: 'Read n.', level: 0 },
+      { text: 'Set the total to 0 and the counter to 1.', level: 0 },
+      { text: 'While the counter is at most n:', level: 0 },
+      { text: 'Add the counter to the total.', level: 1 },
+      { text: 'Add 1 to the counter.', level: 1 },
+      { text: 'Print the total.', level: 0 }
+    ])
+  };
+  const FUNCTION_COPY = {
+    exampleProblem:
+      'Write a function int getSum(int n) that returns the sum 1 + 2 + ... + n, where n is a whole number, 1 or more.',
+    hint: HINT + " Start from the function's parameters, and end with what it returns.",
+    exampleText: outlineText([
+      { text: 'Take n.', level: 0 },
+      { text: 'Set the total to 0 and the counter to 1.', level: 0 },
+      { text: 'While the counter is at most n:', level: 0 },
+      { text: 'Add the counter to the total.', level: 1 },
+      { text: 'Add 1 to the counter.', level: 1 },
+      { text: 'Return the total.', level: 0 }
+    ])
+  };
 
   let session = $derived(cliveSessionFor(context));
+  let copy = $derived(isFunctionProblem(context.problem.extension_data) ? FUNCTION_COPY : PROGRAM_COPY);
   let phaseState = $derived(session.phases[2]);
 
   /** The outline the student is writing: this phase's one field, `steps`. */
@@ -354,13 +374,13 @@
 
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-semibold">{QUESTION}</span>
-        <span class="text-xs text-base-content/60">{HINT}</span>
+        <span class="text-xs text-base-content/60">{copy.hint}</span>
 
         <details class="text-xs">
           <summary class="w-fit cursor-pointer font-medium text-primary">Show an example</summary>
-          <p class="mt-1.5 text-xs text-base-content/70">{EXAMPLE_PROBLEM}</p>
+          <p class="mt-1.5 text-xs text-base-content/70">{copy.exampleProblem}</p>
           <pre
-            class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{EXAMPLE_TEXT}</pre>
+            class="mt-1.5 whitespace-pre-wrap rounded-lg bg-base-200 p-3 text-[13px] text-base-content/70">{copy.exampleText}</pre>
         </details>
 
         <div class="flex flex-col gap-1.5">
