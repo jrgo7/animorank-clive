@@ -15,10 +15,14 @@
 #           rubric for first-year students: `ordered_steps` went (the outline makes order
 #           explicit) and `state_is_named` + `initialisation_is_explicit` merged into the
 #           advisory `values_are_tracked`.
+#
+#   v8  `inputs_are_consumed` reads as well for a function's parameters; a step that repeats
+#       earlier steps on other named values is traceable; a value set once needs no starting
+#       value (2026-10-26, walkthrough of Red Wildlings).
 
 id: criteria.algorithm_design
 phase: algorithm_design
-version: 7
+version: 8
 
 criteria:
   - id: not_c_code
@@ -35,12 +39,13 @@ criteria:
       declarations, braces used as blocks. Naming a variable, or writing an ordinary
       arithmetic expression such as 'total / n', is not C code and does not fail.
   - id: inputs_are_consumed
-    text: The steps say how every input is read.
+    text: The steps use every input the program is given.
     gate: gating
     fields: [steps]
-    not_met: "You should add a step that reads each input."
+    not_met: "You should add a step that reads or takes each input."
     explain: >-
-      Include a step that reads each input the program takes.
+      Include a step that reads each input the program takes, or, for a function, that
+      takes each of its parameters.
     guidance: |
       For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way. A step that takes the parameters, or names them as given, consumes them.
       PASS if the design accounts for reading each input the problem supplies,
@@ -80,6 +85,8 @@ criteria:
       match", "compute the answer") without saying how -- or if the trace does not reach the case's
       expected output.
       PASS if every step can be done by hand on that case and the trace reaches the expected output.
+      A step that says to do earlier steps again on other named values ("do steps 2-4 for the
+      second number too") can be carried out; trace it that way.
       PASS when no case from Cases is given to trace.
       Judge whether the plan can be followed, not whether it is the best plan.
 
@@ -92,11 +99,13 @@ criteria:
     not_met: "You could also name each value your steps keep track of and give it a starting value."
     explain: >-
       Name each value the plan keeps track of, such as a running total or a counter, and
-      give it a starting value before any step changes it.
+      give it a starting value before any step changes it. A value worked out once and never
+      changed needs no starting value.
     guidance: |
       PASS if every value carried across steps -- a total, a counter, a best-so-far, a
       flag -- is named and given a starting value before any step updates it. PASS a plan
-      that carries no value across steps.
+      that carries no value across steps. A value set once (worked out from the inputs) and
+      never updated is not carried: it needs no starting value.
       FAIL if a step updates or uses a value ('add it to the total') that no earlier step
       introduced or started.
 

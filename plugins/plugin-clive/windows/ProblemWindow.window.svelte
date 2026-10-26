@@ -43,13 +43,13 @@
   const INPUTS_QUESTION =
     'Next, state what the program is given. What values does it read in, or what parameters does its function take?';
   const INPUTS_HINT =
-    'List each value in order (the order it reads them, or the order of the parameters). Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so.';
+    'List each value in order (the order it reads them, or the order of the parameters). Give each a C type (int, float, double or char) and any limits the problem gives, like "between 1 and 100". If the problem gives no limits, say so. An int holds whole numbers up to about two billion.';
   const INPUTS_EXAMPLE =
     '1. length: an int from 1 to 100.\n2. width: an int from 1 to 100.\nLength is read first, then width.';
 
   const OUTPUTS_QUESTION = 'Then state what it must produce. What should it print, or what should its function return?';
   const OUTPUTS_HINT =
-    'If it prints or returns a single value, give its C type (int, float, double or char). Say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough.';
+    'If it prints or returns a single value, give its C type (int, float, double or char). If it prints, say exactly what it looks like: how many decimal places, any words around the number (such as Age: ), in one line or several. If it prints text or a pattern of several values, describing exactly how it looks is enough. If a function returns a value, its type and what it means are enough.';
   const OUTPUTS_EXAMPLE = 'The area as an int, for example, 24.';
 
   let session = $derived(cliveSessionFor(context));

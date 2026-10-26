@@ -23,13 +23,15 @@
 #              of the student's code, because that is the artifact being judged.
 
 id: phase.implement
-version: 10
+version: 11
 phase: implement
 label: Implement
 order: 4
 gate: tests
 created: 2026-09-07
 changelog: >
+  v11: For a function problem the intro says to write the function and any helpers, not main, and "print or return"; the field hint no longer says "whole program" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
+
   criteria v5 (2026-10-25): function problems -- parameters are inputs, the return value is the output.
 
   v10: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
@@ -105,16 +107,17 @@ model:
 task_description: |
   Now translate your plan into C, one step at a time. Your design is beside your code. Press
   Run to test it on the examples. Press Submit when
-  it works for a final check against test cases you haven't seen. Print only what the
-  problem asks for, with no extra messages like "Enter a number:". Don't use AI tools like
-  ChatGPT.
+  it works for a final check against test cases you haven't seen. Print or return only what the
+  problem asks for, with no extra messages like "Enter a number:". If the problem asks for a
+  function, write that function and any helpers it needs; you don't write main. Don't use AI
+  tools like ChatGPT.
 
 artifact_fields:
   - id: code
     label: Your C program
     kind: code
     language: c
-    hint: Write your whole program here.
+    hint: Your whole program, or the function the problem asks for.
     rows: 20
 
 system_prompt: |

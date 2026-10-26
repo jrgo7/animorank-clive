@@ -1,11 +1,13 @@
 id: phase.algorithm_design
-version: 11
+version: 12
 phase: algorithm_design
 label: Design
 order: 3
 layout: steps
 created: 2026-08-20
 changelog: >
+  v12: The hint asks for how, not only what ("divide by 10" is plain arithmetic, not C), lets a step done to several values be written once, and says a function plan starts from its parameters and ends with what it returns -- the example still reads and prints. criteria v8: inputs_are_consumed reads for parameters; repeating earlier steps on named values is traceable; a value set once needs no starting value (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
+
   criteria v7 (2026-10-25): new gating traceable_on_own_case -- the plan must be traceable by hand on the student's own case. Avril's plan restated the problem ('each section must sum and match'), passed, and left her unable to code it. Function problems: parameters are inputs, the return value is the output.
 
   v11: Prompts and intros reworded to teach the habit each phase stands for, in the spirit of PCDIT (understand the problem, solve examples by hand, plan in words, code from the plan), at the author's request (2026-10-10). The fill-in instructions are unchanged; the judge's template renders none of these keys. Wording is a draft for the author to revise.
@@ -88,7 +90,7 @@ artifact_fields:
     label: Algorithm steps
     kind: steps
     prompt: Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.
-    hint: Place one action per step. You may use indentation to express conditional or repeating statements.
+    hint: 'Place one action per step, and say how to do it, not only what you get: plain arithmetic such as "divide by 10" is fine. If you do the same thing to several values, write it once and say which values. You may use indentation to express conditional or repeating statements. For a function, start from its parameters and end with what it returns.'
     example:
       - {text: Read n., level: 0}
       - {text: Set the total to 0 and the counter to 1., level: 0}

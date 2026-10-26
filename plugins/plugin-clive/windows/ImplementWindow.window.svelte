@@ -208,8 +208,9 @@
 
       <p class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed text-base-content/70">
         Now translate your plan into C, one step at a time. Your design is beside your code. Press Run to test it on the
-        examples. Press Submit when it works for a final check against test cases you haven't seen. Print only what the
-        problem asks for, with no extra messages like "Enter a number:". Don't use AI tools like ChatGPT.
+        examples. Press Submit when it works for a final check against test cases you haven't seen. Print or return only
+        what the problem asks for, with no extra messages like "Enter a number:". If the problem asks for a function,
+        write that function and any helpers it needs; you don't write main. Don't use AI tools like ChatGPT.
       </p>
 
       <DesignPanel
@@ -222,7 +223,7 @@
            plan-vs-code judge below. -->
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-semibold">{codeField.label}</span>
-        <span class="text-xs text-base-content/60">Write your whole program here.</span>
+        <span class="text-xs text-base-content/60">Your whole program, or the function the problem asks for.</span>
 
         <div
           class="rounded-lg border border-dashed border-base-content/20 bg-base-200 px-3 py-2.5 text-sm text-base-content/60"

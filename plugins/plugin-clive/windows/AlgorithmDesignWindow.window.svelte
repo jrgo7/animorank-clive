@@ -46,7 +46,8 @@
 
   const QUESTION =
     'Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.';
-  const HINT = 'Place one action per step. You may use indentation to express conditional or repeating statements.';
+  const HINT =
+    'Place one action per step, and say how to do it, not only what you get: plain arithmetic such as "divide by 10" is fine. If you do the same thing to several values, write it once and say which values. You may use indentation to express conditional or repeating statements. For a function, start from its parameters and end with what it returns.';
 
   /** The worked outline the example shows, numbered and indented the way the editor does. */
   const EXAMPLE_ROWS: OutlineRow[] = [

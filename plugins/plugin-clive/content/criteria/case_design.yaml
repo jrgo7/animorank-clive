@@ -24,17 +24,19 @@
 #           (`edge_is_boundary` was removed).
 #           v8: every criterion also names Cases 3-5 (`case_3`..`case_5`), which a student
 #           adds on request; an added case is judged by exactly the same rules.
+#           v10: student-facing lines say "print or return", for function problems
+#           (2026-10-26, walkthrough of Red Wildlings).
 
 id: criteria.case_design
 phase: case_design
-version: 9
+version: 10
 
 criteria:
   - id: case_is_concrete
     text: The case has a real input and a real expected output.
     gate: gating
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: "You should give this case a real input and the exact output the program would print for it."
+    not_met: "You should give this case a real input and the exact output the program would print or return for it."
     explain: >-
       Give actual input values and the output you expect -- not a description, and not
       one of the examples you were given.
@@ -86,10 +88,10 @@ criteria:
   # ---- Advisory: extra understanding, never blocking -------------------------
 
   - id: output_format_matches_statement
-    text: The expected output is written exactly as the program prints it.
+    text: The expected output is written exactly as the program prints or returns it.
     gate: advisory
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: "You could also write the expected output exactly as the program would print it."
+    not_met: "You could also write the expected output exactly as the program would print or return it."
     explain: >-
       Write the expected value in the exact form the problem prints it -- 55.50 rather
       than 55.5 if it asks for two decimal places.
