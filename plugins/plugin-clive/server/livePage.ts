@@ -47,7 +47,11 @@ async function poll() {
         }
       }
       document.getElementById('state').textContent = 'watching';
-    } else { document.getElementById('state').textContent = 'not allowed (' + res.status + ')'; }
+    } else if (res.status < 500) {
+      // Refused: the session is gone, or not this user's. Asking again will not change that.
+      document.getElementById('state').textContent = 'not allowed (' + res.status + '); stopped. Reopen with Ctrl+Shift+L.';
+      return;
+    } else { document.getElementById('state').textContent = 'reconnecting…'; }
   } catch { document.getElementById('state').textContent = 'reconnecting…'; }
   setTimeout(poll, 500);
 }
