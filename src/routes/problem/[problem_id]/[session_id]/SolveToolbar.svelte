@@ -1,9 +1,6 @@
 <script lang="ts">
   import type { User } from '@auth/sveltekit';
-  import Button from '$lib/components/ui/buttons/Button.svelte';
   import WorkspaceToolbar, { type ToolbarLink } from '$lib/components/layout/WorkspaceToolbar.svelte';
-  import PlayIcon from '@iconify-svelte/fa6-solid/play';
-  import PaperPlaneIcon from '@iconify-svelte/fa6-solid/paper-plane';
   import { problemHref, problemSetHref } from '$lib/navigation';
   import type { ProblemLink } from '$lib/problem';
   import type { SolveWindowContext } from './context.svelte';
@@ -34,30 +31,6 @@
   backHref={problemSetHref(context.problem.problem_set_id)}
   neighbors={steps}
 >
-  <!-- Primary actions. Both lock while a run is in flight; the editor panel
-       shows the accompanying spinner overlay. -->
-  {#snippet actions()}
-    <Button
-      class="btn-sm gap-2"
-      onclick={() => context.run()}
-      disabled={context.editorState.locked}
-    >
-      <PlayIcon
-        class="h-3.5 w-3.5"
-        aria-hidden="true"
-      />
-      Run
-    </Button>
-    <Button
-      class="btn-sm btn-primary gap-2"
-      onclick={() => context.submit()}
-      disabled={context.editorState.locked}
-    >
-      <PaperPlaneIcon
-        class="h-3.5 w-3.5"
-        aria-hidden="true"
-      />
-      Submit
-    </Button>
-  {/snippet}
+  <!-- Run and Submit live on the code editor's own bar, where an editor's run
+       button usually is (a round 6 participant found them hard to place up here). -->
 </WorkspaceToolbar>

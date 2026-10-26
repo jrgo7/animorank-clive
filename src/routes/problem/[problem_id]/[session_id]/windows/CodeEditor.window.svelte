@@ -3,6 +3,8 @@
   import Button from '$lib/components/ui/buttons/Button.svelte';
   import Spinner from '@iconify-svelte/fa6-solid/spinner';
   import RotateLeftIcon from '@iconify-svelte/fa6-solid/rotate-left';
+  import PlayIcon from '@iconify-svelte/fa6-solid/play';
+  import PaperPlaneIcon from '@iconify-svelte/fa6-solid/paper-plane';
   import type { monaco } from '$lib/monaco';
   import { editorSettings } from '$lib/editor/settings.svelte';
   import type { SolveWindowContext } from '../context.svelte';
@@ -68,6 +70,34 @@
     >
       <RotateLeftIcon class="h-3.5 w-3.5" />
     </Button>
+    <!-- The page's primary actions, at the editor's top right as in VS Code. Both
+         lock while a run is in flight, behind the spinner overlay below. -->
+    <div class="ml-1.5 flex items-center gap-1.5 border-l border-base-100 pl-1.5">
+      <Button
+        type="button"
+        class="btn-xs gap-1.5"
+        onclick={() => context.run()}
+        disabled={context.editorState.locked}
+      >
+        <PlayIcon
+          class="h-3 w-3"
+          aria-hidden="true"
+        />
+        Run
+      </Button>
+      <Button
+        type="button"
+        class="btn-xs btn-primary gap-1.5"
+        onclick={() => context.submit()}
+        disabled={context.editorState.locked}
+      >
+        <PaperPlaneIcon
+          class="h-3 w-3"
+          aria-hidden="true"
+        />
+        Submit
+      </Button>
+    </div>
   </div>
 
   <div class="relative flex-1 min-h-0">
