@@ -136,6 +136,42 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  it('numbers Implement attempts by Run and Submit, not by replies', async () => {
+    const attempts: number[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith('/code-feedback')) {
+          attempts.push((JSON.parse(String(init?.body)) as { attempt: number }).attempt);
+          return new Response(JSON.stringify({ situation: 'other', summary: 's', focus: 'f', nudge: 'n' }), {
+            status: 200
+          });
+        }
+        return new Response(JSON.stringify({ hasApiKey: true }), { status: 200 });
+      })
+    );
+    const context = stubContext('mount-code-attempts');
+    const session = cliveSessionFor(context);
+    session.phases.forEach((phase) => (phase.unlocked = true));
+    const failing = {
+      runType: 'run' as const,
+      publicTestResults: [{ success: false, testCaseInfo: { public: false } }],
+      submittedCode: 'x'
+    };
+    const passing = {
+      runType: 'run' as const,
+      publicTestResults: [{ success: true, testCaseInfo: { public: false } }],
+      submittedCode: 'x'
+    };
+    // Two Runs before either reply is back, then a passing Run, then a failing Submit.
+    const first = session.codeRan(context, failing);
+    const second = session.codeRan(context, failing);
+    await Promise.all([first, second]);
+    await session.codeRan(context, passing);
+    await session.codeRan(context, { ...failing, runType: 'submit' });
+    expect(attempts).toEqual([1, 2, 4]);
+  });
+
   it('shows the student their own Design, numbered, while they write the code', () => {
     stubBoot();
     const context = stubContext('design-panel');

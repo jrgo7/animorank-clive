@@ -5,7 +5,7 @@ import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
 import { codeFeedback, fetchBoot, type NudgeTurn } from './api';
-import { LatestOnly, toCodeRun } from './codeFeedback';
+import { implementReached, LatestOnly, toCodeRun, wantsCodeFeedback } from './codeFeedback';
 import { CLIVE_EVENT } from './telemetry';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import {
@@ -384,17 +384,38 @@ export class CliveSession {
   }
 
   /**
+   * A Run or Submit finished. Once the student has reached Implement, each one is
+   * an attempt (Implement's `attempt` counts them, passing or not), and one that
+   * failed is answered. A passing one drops any reply still coming about older code.
+   */
+  async codeRan(
+    context: SolveWindowContext,
+    execution: { runType: 'run' | 'submit'; publicTestResults: readonly unknown[]; submittedCode: string }
+  ): Promise<void> {
+    if (!implementReached(this.phases)) return;
+    const state = this.phases[PHASES.findIndex((p) => p.phase === 'implement')];
+    const attempt = state.attempt;
+    state.attempt += 1;
+    if (wantsCodeFeedback(this.phases, this.hasApiKey, execution.publicTestResults as { success: boolean }[])) {
+      await this.requestCodeFeedback(context, execution, attempt);
+    } else {
+      this.dropPendingCodeFeedback();
+      this.persist();
+    }
+  }
+
+  /**
    * Ask what to say about code that failed a Run or Submit, and keep the reply on
    * Implement. Only the newest request's reply is kept; a failed request leaves
    * the earlier feedback as it was.
    */
-  async requestCodeFeedback(
+  private async requestCodeFeedback(
     context: SolveWindowContext,
-    execution: { runType: 'run' | 'submit'; publicTestResults: readonly unknown[]; submittedCode: string }
+    execution: { runType: 'run' | 'submit'; publicTestResults: readonly unknown[]; submittedCode: string },
+    attempt: number
   ): Promise<void> {
     const index = PHASES.findIndex((p) => p.phase === 'implement');
     const state = this.phases[index];
-    const attempt = state.codeFeedback.length + 1;
     const history = state.codeFeedback
       .slice(0, 5)
       .reverse()
@@ -430,7 +451,7 @@ export class CliveSession {
   }
 
   /** A Run or Submit that passed: any reply still coming about older code is no longer about this code. */
-  dropPendingCodeFeedback(): void {
+  private dropPendingCodeFeedback(): void {
     this.codeFeedbackRequests.cancel();
   }
 

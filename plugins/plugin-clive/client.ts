@@ -19,7 +19,6 @@ import { PHASE_PLACEMENT_REFERENCE, PHASES, PROBLEM_INFO_WINDOW_KEY } from './wi
 import { showPhaseWindows } from './windows/phaseWindows';
 import { CLIVE_EVENT } from './windows/telemetry';
 import { checkLog } from './windows/api';
-import { implementReached, wantsCodeFeedback } from './windows/codeFeedback';
 
 /** The key the log view is registered under, in the plugin's own namespace. */
 const LOG_VIEW = 'events';
@@ -65,11 +64,7 @@ export default class CLivePlugin extends ClientPlugin {
     // A Run or Submit that did not pass, once the student has reached Implement: CLive
     // answers on its own with the situation it sees and one thing to do.
     context.executionObservable.subscribe('tests', (execution) => {
-      if (wantsCodeFeedback(session.phases, session.hasApiKey, execution.publicTestResults)) {
-        void session.requestCodeFeedback(context, execution);
-      } else if (implementReached(session.phases)) {
-        session.dropPendingCodeFeedback();
-      }
+      void session.codeRan(context, execution);
     });
 
     // A Run is AnimoRank's own flow -- the plugin has none of its own -- so its
