@@ -6,6 +6,7 @@
  *
  *   npx vitest run --config vitest.replay.config.ts
  *   REPLAY_ONLY=avril-cases REPLAY_DRY=1 REPLAY_OUT=/tmp/replay.md npx vitest run --config vitest.replay.config.ts
+ *   (REPLAY_EVIDENCE=1 adds the judged work and every verdict to the output)
  *
  * Sources (selection and expected situations in `cliveReplay.cases.json`):
  * - `port`: Avril's Red Wildlings session from this app (problem read from the database).
@@ -312,39 +313,52 @@ it('replays past submissions through the current prompts', async () => {
           reply = r.nudge;
           codeHistory.push({ situation: r.situation, focus: r.focus, nudge: r.nudge });
         } else {
-          let phase = phaseDoc(e.phase);
-          let artifact = e.artifact;
-          let criteria = rubricDoc(e.phase).criteria;
-          if (isPerStep(phase)) {
-            const step = e.step ?? 'normal_cases';
-            const scoped = cut(phase, artifact, criteria, step);
-            phase = scoped.phase;
-            artifact = scoped.artifact;
-            criteria = scoped.criteria;
-          }
-          const judged = await judgeWithChecks(
-            phase,
-            problem,
-            artifact,
-            criteria,
-            e.attempt,
-            prior,
-            undefined,
-            localExecutor
-          );
-          const failing = judged.verdicts
-            .filter((v) => v.verdict === 'FAIL')
-            .map((v) => {
-              const gate = judged.criteria.find((c) => c.id === v.criterion_id)?.gate;
-              return `${v.criterion_id}${gate === 'advisory' ? '(adv)' : ''}${v.source === 'reference' ? '[ref]' : ''}`;
-            });
-          lines.push(
-            `- verdicts now: ${failing.length ? failing.join(', ') : 'all pass'}; reference check: ${judged.referenceCheck?.status ?? 'n/a'}`
-          );
-          const blocking = judged.verdicts.some(
-            (v) => v.verdict === 'FAIL' && judged.criteria.find((c) => c.id === v.criterion_id)?.gate !== 'advisory'
-          );
-          if (blocking) {
+          const whole = phaseDoc(e.phase);
+          const rubric = rubricDoc(e.phase).criteria;
+          // A per-step phase is judged one step at a time. A prototype submission names no
+          // step (the prototype judged the phase at once), so every step it filled in is
+          // judged in turn, and the first that blocks is the one answered.
+          const steps = !isPerStep(whole)
+            ? [null]
+            : e.step
+              ? [e.step]
+              : [...new Set(rubric.flatMap((c) => c.fields ?? []))].filter((id) => {
+                  const value = (e.artifact as Record<string, unknown>)[id];
+                  return typeof value === 'string' && value.trim() !== '';
+                });
+          situation = '(passes now: no nudge)';
+          for (const step of steps) {
+            const scoped = step
+              ? cut(whole, e.artifact, rubric, step)
+              : { phase: whole, artifact: e.artifact, criteria: rubric };
+            const { phase, artifact } = scoped;
+            const judged = await judgeWithChecks(
+              phase,
+              problem,
+              artifact,
+              scoped.criteria,
+              e.attempt,
+              prior,
+              undefined,
+              localExecutor
+            );
+            const failing = judged.verdicts
+              .filter((v) => v.verdict === 'FAIL')
+              .map((v) => {
+                const gate = judged.criteria.find((c) => c.id === v.criterion_id)?.gate;
+                return `${v.criterion_id}${gate === 'advisory' ? '(adv)' : ''}${v.source === 'reference' ? '[ref]' : ''}`;
+              });
+            lines.push(
+              `- ${step && steps.length > 1 ? `${step}: ` : ''}verdicts now: ${failing.length ? failing.join(', ') : 'all pass'}; reference check: ${judged.referenceCheck?.status ?? 'n/a'}`
+            );
+            // REPLAY_EVIDENCE=1 also writes what was judged and every verdict, to see why one passed.
+            if (process.env.REPLAY_EVIDENCE === '1') {
+              lines.push('```json', JSON.stringify({ step, artifact, verdicts: judged.verdicts }, null, 2), '```');
+            }
+            const blocking = judged.verdicts.some(
+              (v) => v.verdict === 'FAIL' && judged.criteria.find((c) => c.id === v.criterion_id)?.gate !== 'advisory'
+            );
+            if (!blocking) continue;
             const n = await nudge(
               phase,
               problem,
@@ -358,8 +372,7 @@ it('replays past submissions through the current prompts', async () => {
             situation = n.situation;
             reply = n.nudge;
             judgedHistory.push({ attempt: e.attempt, situation: n.situation, focus_id: n.focus_id, nudge: n.nudge });
-          } else {
-            situation = '(passes now: no nudge)';
+            break;
           }
         }
       } catch (error) {
