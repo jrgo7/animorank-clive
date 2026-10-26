@@ -208,6 +208,8 @@ export class CliveSession {
   hasApiKey: boolean = $state(true);
   /** Whether the walkthrough has been offered (and dismissed) for this practice session. */
   tutorialSeen: boolean = $state(false);
+  /** Whether the researcher override (Ctrl+Shift+Y) is showing; not persisted. */
+  overrideOpen: boolean = $state(false);
   /** Whether this session's history accepted the log check; null until it answers. */
   logging: { ok: boolean; reason: string } | null = $state(null);
   /** Whether saved CLive work was found for this session, for `CLIVE_PROBLEM_LOAD`. */

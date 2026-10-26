@@ -16,6 +16,7 @@ import CaseDesignWindow from './CaseDesignWindow.window.svelte';
 import AlgorithmDesignWindow from './AlgorithmDesignWindow.window.svelte';
 import ImplementWindow from './ImplementWindow.window.svelte';
 import { cliveSessionFor } from './cliveSession.svelte';
+import { onResearcherKey } from './shortcuts';
 import { CLIVE_WINDOW_KEYS, PROBLEM_INFO_WINDOW_KEY } from './phase';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
@@ -133,6 +134,27 @@ describe('CLive windows', () => {
     expect(document.body.textContent).toContain('About your last Run');
     const lines = Array.from(document.querySelectorAll('[data-code-feedback-line]')).map((el) => el.textContent);
     expect(lines).toEqual(['Line one', 'Line two']);
+    unmount(app);
+  });
+
+  it('opens the researcher override with the strip closed, and reopens the strip to show it', () => {
+    stubBoot();
+    const calls: WindowCalls = { opened: [], closed: [] };
+    const context = stubContext('mount-override-key', calls);
+    const session = cliveSessionFor(context);
+    const key = (init: KeyboardEventInit) => new KeyboardEvent('keydown', { ...init, cancelable: true });
+    const press = key({ key: 'Y', ctrlKey: true, shiftKey: true });
+    onResearcherKey(press, { context, session });
+    expect(press.defaultPrevented).toBe(true);
+    expect(session.overrideOpen).toBe(true);
+    expect(calls.opened).toContain('clive:track');
+    // The strip, opened afterwards, shows the dialog the key asked for.
+    const app = mount(PhaseTrackWindow, { target: document.body, props: { context } });
+    flushSync();
+    expect(document.querySelector('[aria-label="Researcher override"]')).not.toBeNull();
+    onResearcherKey(key({ key: 'Escape' }), { context, session });
+    flushSync();
+    expect(document.querySelector('[aria-label="Researcher override"]')).toBeNull();
     unmount(app);
   });
 

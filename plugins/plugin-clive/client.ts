@@ -19,6 +19,7 @@ import { PHASE_PLACEMENT_REFERENCE, PHASES, PROBLEM_INFO_WINDOW_KEY } from './wi
 import { showPhaseWindows } from './windows/phaseWindows';
 import { CLIVE_EVENT } from './windows/telemetry';
 import { checkLog } from './windows/api';
+import { onResearcherKey, type ShortcutTarget } from './windows/shortcuts';
 
 /** The key the log view is registered under, in the plugin's own namespace. */
 const LOG_VIEW = 'events';
@@ -32,6 +33,11 @@ const PHASE_TRACK_HEIGHT = 226;
 
 export default class CLivePlugin extends ClientPlugin {
   private logViewKey = LOG_VIEW;
+  /**
+   * The solve page the researcher's keys act on. Plugins get no unload hook, so the
+   * key listener is added once and follows whichever page loaded last.
+   */
+  private shortcutTarget: ShortcutTarget | undefined;
 
   public async init(api: ClientAnimoRankAPI): Promise<void> {
     const registrar = api.clientRegistryProviderRegistrar.getRegistrar(SolveWindowRegistry);
@@ -60,6 +66,18 @@ export default class CLivePlugin extends ClientPlugin {
 
   public async onSolvePageLoad(context: SolveWindowContext): Promise<void> {
     const session = cliveSessionFor(context);
+
+    // Captured, so the keys work in the code editor and text boxes too.
+    if (!this.shortcutTarget) {
+      window.addEventListener(
+        'keydown',
+        (e) => {
+          if (this.shortcutTarget) onResearcherKey(e, this.shortcutTarget);
+        },
+        true
+      );
+    }
+    this.shortcutTarget = { context, session };
 
     // A Run or Submit that did not pass, once the student has reached Implement: CLive
     // answers on its own with the situation it sees and one thing to do.
