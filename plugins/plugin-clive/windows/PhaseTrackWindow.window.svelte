@@ -86,7 +86,7 @@
       : !unlocked
         ? 'border-dashed border-base-content/15'
         : 'border-base-content/10 bg-base-200';
-    return `flex items-baseline gap-2 rounded-box border px-3 py-1.5 text-left transition-colors ${base} ${
+    return `flex min-w-0 items-baseline gap-2 overflow-hidden whitespace-nowrap rounded-box border px-3 py-1.5 text-left transition-colors ${base} ${
       clickable ? 'cursor-pointer hover:bg-base-100' : ''
     }`;
   }
@@ -105,8 +105,10 @@
     {i + 1}
   </span>
   <span class="font-display text-sm font-bold {!st.unlocked ? 'text-base-content/30' : ''}">{PHASES[i].label}</span>
+  <!-- One line whatever the column's width: the strip is pinned to one row of tiles. -->
   <span
-    class="text-xs {st.passed
+    title={statusText(i)}
+    class="min-w-0 truncate text-xs {st.passed
       ? 'font-medium text-success'
       : current
         ? 'text-primary'

@@ -157,7 +157,7 @@
   // `solve-layout-v` covers the whole retired `v<number>` convention in one
   // prefix -- `solve-layout-v2-<id>` (the only one saved per problem) through
   // `solve-layout-v5` -- because a dated key never starts with it.
-  const SUPERSEDED_LAYOUT_KEYS = ['solve-layout-v', 'solve-layout-2026-09-18'];
+  const SUPERSEDED_LAYOUT_KEYS = ['solve-layout-v', 'solve-layout-2026-09-18', 'solve-layout-2026-10-16'];
   onMount(() => SUPERSEDED_LAYOUT_KEYS.forEach((key) => discardSavedLayouts(key)));
 
   onMount(() => {
@@ -202,7 +202,7 @@
       bind:context
       {windowRegistry}
       {defaultLayout}
-      storageKey="solve-layout-2026-10-16"
+      storageKey="solve-layout-2026-10-26"
       bind:manager
     />
   {/if}

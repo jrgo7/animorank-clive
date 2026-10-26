@@ -15,7 +15,7 @@ import { ReferenceSolutionWindow } from './windows/ReferenceSolutionWindow.windo
 import { CLiveLogsWindow } from './windows/CLiveLogs.window';
 import { live } from './windows/live.svelte';
 import { cliveSessionFor } from './windows/cliveSession.svelte';
-import { PHASE_PLACEMENT_REFERENCE, PHASES, PROBLEM_INFO_WINDOW_KEY } from './windows/phase';
+import { PHASE_PLACEMENT_REFERENCE, PHASE_TRACK_SIZING, PHASES, PROBLEM_INFO_WINDOW_KEY } from './windows/phase';
 import { showPhaseWindows } from './windows/phaseWindows';
 import { CLIVE_EVENT } from './windows/telemetry';
 import { checkLog } from './windows/api';
@@ -23,13 +23,6 @@ import { onResearcherKey, type ShortcutTarget } from './windows/shortcuts';
 
 /** The key the log view is registered under, in the plugin's own namespace. */
 const LOG_VIEW = 'events';
-
-/**
- * The CLive strip's height, in pixels: its four phase cards, the line under them,
- * and its own padding -- measured from the panel's content. The phase window is
- * the one that should take the room, so this one is pinned to exactly this.
- */
-const PHASE_TRACK_HEIGHT = 226;
 
 export default class CLivePlugin extends ClientPlugin {
   private logViewKey = LOG_VIEW;
@@ -151,28 +144,28 @@ export default class CLivePlugin extends ClientPlugin {
       { direction: 'within', referencePanel: PHASE_PLACEMENT_REFERENCE },
       { direction: 'right', referencePanel: PROBLEM_INFO_WINDOW_KEY }
     ]);
-    // Given its own row above the phase tabs, sized to the cards and the line
-    // under them: the phase window is the one that should take the space, so
-    // this one starts at exactly its content and cannot be dragged smaller.
-    await context.openWindow(
-      'clive:track',
-      { direction: 'above', referencePanel: first },
-      { initialHeight: PHASE_TRACK_HEIGHT, minimumHeight: PHASE_TRACK_HEIGHT }
-    );
+    // Given its own row above the phase tabs, sized to the tiles and the line
+    // above them: the phase window is the one that should take the space, so
+    // this one is exactly its content and cannot be dragged.
+    await context.openWindow('clive:track', { direction: 'above', referencePanel: first }, PHASE_TRACK_SIZING);
     // The other three phases join Problem's tab group so every phase is
     // reachable by clicking a tab, not only by passing gates -- `openWindow`
     // always ends with `panel.api.setActive()` (see `DockviewWindowManager`),
     // so each of these would steal focus in turn; the final re-open below
-    // hands it back to Problem once all four tabs exist.
+    // hands it to the phase the student was last on once all four tabs exist.
     for (const { phase } of PHASES.slice(1)) {
       await context.openWindow(`clive:${phase}`, { direction: 'within', referencePanel: first });
     }
-    await context.openWindow(first);
+    await context.openWindow(`clive:${PHASES[session.current]?.phase ?? PHASES[0].phase}`);
 
     // ...and close the page's own windows out of the way, for the phase the
     // student was last on. The strip does this too, on every phase change; the
     // call here is the one that holds on a page whose windows were built before
     // the page bound `closeWindowsExcept` (see `phaseWindows.ts`).
+    // The editor windows go first even for a student already on Implement: in a
+    // layout built just now they share a tab group with the phases, and reopening
+    // them puts them beside the phase window instead. A closed window keeps its state.
+    showPhaseWindows(context, PHASES[0].phase);
     showPhaseWindows(context, PHASES[cliveSessionFor(context).current]?.phase ?? '');
   }
 

@@ -281,3 +281,17 @@ export function solveLayoutKeys(phase: string): string[] {
   const keys = [PROBLEM_INFO_WINDOW_KEY, ...CLIVE_WINDOW_KEYS];
   return phase === IMPLEMENT_PHASE ? [...keys, ...IMPLEMENT_WINDOW_KEYS] : keys;
 }
+
+/**
+ * The CLive strip's height, in pixels: its one row of phase tiles, the line above
+ * them, its padding, and dockview's tab header -- measured on the page. Pinned at
+ * both ends: with only a minimum, closing the page's editor windows handed the
+ * freed space to the strip as well as the phase window, leaving it half the column.
+ */
+const PHASE_TRACK_HEIGHT = 124;
+
+export const PHASE_TRACK_SIZING = {
+  initialHeight: PHASE_TRACK_HEIGHT,
+  minimumHeight: PHASE_TRACK_HEIGHT,
+  maximumHeight: PHASE_TRACK_HEIGHT
+};

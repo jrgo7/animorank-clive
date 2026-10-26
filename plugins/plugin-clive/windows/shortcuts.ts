@@ -5,7 +5,7 @@
  */
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import type { CliveSession } from './cliveSession.svelte';
-import { PHASES } from './phase';
+import { PHASE_TRACK_SIZING, PHASES } from './phase';
 
 export interface ShortcutTarget {
   context: SolveWindowContext;
@@ -29,7 +29,8 @@ export function onResearcherKey(e: KeyboardEvent, { context, session }: Shortcut
     session.overrideOpen = !session.overrideOpen;
     // Above the open phase, where the page first put it; anywhere, if that phase is closed too.
     const phase = `clive:${PHASES[session.current].phase}`;
-    if (session.overrideOpen) void context.openWindow('clive:track', { direction: 'above', referencePanel: phase });
+    if (session.overrideOpen)
+      void context.openWindow('clive:track', { direction: 'above', referencePanel: phase }, PHASE_TRACK_SIZING);
   } else if (e.key === 'Escape' && session.overrideOpen) {
     session.overrideOpen = false;
   }
