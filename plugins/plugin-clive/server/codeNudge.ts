@@ -64,5 +64,9 @@ export async function codeNudge(
     schemaText: jsonSchemaText(CodeNudgeSchema)
   });
   const parsed = CodeNudgeSchema.parse(result.parsed);
-  return { ...parsed, situation: situationOr('implement', parsed.situation) };
+  // A program that did not compile is the syntax situation by rule, not by the model's
+  // reading of the code: a replay of Avril's eight failing Runs had the model call each
+  // one far_from_plan and tell her to empty the function, eight times over.
+  const situation = run.compiled ? situationOr('implement', parsed.situation) : 'syntax_following_plan';
+  return { ...parsed, situation };
 }

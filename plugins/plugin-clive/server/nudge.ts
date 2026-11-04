@@ -83,7 +83,7 @@ export async function nudge(
 
   const focus = failures.find((c) => c.id === parsed.focus_id);
   return {
-    situation: situationOr(phase.phase, parsed.situation),
+    situation: situationOr(phase.phase, correctedSituation(parsed.situation, verdicts)),
     summary: parsed.summary,
     focus_id: parsed.focus_id,
     focus_text: focus?.text ?? '',
@@ -92,4 +92,17 @@ export async function nudge(
     nudge: parsed.nudge,
     failing: failures.map((c) => ({ id: c.id, text: c.text }))
   };
+}
+
+/**
+ * The one situation the verdicts can refute: a reply that calls the answer right when
+ * the reference solution has already found the expected output wrong. A replay of
+ * 126-Chr's first case ("12 00" called midnight) had the model say
+ * right_answer_wrong_reason over a reference FAIL; that reading is wrong_answer.
+ */
+function correctedSituation(situation: string, verdicts: Verdict[]): string {
+  const refuted = verdicts.some(
+    (v) => v.criterion_id === 'outputs_are_correct' && v.verdict === 'FAIL' && v.source === 'reference'
+  );
+  return situation === 'right_answer_wrong_reason' && refuted ? 'wrong_answer' : situation;
 }

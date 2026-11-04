@@ -145,6 +145,23 @@ describe('nudge', () => {
     expect(result.situation).toBe('rule_not_worked');
   });
 
+  it('never calls a wrong expected output the reference confirmed a right answer', async () => {
+    const provider = fakeProvider({
+      situation: 'right_answer_wrong_reason',
+      summary: 's',
+      focus_id: 'work_is_shown',
+      reason: 'r',
+      nudge: 'n'
+    });
+    const refuted = verdicts.map((v) =>
+      v.criterion_id === 'outputs_are_correct'
+        ? { ...v, source: 'reference' as const, evidence: 'Expected 12:00 PM' }
+        : v
+    );
+    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, refuted, 1, [], [], provider);
+    expect(result.situation).toBe('wrong_answer');
+  });
+
   it('turns a situation the phase does not list into other', async () => {
     const provider = fakeProvider({
       situation: 'plan_is_wrong',
@@ -489,7 +506,8 @@ describe('code nudge', () => {
   });
 
   it('reads a reply with no situation as other', async () => {
-    const { situation: _omit, ...noSituation } = REPLY;
+    const noSituation: Partial<typeof REPLY> = { ...REPLY };
+    delete noSituation.situation;
     const { provider } = capturing(noSituation);
     expect((await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider)).situation).toBe('other');
   });
@@ -516,6 +534,13 @@ describe('code nudge', () => {
     await codeNudge(PROBLEM, '', run, [], [], 1, provider);
     expect(users[0]).toContain('COMPILER ERRORS');
     expect(users[0]).toContain("expected ';' before 'if'");
+  });
+
+  it('a program that did not compile is the syntax situation, whatever the model says', async () => {
+    const { provider, users } = capturing({ ...REPLY, situation: 'far_from_plan' });
+    const run: CodeRun = { compiled: false, compilerOutput: 'error: expected expression', cases: [], hiddenFailed: 0 };
+    expect((await codeNudge(PROBLEM, 'int x = ;', run, [], [], 1, provider)).situation).toBe('syntax_following_plan');
+    expect(users[0]).toContain('the situation is syntax_following_plan');
   });
 
   it('tells the model only how many hidden cases failed', async () => {
