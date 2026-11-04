@@ -9,7 +9,7 @@
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
   import { isFunctionProblem } from './problemKind';
   import { PHASES, isFilled } from './phase';
-  import { fieldFeedback, fieldMark, startHere } from './feedback';
+  import { fieldFeedback, fieldMark, helpOffered, startHere } from './feedback';
   import { askStuck, submitPhase, type JudgeContext } from './api';
   import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -356,7 +356,13 @@
       {#if session.busy === 'submit'}
         {@render thinking()}
       {:else if feedback}
-        <FieldFeedback {feedback} />
+        <FieldFeedback
+          {feedback}
+          offerHelp={helpOffered(session.historyFor(0))}
+          onstuck={() => {
+            phaseState.stuckOpen = true;
+          }}
+        />
       {/if}
 
       {#if fields.length > 1}
