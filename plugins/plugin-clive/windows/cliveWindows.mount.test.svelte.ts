@@ -16,6 +16,7 @@ import CaseDesignWindow from './CaseDesignWindow.window.svelte';
 import AlgorithmDesignWindow from './AlgorithmDesignWindow.window.svelte';
 import ImplementWindow from './ImplementWindow.window.svelte';
 import { cliveSessionFor } from './cliveSession.svelte';
+import { live } from './live.svelte';
 import { onResearcherKey } from './shortcuts';
 import { CLIVE_WINDOW_KEYS, PROBLEM_INFO_WINDOW_KEY } from './phase';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -340,6 +341,29 @@ describe('CLive windows', () => {
     );
     expect(badge?.getAttribute('title')).toBe('database down');
     unmount(app);
+  });
+
+  it('shows a badge with the reason when live checking is unavailable on this machine', () => {
+    stubBoot();
+    const context = stubContext('live-strip');
+    cliveSessionFor(context);
+    live.mode = 'unavailable';
+    live.reason = 'the page is not cross-origin isolated';
+    const app = mount(PhaseTrackWindow, { target: document.body, props: { context } });
+    flushSync();
+    const badge = Array.from(document.querySelectorAll('[title]')).find((el) =>
+      el.textContent?.includes('NO LIVE CHECK')
+    );
+    expect(badge?.getAttribute('title')).toBe('the page is not cross-origin isolated');
+    unmount(app);
+
+    live.mode = 'on';
+    const again = mount(PhaseTrackWindow, { target: document.body, props: { context } });
+    flushSync();
+    expect(document.body.textContent).not.toContain('NO LIVE CHECK');
+    unmount(again);
+    live.mode = 'unavailable';
+    live.reason = '';
   });
 
   it('mounts every phase window without writing state from a derived', () => {

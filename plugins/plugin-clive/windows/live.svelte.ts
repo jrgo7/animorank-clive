@@ -53,6 +53,11 @@ type PendingMarker = Omit<monaco.editor.IMarkerData, 'severity'>;
 class LiveChecking {
   /** Whether live checking runs at all, and why not when it does not. */
   mode: LiveMode = $state('unavailable');
+  /**
+   * Why the mode is 'unavailable', for the strip's badge and the session log: a
+   * whole round 6 session ran without live checking and the log could not say why.
+   */
+  reason: string = $state('');
   /** Whether clangd answered its handshake; the note under the editor reads this. */
   ready: boolean = $state(false);
   /** Whether live checking gave up for this session: no marks, no checkbox. */
@@ -126,14 +131,22 @@ class LiveChecking {
     }
     try {
       this.table = (await fetchBoot()).live_check;
-    } catch {
+    } catch (error) {
       this.mode = 'unavailable'; // the API is unreachable; the page is as it was
+      this.reason = `CLive's boot call failed: ${error instanceof Error ? error.message : String(error)}`;
       return;
     }
-    if (!this.table.available || !globalThis.crossOriginIsolated) {
+    if (!this.table.available) {
       this.mode = 'unavailable';
+      this.reason = 'clangd is not fetched on this machine (npm run scripts:fetchClangd, then restart)';
       return;
     }
+    if (!globalThis.crossOriginIsolated) {
+      this.mode = 'unavailable';
+      this.reason = 'the page is not cross-origin isolated (opened over a host without the COOP/COEP headers?)';
+      return;
+    }
+    this.reason = '';
     this.mode = 'on';
     this.watch();
     // Loading 13 MB of clangd and its handshake can take seconds; `attach`
