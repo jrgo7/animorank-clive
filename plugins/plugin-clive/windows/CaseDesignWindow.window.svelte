@@ -46,7 +46,12 @@
     normalExample: [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }] as CaseRow[],
     edgeExample: [
       { input: '1 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
-    ] as CaseRow[]
+    ] as CaseRow[],
+    // The shape of a case, in the empty boxes: a round 6 student wrote seven cases
+    // without the arithmetic, and the box itself never said what goes in it.
+    inputPlaceholder: 'What you would type in, e.g. 4 6',
+    outputPlaceholder: 'Exactly what it prints, e.g. 24',
+    workingPlaceholder: 'The working, one step per line, with the real numbers: 4 * 6 = 24, so it prints 24.'
   };
   const FUNCTION_COPY = {
     exampleProblem:
@@ -57,7 +62,10 @@
     normalExample: [{ input: '4, 6', output: '24', working: '4 * 6 = 24.' }] as CaseRow[],
     edgeExample: [
       { input: '1, 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
-    ] as CaseRow[]
+    ] as CaseRow[],
+    inputPlaceholder: 'The values you pass it, in parameter order, separated by commas, e.g. 4, 6',
+    outputPlaceholder: 'What it returns, e.g. 24',
+    workingPlaceholder: 'The working, one step per line, with the real numbers: 4 * 6 = 24, so it returns 24.'
   };
 
   /** A case example, rendered the way the prototype showed it. */
@@ -350,6 +358,7 @@
                 rows={2}
                 class="font-mono text-sm {flaggedPart === 'input' ? FLAGGED : ''}"
                 aria-label={`Input, ${openField.label}`}
+                placeholder={copy.inputPlaceholder}
                 data-case-part-flagged={flaggedPart === 'input' ? '' : undefined}
                 bind:value={row.input}
                 disabled={!!session.busy}
@@ -362,6 +371,7 @@
                 rows={2}
                 class="font-mono text-sm {flaggedPart === 'output' ? FLAGGED : ''}"
                 aria-label={`Expected output, ${openField.label}`}
+                placeholder={copy.outputPlaceholder}
                 data-case-part-flagged={flaggedPart === 'output' ? '' : undefined}
                 bind:value={row.output}
                 disabled={!!session.busy}
@@ -375,6 +385,7 @@
               rows={3}
               class={flaggedPart === 'working' ? FLAGGED : ''}
               aria-label={`How I got it, ${openField.label}`}
+              placeholder={copy.workingPlaceholder}
               data-case-part-flagged={flaggedPart === 'working' ? '' : undefined}
               bind:value={row.working}
               disabled={!!session.busy}

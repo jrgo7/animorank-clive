@@ -380,6 +380,41 @@ describe('CLive windows', () => {
     });
   });
 
+  it('shows the shape of a case in each empty box, worded for a function or for a program', () => {
+    stubBoot();
+    const placeholders = (functionProblem: boolean): Record<string, string> => {
+      const context = stubContext(`shape-${functionProblem}`);
+      if (functionProblem) {
+        (context.problem as { extension_data?: unknown }).extension_data = {
+          builtin_testCase_function: { functions: { 'fn-1': { name: 'getArea', parameters: [] } } }
+        };
+      }
+      const session = cliveSessionFor(context);
+      session.phases[0].read = true;
+      for (const phaseState of session.phases) phaseState.unlocked = true;
+      const app = mountPhase(context, 1);
+      flushSync();
+      const out: Record<string, string> = {};
+      for (const label of ['Input', 'Expected output', 'How I got it']) {
+        const box = document.querySelector(`[aria-label^="${label},"]`);
+        out[label] = box?.getAttribute('placeholder') ?? '';
+      }
+      unmount(app);
+      return out;
+    };
+
+    const fn = placeholders(true);
+    expect(fn['Input']).toContain('4, 6');
+    expect(fn['Expected output']).toContain('returns');
+    expect(fn['How I got it']).toContain('one step per line');
+    expect(fn['How I got it']).toContain('returns 24');
+
+    const program = placeholders(false);
+    expect(program['Input']).toContain('4 6');
+    expect(program['Expected output']).toContain('prints');
+    expect(program['How I got it']).toContain('prints 24');
+  });
+
   it('shows a function problem a function example in every phase, and main only to a program problem', () => {
     stubBoot();
     const texts = (functionProblem: boolean): string[] =>
