@@ -314,6 +314,7 @@ it('replays past submissions through the current prompts', async () => {
       }
       let situation: string;
       let reply = '';
+      const t0 = performance.now();
       try {
         if (e.kind === 'run' || e.phase === 'implement') {
           const r = await codeNudge(problem, e.code, e.run as CodeRun, prior, codeHistory.slice(-5), index + 1);
@@ -391,7 +392,7 @@ it('replays past submissions through the current prompts', async () => {
       if (ok === false) misses += 1;
       lines.push(
         `- old: ${e.oldFeedback.replace(/\n/g, ' / ') || '(none)'}`,
-        `- **new situation: ${situation}**${want ? ` (expected ${want.join(' | ')}) ${ok ? '✓' : '✗'}` : ''}`,
+        `- **new situation: ${situation}**${want ? ` (expected ${want.join(' | ')}) ${ok ? '✓' : '✗'}` : ''} — ${Math.round(performance.now() - t0)} ms`,
         ...reply
           .split('\n')
           .filter((l) => l.trim())

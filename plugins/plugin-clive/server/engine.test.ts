@@ -3,7 +3,7 @@
  * no Judge0. Ported contract-by-contract from the prototype's `judge.py`,
  * `nudge.py`, `stuck.py`, `reference_check.py`, `grade.py` and `steps.py`.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CodeExecutor } from '$lib/executor';
 import type { ExecutionRequest, ExecutionResult } from '$lib/executor/types';
 import { phaseDoc, rubricDoc } from './content/load';
@@ -88,6 +88,22 @@ describe('judge', () => {
     expect(result.missing_ids).toContain('output_types');
     expect(result.unexpected_ids).toEqual(['invented']);
     expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 5 });
+  });
+
+  it('judges at the effort CLIVE_JUDGE_EFFORT names, when it is set', async () => {
+    vi.stubEnv('CLIVE_JUDGE_EFFORT', 'low');
+    const efforts: string[] = [];
+    const base = fakeProvider({ verdicts: [] });
+    const provider: Provider = {
+      ...base,
+      judgeJson: async (options) => {
+        efforts.push(options.effort);
+        return base.judgeJson(options);
+      }
+    };
+    await judge(phase, PROBLEM, artifact, criteria, 1, [], provider);
+    expect(efforts).toEqual(['low']);
+    vi.unstubAllEnvs();
   });
 
   it('rejects a phase with no criteria', async () => {

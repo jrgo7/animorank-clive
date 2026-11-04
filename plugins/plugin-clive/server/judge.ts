@@ -85,7 +85,9 @@ export async function judge(
     user,
     model,
     maxOutputTokens: phase.model.max_output_tokens ?? 4000,
-    effort: phase.model.effort ?? 'medium',
+    // CLIVE_JUDGE_EFFORT is for trying a cheaper judge on the replay (first submits
+    // took 22 to 28 s at medium in round 6); the phase's own setting is the default.
+    effort: process.env.CLIVE_JUDGE_EFFORT || phase.model.effort || 'medium',
     schema: JudgeResultSchema,
     schemaText: JUDGE_JSON_SCHEMA_TEXT
   });
