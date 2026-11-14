@@ -45,11 +45,16 @@ LARPER_PROBLEM=<problem id> LARPER_REUSE=1 npx vitest run --config vitest.larper
   was blocked, what failed, the situation CLive recorded, and the feedback.
 - `out/<time>/<phase>.labels.csv`: the same answers in the team's labelling layout, one row per
   answer and criterion, with Label and Reason columns for two labellers left blank. It says
-  nothing of the category or of what CLive decided. A criterion judged against earlier work
-  (the Design against the student's case, the code against the Design) shows that work too.
+  nothing of the category or of what CLive decided, and its rows are in a shuffled order (the
+  same on every run), so the category cannot be read off the position. A criterion judged
+  against earlier work (the Design against the student's case, the code against the Design)
+  shows that work too. The agreement formula is the same in every row, so rows can be pasted
+  under the team's own. A cell of student text that starts with `=`, `+`, `-` or `@` is given a
+  leading apostrophe so the spreadsheet does not read it as a formula.
 - `out/<time>/<phase>.labels-key.csv`: what the labelling sheet leaves out, by the same Row ID:
   the category, CLive's verdict and evidence, the situation and the feedback.
-- `out/<time>/results.jsonl`: everything, one result per line.
+- `out/<time>/results.jsonl`: everything, one result per line, written as each answer is judged:
+  the answer, every verdict with its evidence, and which model CLive used and what each call cost.
 
 ## Categories and expectations
 
@@ -62,7 +67,14 @@ The larper is never shown the rubric, the situations or the reference solution, 
 
 ## Limits
 
-- Cases is answered and judged as Case 1 only.
+- **The code the larper writes is compiled and run on this machine**, with your own permissions
+  and a five-second limit, not in the app's sandbox. It is a model's attempt at a first-year
+  exercise, but it is still code nobody has read.
+- Cases is answered and judged as Case 1 only, and the baseline holds Case 1 only. So the two
+  criteria about handling every case the student worked out (`covers_own_edge_cases` in Design,
+  `handles_own_edge_cases` in Implement) are judged against a single ordinary case and can
+  hardly fail here. Do not read their results as representative.
+- A function problem must define exactly one function.
 - Hidden test cases are not run: in Implement, "passes" means it compiles and passes the
   problem's examples.
 - Nothing on screen is tested: not the editor's markers, not where feedback appears.

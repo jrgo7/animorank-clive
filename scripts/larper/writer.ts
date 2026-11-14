@@ -148,7 +148,12 @@ export async function writeAnswer(
         error: `The larper's reply could not be used: ${issue.path.join('.')}: ${issue.message}`
       };
     }
-    return { ...base, model: result.model, artifact: normalise(phase, parsed.data) };
+    return {
+      ...base,
+      model: result.model,
+      tokens: { input: result.inputTokens, output: result.outputTokens },
+      artifact: normalise(phase, parsed.data)
+    };
   } catch (error) {
     return { ...base, error: error instanceof Error ? error.message : String(error) };
   }

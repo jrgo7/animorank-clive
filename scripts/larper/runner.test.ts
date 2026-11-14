@@ -1,7 +1,11 @@
+import { spawnSync } from 'node:child_process';
 import { expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import type { CodeExecutor } from '$lib/executor';
 import type { CodeRun } from '../../plugins/plugin-clive/server/codeNudge';
 import type { ProblemForPrompt } from '../../plugins/plugin-clive/server/content/templates';
+import { callModel } from '../../plugins/plugin-clive/server/llmCalls';
+import type { Provider } from '../../plugins/plugin-clive/server/providers';
 import { localExecutor } from './localExecutor';
 import { runAnswer, runCode, type Deps } from './runner';
 import type { Answer, Category, Expect, PhaseId, Result } from './types';
@@ -268,10 +272,47 @@ it('an errored row is never compared with its expectation', async () => {
   expect(r.matches).toBeNull();
 });
 
+it('keeps which model CLive used and what each call cost', async () => {
+  const provider = {
+    name: 'fake',
+    defaultModel: 'fake-model',
+    apiKeyEnv: 'UNUSED',
+    modelPrefixes: [],
+    ownsModel: () => true,
+    hasApiKey: () => true,
+    judgeJson: async () => ({ parsed: {}, model: 'fake-model-2', inputTokens: 5, outputTokens: 7 })
+  } as Provider;
+  const submitting = vi.fn(async () => {
+    await callModel(provider, 'judge', {
+      system: 's',
+      user: 'THE WHOLE PROMPT',
+      model: 'fake-model',
+      maxOutputTokens: 10,
+      effort: 'low',
+      schema: z.object({}),
+      schemaText: '{}'
+    });
+    return PASSED;
+  });
+  const r = await runAnswer(PROBLEM_ANSWER, category('control'), PROBLEM, [], deps({ submit: submitting }));
+  expect(r.calls).toMatchObject([{ purpose: 'judge', model: 'fake-model-2', input_tokens: 5, output_tokens: 7 }]);
+  expect(JSON.stringify(r.calls)).not.toContain('THE WHOLE PROMPT');
+});
+
+it('says so when CLive left a requirement unjudged', async () => {
+  const missing = { response: { ...PASSED.response, passed: false, missing_ids: ['input_types'] }, record: {} };
+  const r = await runAnswer(PROBLEM_ANSWER, category('x'), PROBLEM, [], deps({ submit: vi.fn(async () => missing) }));
+  expect(r.blocked).toBe(true);
+  expect(r.error).toMatch(/input_types/);
+});
+
+// These compile C on this machine; a machine without gcc skips them.
+const gcc = spawnSync('gcc', ['--version']).status === 0;
+
 const CORRECT =
   '#include <stdio.h>\nint main(void)\n{\n  int a, b;\n  scanf("%d %d", &a, &b);\n  printf("%d\\n", a * b);\n  return 0;\n}\n';
 
-it('runCode compiles a program and runs it on every example', async () => {
+it.skipIf(!gcc)('runCode compiles a program and runs it on every example', async () => {
   const run = await runCode(PROBLEM, CORRECT, localExecutor);
   expect(run.compiled).toBe(true);
   expect(run.cases).toEqual([
@@ -281,21 +322,45 @@ it('runCode compiles a program and runs it on every example', async () => {
   expect(run.hiddenFailed).toBe(0);
 });
 
-it('runCode reports a wrong result as a failed example', async () => {
+it.skipIf(!gcc)('runCode reports a wrong result as a failed example', async () => {
   const run = await runCode(PROBLEM, CORRECT.replace('a * b', 'a + b'), localExecutor);
   expect(run.compiled).toBe(true);
   expect(run.cases.map((c) => c.passed)).toEqual([false, false]);
 });
 
-it('runCode reports a program that does not compile, with the compiler output', async () => {
+it.skipIf(!gcc)('runCode reports a program that does not compile, with the compiler output', async () => {
   const run = await runCode(PROBLEM, CORRECT.replace('int a, b;', 'int a, b'), localExecutor);
   expect(run.compiled).toBe(false);
   expect(run.compilerOutput).toMatch(/error/);
   expect(run.cases).toEqual([]);
 });
 
-it('runCode calls the function a function problem asks for', async () => {
+it.skipIf(!gcc)('runCode calls the function a function problem asks for', async () => {
   const run = await runCode(FUNCTION_PROBLEM, 'int product(int a, int b)\n{\n  return a * b;\n}\n', localExecutor);
   expect(run.compiled).toBe(true);
   expect(run.cases).toEqual([{ input: 'product(4, 6)', expected: '24', actual: '24\n', passed: true }]);
+});
+
+it.skipIf(!gcc)('runCode reads the arguments of an example whose function name has a digit in it', async () => {
+  const problem: ProblemForPrompt = {
+    ...FUNCTION_PROBLEM,
+    public_test_cases: [{ input: 'sum2(3, 4)', output: '7' }],
+    functions: [{ ...FUNCTION_PROBLEM.functions[0], name: 'sum2' }]
+  };
+  const run = await runCode(problem, 'int sum2(int a, int b)\n{\n  return a + b;\n}\n', localExecutor);
+  expect(run.cases.map((c) => c.passed)).toEqual([true]);
+});
+
+it.skipIf(!gcc)('runCode passes a letter to a function that takes one', async () => {
+  const problem: ProblemForPrompt = {
+    ...FUNCTION_PROBLEM,
+    public_test_cases: [
+      { input: "isVowel('a')", output: '1' },
+      { input: 'isVowel(b)', output: '0' }
+    ],
+    functions: [{ id: 'f', name: 'isVowel', parameters: [{ name: 'c', type: 'char' }], returnType: 'int' }]
+  };
+  const code = "int isVowel(char c)\n{\n  return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';\n}\n";
+  const run = await runCode(problem, code, localExecutor);
+  expect(run.cases.map((c) => c.passed)).toEqual([true, true]);
 });

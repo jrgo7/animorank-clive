@@ -16,7 +16,13 @@ export const DEFAULT_ROOT = path.join(process.cwd(), 'scripts/larper');
 
 function readJson<T>(file: string, otherwise: T): T {
   if (!fs.existsSync(file)) return otherwise;
-  return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
+  } catch (error) {
+    throw new Error(`${file} could not be read: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error
+    });
+  }
 }
 
 function writeJson(file: string, value: unknown): void {
@@ -62,4 +68,9 @@ export function priorFor(baseline: Baseline, phase: PhaseId): PriorArtifact[] {
     if (fields.length) out.push({ label: doc.label, fields });
   }
   return out;
+}
+
+/** Refuses a run that would reach a phase with no earlier work, before any model call is paid for. */
+export function requireBaseline(baseline: Baseline, phases: PhaseId[]): void {
+  for (const phase of phases) priorFor(baseline, phase);
 }

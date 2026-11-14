@@ -32,12 +32,22 @@ export interface Answer {
   artifact: Record<string, unknown>;
   writtenBy: 'larper' | 'hand';
   model?: string;
+  /** What writing it cost. */
+  tokens?: { input: number; output: number };
   /** The larper's reply could not be used. */
   error?: string;
 }
 
 /** A problem's known-good answers, one artifact per phase, each of which passed CLive. */
 export type Baseline = Partial<Record<PhaseId, Record<string, unknown>>>;
+
+export interface ModelCall {
+  purpose: string;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  latency_ms: number;
+}
 
 export interface Result {
   answer: Answer;
@@ -61,6 +71,8 @@ export interface Result {
   matches: boolean | null;
   /** Submit's log record, or the code feedback. */
   record: unknown;
+  /** CLive's own model calls for this row: which model, and what each cost. Never the prompts. */
+  calls?: ModelCall[];
   error?: string;
   ms: number;
 }

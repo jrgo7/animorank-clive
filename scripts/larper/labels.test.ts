@@ -60,17 +60,20 @@ it("the labelling sheet has the team's columns", () => {
 it('there is one row per answer and criterion, showing the part of the answer the criterion is about', () => {
   const { sheet } = labelRows('problem_definition', [result({})]);
   expect(sheet.slice(1).map((r) => r.slice(0, 4))).toEqual([
-    ['LP001', 'P1', 'novel_wording', 'It multiplies two sides.'],
-    ['LP002', 'P2', 'input_types', 'the length, then the width'],
-    ['LP003', 'P3', 'output_form_exact', 'the area']
+    ['LP001', 'P1', 'novel_wording', 'Summary:\nIt multiplies two sides.'],
+    ['LP002', 'P2', 'input_types', 'Inputs:\nthe length, then the width'],
+    ['LP003', 'P3', 'output_form_exact', 'Outputs:\nthe area']
   ]);
 });
 
 it('the labels and reasons are left blank, and agreement is worked out by the spreadsheet', () => {
   const { sheet } = labelRows('problem_definition', [result({})]);
   expect(sheet[1].slice(4, 8)).toEqual(['', '', '', '']);
-  expect(sheet[1][8]).toBe('=IF(OR(E2="",G2=""),"",IF(E2=G2,"Agree","Disagree"))');
-  expect(sheet[3][8]).toContain('E4=G4');
+  // Row-independent, so it stays right when rows are pasted under the team's own.
+  const formula =
+    '=IF(OR(INDEX(E:E,ROW())="",INDEX(G:G,ROW())=""),"",IF(INDEX(E:E,ROW())=INDEX(G:G,ROW()),"Agree","Disagree"))';
+  expect(sheet[1][8]).toBe(formula);
+  expect(sheet[3][8]).toBe(formula);
 });
 
 it("the labelling sheet says nothing of the category, CLive's verdict, or its feedback", () => {
@@ -154,7 +157,12 @@ it('a case is shown as input, output and working; code is shown whole', () => {
     },
     record: { response: { verdicts: [{ criterion_id: 'readable', verdict: 'PASS', gate: 'advisory' }] } }
   });
-  expect(labelRows('implement', [code]).sheet[1].slice(0, 4)).toEqual(['LI001', 'I1', 'readable', 'int x;']);
+  expect(labelRows('implement', [code]).sheet[1].slice(0, 4)).toEqual([
+    'LI001',
+    'I1',
+    'readable',
+    'Your C program:\nint x;'
+  ]);
 });
 
 it('csv quotes what a spreadsheet would misread', () => {
@@ -187,8 +195,8 @@ it('a criterion judged against earlier work shows that work beside the answer', 
     }
   });
   const { sheet } = labelRows('algorithm_design', [design], PRIOR);
-  expect(sheet[1][3]).toBe('1. Read both sides');
-  expect(sheet[2][3]).toMatch(/^Design:\n1\. Read both sides\n\nCases \(the student's earlier work\):\n/);
+  expect(sheet[1][3]).toMatch(/^[^\n]+:\n1\. Read both sides$/);
+  expect(sheet[2][3]).toMatch(/^[^\n]+:\n1\. Read both sides\n\nCases \(the student's earlier work\):\n/);
   expect(sheet[2][3]).toContain('7 * 8 = 56');
   expect(sheet[2][3]).not.toContain('EARLIER SUMMARY');
 });
@@ -222,7 +230,7 @@ it('Implement criteria about the plan show the Design, and the one about cases s
   expect(cells[0]).not.toContain('7 * 8');
   expect(cells[1]).toContain('Multiply the two sides');
   expect(cells[2]).toContain('7 * 8 = 56');
-  expect(cells[3]).toBe('int x;');
+  expect(cells[3]).toBe('Your C program:\nint x;');
 });
 
 it('every criterion said to need earlier work is a real criterion, and names an earlier phase', () => {
@@ -230,5 +238,46 @@ it('every criterion said to need earlier work is a real criterion, and names an 
     const home = PHASES.find((p) => rubricDoc(p).criteria.some((c) => c.id === id));
     expect(home, id).toBeDefined();
     for (const earlier of phases) expect(PHASES.indexOf(earlier)).toBeLessThan(PHASES.indexOf(home as PhaseId));
+  }
+});
+
+it('csv keeps student text from being read as a formula, and leaves the one real formula alone', () => {
+  const text = csv(
+    [
+      ['Head', 'Formula'],
+      ['=1+1', '=A2'],
+      ['- a list item', '=A3'],
+      ['+5', '@x'],
+      ['plain', '']
+    ],
+    [1]
+  );
+  expect(text).toBe("﻿Head,Formula\r\n'=1+1,=A2\r\n'- a list item,=A3\r\n'+5,@x\r\nplain,\r\n");
+});
+
+it('answers are put in an order that does not follow their categories, the same on every run', () => {
+  const of = (category: string, variant: number) =>
+    result({
+      answer: {
+        problemId: 'p',
+        phase: 'problem_definition',
+        category,
+        variant,
+        artifact: { summary: `${category} ${variant}` },
+        writtenBy: 'larper'
+      },
+      record: { response: { verdicts: [{ criterion_id: 'novel_wording', verdict: 'PASS', gate: 'gating' }] } }
+    });
+  const results = ['control', 'one_word', 'no_limits', 'no_type_named'].flatMap((c) => [of(c, 1), of(c, 2), of(c, 3)]);
+  const first = labelRows('problem_definition', results);
+  const inOrder = results.map((r) => `Summary:\n${r.answer.category} ${r.answer.variant}`);
+  const shown = first.sheet.slice(1).map((r) => r[3]);
+  expect(shown).not.toEqual(inOrder);
+  expect([...shown].sort()).toEqual([...inOrder].sort());
+  expect(labelRows('problem_definition', results).sheet).toEqual(first.sheet);
+  // The key still says which row is which.
+  for (const [i, row] of first.sheet.slice(1).entries()) {
+    expect(row[3]).toBe(`Summary:\n${first.key[i + 1][2]} ${first.key[i + 1][3]}`);
+    expect(first.key[i + 1][0]).toBe(row[0]);
   }
 });

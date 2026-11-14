@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, it } from 'vitest';
-import { priorFor, readAnswers, readBaseline, writeAnswers, writeBaseline } from './store';
+import { priorFor, readAnswers, readBaseline, requireBaseline, writeAnswers, writeBaseline } from './store';
 import type { Answer } from './types';
 
 const root = () => fs.mkdtempSync(path.join(os.tmpdir(), 'larper-store-'));
@@ -73,4 +73,19 @@ it('earlier phases come in phase order', () => {
 it('a later phase without its earlier work says how to make it', () => {
   expect(() => priorFor({}, 'implement')).toThrow(/LARPER_BASELINE=1/);
   expect(() => priorFor({ problem_definition: { summary: 's' } }, 'algorithm_design')).toThrow(/case_design/);
+});
+
+it('a run is refused before it starts when a phase it will reach has no earlier work', () => {
+  const baseline = { problem_definition: { summary: 's' } };
+  expect(() => requireBaseline(baseline, ['problem_definition', 'case_design'])).not.toThrow();
+  expect(() => requireBaseline(baseline, ['problem_definition', 'case_design', 'algorithm_design'])).toThrow(
+    /LARPER_BASELINE=1/
+  );
+});
+
+it('a saved file that is not valid JSON is named in the error', () => {
+  const dir = root();
+  writeAnswers(dir, 'p1', 'implement', []);
+  fs.writeFileSync(path.join(dir, 'answers/p1/implement.json'), '[{,]');
+  expect(() => readAnswers(dir, 'p1', 'implement')).toThrow(/implement\.json/);
 });

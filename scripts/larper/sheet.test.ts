@@ -156,3 +156,12 @@ it('every result is one line of JSON', () => {
   expect(lines).toHaveLength(4);
   expect(JSON.parse(lines[1]).answer.category).toBe('copied_from_summary');
 });
+
+it('a hand-written answer with nothing in it is an errored row, not a crash', () => {
+  const empty = result({
+    answer: { ...answer('control', 9, {}), artifact: undefined as unknown as Record<string, unknown> },
+    blocked: null,
+    error: 'no artifact'
+  });
+  expect(sheet('problem_definition', CATEGORIES, [empty], [])).toContain('ERROR: no artifact');
+});

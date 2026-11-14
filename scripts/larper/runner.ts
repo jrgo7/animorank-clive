@@ -12,6 +12,7 @@ import type { CodeExecutor } from '$lib/executor';
 import type { PriorArtifact } from '../../plugins/plugin-clive/server/artifact';
 import type { codeNudge, CodeRun } from '../../plugins/plugin-clive/server/codeNudge';
 import type { ProblemForPrompt } from '../../plugins/plugin-clive/server/content/templates';
+import { captureLlmCalls } from '../../plugins/plugin-clive/server/llmCalls';
 import { normaliseOutput, runProgram } from '../../plugins/plugin-clive/server/program';
 import { functionArgs, functionHarness } from '../../plugins/plugin-clive/server/referenceCheck';
 import type { submit } from '../../plugins/plugin-clive/server/routes';
@@ -41,7 +42,7 @@ export async function runCode(problem: ProblemForPrompt, code: string, executor:
 
   const cases: CodeRun['cases'] = [];
   for (const example of problem.public_test_cases) {
-    const stdin = fn ? functionArgs(example.input, fn) : example.input;
+    const stdin = fn ? functionArgs(callArguments(example.input, fn.name), fn) : example.input;
     if (stdin === null)
       throw new Error(`The example '${example.input}' could not be read as the function's arguments.`);
     const run = await runProgram(executor, program, stdin);
@@ -59,6 +60,17 @@ export async function runCode(problem: ProblemForPrompt, code: string, executor:
     if (!run.compiled) return { compiled: false, compilerOutput: run.compileError, cases: [], hiddenFailed: 0 };
   }
   return { compiled: true, compilerOutput: '', cases, hiddenFailed: 0 };
+}
+
+/**
+ * A function example as the app writes it, `name(3, 4)` or `name('a')`, down to its
+ * arguments: left whole, the digits of a name like `sum2` would be read as an argument
+ * and the name itself as a `char` one.
+ */
+function callArguments(input: string, name: string): string {
+  const trimmed = input.trim();
+  const inner = trimmed.startsWith(`${name}(`) && trimmed.endsWith(')') ? trimmed.slice(name.length + 1, -1) : trimmed;
+  return inner.replace(/'(.)'/g, '$1');
 }
 
 function matches(category: Category, result: Result): boolean | null {
@@ -142,9 +154,13 @@ export async function runAnswer(
     result.focusId = response.nudge?.focus_id;
     result.record = record;
     if (response.nudge_error) result.error = `CLive could not write feedback: ${response.nudge_error}`;
+    if (response.missing_ids.length) {
+      result.error = `CLive left unjudged: ${response.missing_ids.join(', ')}${result.error ? `. ${result.error}` : ''}`;
+    }
   };
 
-  try {
+  // CLive's calls are caught in memory only: nothing is logged, and only the model and the cost are kept.
+  const { calls, result: outcome } = await captureLlmCalls(async () => {
     if (answer.error) throw new Error(answer.error);
     if (answer.phase !== 'implement') {
       await viaSubmit();
@@ -169,9 +185,17 @@ export async function runAnswer(
         result.record = reply;
       }
     }
-  } catch (error) {
+  });
+  result.calls = calls.map((c) => ({
+    purpose: c.purpose,
+    model: c.model,
+    input_tokens: c.input_tokens,
+    output_tokens: c.output_tokens,
+    latency_ms: c.latency_ms
+  }));
+  if (!outcome.ok) {
     result.blocked = null;
-    result.error = error instanceof Error ? error.message : String(error);
+    result.error = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
   }
   result.matches = matches(category, result);
   result.ms = Math.round(performance.now() - t0);

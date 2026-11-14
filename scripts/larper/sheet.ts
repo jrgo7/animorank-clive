@@ -21,8 +21,9 @@ function expectLine(expect: Expect | null): string {
 }
 
 /** The answer as the student would see their own work on the page. */
-function written(phase: PhaseId, artifact: Record<string, unknown>): string[] {
+function written(phase: PhaseId, artifact: Record<string, unknown> | undefined): string[] {
   const lines: string[] = [];
+  if (!artifact) return lines;
   for (const field of phaseDoc(phase).artifact_fields) {
     const value = artifact[field.id];
     if (value === undefined) continue;

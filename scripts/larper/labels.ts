@@ -64,6 +64,34 @@ interface RecordedVerdict {
   source?: string;
 }
 
+/** The same in every row, so it stays right wherever the row is pasted. */
+const AGREEMENT =
+  '=IF(OR(INDEX(E:E,ROW())="",INDEX(G:G,ROW())=""),"",IF(INDEX(E:E,ROW())=INDEX(G:G,ROW()),"Agree","Disagree"))';
+const AGREEMENT_COLUMN = SHEET_HEAD.indexOf('A and B agreement');
+
+/**
+ * The answers in an order that does not follow their categories: the team wrote
+ * the category list, so answers in its order would tell a labeller which is which.
+ * Seeded, so two runs over the same answers give the same sheet.
+ */
+function shuffled<T>(items: T[], seed = 20261114): T[] {
+  const out = [...items];
+  let state = seed >>> 0;
+  const next = () => {
+    // mulberry32
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 function verdictsOf(result: Result): RecordedVerdict[] {
   const record = result.record as { response?: { verdicts?: RecordedVerdict[] } } | null;
   return record?.response?.verdicts ?? [];
@@ -81,8 +109,7 @@ export function labelRows(
   const key = [KEY_HEAD];
   let n = 0;
 
-  for (const result of results) {
-    if (result.pass !== 1 || result.blocked === null) continue;
+  for (const result of shuffled(results.filter((r) => r.pass === 1 && r.blocked !== null))) {
     for (const verdict of verdictsOf(result)) {
       n += 1;
       const id = `L${LETTER[phase]}${String(n).padStart(3, '0')}`;
@@ -94,10 +121,9 @@ export function labelRows(
       const shown = named.length
         ? named
         : doc.artifact_fields.filter((f) => result.answer.artifact[f.id] !== undefined);
-      const own =
-        shown.length === 1
-          ? fieldText(result.answer.artifact[shown[0].id])
-          : shown.map((f) => `${f.label}: ${fieldText(result.answer.artifact[f.id])}`).join('\n\n');
+      // Every block starts with its field's label: the labeller sees which box it was, and a
+      // cell never starts with a character a spreadsheet would read as a formula.
+      const own = shown.map((f) => `${f.label}:\n${fieldText(result.answer.artifact[f.id])}`).join('\n\n');
       const earlier = (NEEDS_EARLIER[verdict.criterion_id] ?? [])
         .map((id) => prior.find((p) => p.label === phaseDoc(id).label))
         .filter((p): p is PriorArtifact => p !== undefined)
@@ -105,20 +131,9 @@ export function labelRows(
           (p) =>
             `${p.label} (the student's earlier work):\n${p.fields.map((f) => `${f.label}: ${fieldText(f.value)}`).join('\n')}`
         );
-      const text = earlier.length ? [`${doc.label}:\n${own}`, ...earlier].join('\n\n') : own;
+      const text = [own, ...earlier].join('\n\n');
       const question = `${LETTER[phase]}${Math.max(0, doc.artifact_fields.indexOf(shown[0])) + 1}`;
-      const line = sheet.length + 1;
-      sheet.push([
-        id,
-        question,
-        verdict.criterion_id,
-        text,
-        '',
-        '',
-        '',
-        '',
-        `=IF(OR(E${line}="",G${line}=""),"",IF(E${line}=G${line},"Agree","Disagree"))`
-      ]);
+      sheet.push([id, question, verdict.criterion_id, text, '', '', '', '', AGREEMENT]);
       key.push([
         id,
         phase,
@@ -140,8 +155,17 @@ export function labelRows(
 /** The mark that tells a spreadsheet the file is UTF-8. */
 const BOM = String.fromCharCode(0xfeff);
 
-/** CSV a spreadsheet opens as UTF-8, with formulas left as formulas. */
-export function csv(rows: string[][]): string {
+/** The columns of the labelling sheet that hold a formula on purpose. */
+export const SHEET_FORMULA_COLUMNS = [AGREEMENT_COLUMN];
+
+/**
+ * CSV a spreadsheet opens as UTF-8. Text that starts with a character a spreadsheet
+ * reads as a formula (a student's "- first, read the number") is given a leading
+ * apostrophe; only `formulaColumns` are left to be formulas.
+ */
+export function csv(rows: string[][], formulaColumns: number[] = []): string {
+  const safe = (value: string, column: number) =>
+    !formulaColumns.includes(column) && /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
   const cell = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
-  return `${BOM}${rows.map((r) => `${r.map(cell).join(',')}\r\n`).join('')}`;
+  return `${BOM}${rows.map((r) => `${r.map((value, column) => cell(safe(value, column))).join(',')}\r\n`).join('')}`;
 }
