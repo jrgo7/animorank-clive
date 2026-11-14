@@ -1,0 +1,710 @@
+[
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "control",
+    "variant": 1,
+    "artifact": {
+      "steps": [
+        {
+          "text": "Start with nAlice, Alice's three-digit number, and nGuest, the guest's nine-digit response.",
+          "level": 0
+        },
+        {
+          "text": "Get Alice's hundreds digit by computing nAlice / 100.",
+          "level": 0
+        },
+        {
+          "text": "Get Alice's tens digit by computing (nAlice / 10) % 10.",
+          "level": 0
+        },
+        {
+          "text": "Get Alice's ones digit by computing nAlice % 10.",
+          "level": 0
+        },
+        {
+          "text": "Get section 1 by computing nGuest / 1000000.",
+          "level": 0
+        },
+        {
+          "text": "Get section 2 by computing (nGuest / 1000) % 1000.",
+          "level": 0
+        },
+        {
+          "text": "Get section 3 by computing nGuest % 1000.",
+          "level": 0
+        },
+        {
+          "text": "Repeat the next four steps for section 1, then section 2, then section 3, and save the results as sum1, sum2, and sum3.",
+          "level": 0
+        },
+        {
+          "text": "Take the hundreds digit of the section by dividing the section by 100.",
+          "level": 1
+        },
+        {
+          "text": "Take the tens digit by dividing the section by 10 and then taking the remainder when dividing by 10.",
+          "level": 1
+        },
+        {
+          "text": "Take the ones digit by taking the remainder when dividing the section by 10.",
+          "level": 1
+        },
+        {
+          "text": "Add those three digits together and store the total as that section's sum.",
+          "level": 1
+        },
+        {
+          "text": "Set a checked counter to 0.",
+          "level": 0
+        },
+        {
+          "text": "If sum1 equals Alice's hundreds digit, add 1 to the checked counter.",
+          "level": 0
+        },
+        {
+          "text": "If sum2 equals Alice's tens digit, add 1 to the checked counter.",
+          "level": 0
+        },
+        {
+          "text": "If sum3 equals Alice's ones digit, add 1 to the checked counter.",
+          "level": 0
+        },
+        {
+          "text": "If the checked counter is 2, return 1; if it is 0 or 1, return 0.",
+          "level": 0
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1882,
+      "output": 4484
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "control",
+    "variant": 2,
+    "artifact": {
+      "steps": [
+        {
+          "text": "Start with the two whole-number inputs nAlice and nGuest.",
+          "level": 0
+        },
+        {
+          "text": "Find Alice's hundreds digit: divide nAlice by 100 and drop the remainder; remember it as aHundreds.",
+          "level": 0
+        },
+        {
+          "text": "Find Alice's tens digit: divide nAlice by 10 and drop the remainder, then subtract 10 times aHundreds; remember it as aTens.",
+          "level": 0
+        },
+        {
+          "text": "Find Alice's ones digit: subtract 100 times aHundreds and 10 times aTens from nAlice; remember it as aOnes.",
+          "level": 0
+        },
+        {
+          "text": "Find the guest's left group: divide nGuest by 1000000 and drop the remainder; remember it as leftGroup.",
+          "level": 0
+        },
+        {
+          "text": "Add the digits of leftGroup: leftGroup divided by 100, plus leftGroup divided by 10 and then remainder after dividing by 10, plus leftGroup remainder after dividing by 10; remember the total as leftSum.",
+          "level": 0
+        },
+        {
+          "text": "Find the guest's middle group: divide nGuest by 1000 and drop the remainder, then take that answer's remainder after dividing by 1000; remember it as midGroup.",
+          "level": 0
+        },
+        {
+          "text": "Add the digits of midGroup: midGroup divided by 100, plus midGroup divided by 10 and then remainder after dividing by 10, plus midGroup remainder after dividing by 10; remember the total as midSum.",
+          "level": 0
+        },
+        {
+          "text": "Find the guest's right group: take nGuest's remainder after dividing by 1000; remember it as rightGroup.",
+          "level": 0
+        },
+        {
+          "text": "Add the digits of rightGroup: rightGroup divided by 100, plus rightGroup divided by 10 and then remainder after dividing by 10, plus rightGroup remainder after dividing by 10; remember the total as rightSum.",
+          "level": 0
+        },
+        {
+          "text": "Set matchCount to 0.",
+          "level": 0
+        },
+        {
+          "text": "If leftSum equals aHundreds,",
+          "level": 0
+        },
+        {
+          "text": "add 1 to matchCount.",
+          "level": 1
+        },
+        {
+          "text": "If midSum equals aTens,",
+          "level": 0
+        },
+        {
+          "text": "add 1 to matchCount.",
+          "level": 1
+        },
+        {
+          "text": "If rightSum equals aOnes,",
+          "level": 0
+        },
+        {
+          "text": "add 1 to matchCount.",
+          "level": 1
+        },
+        {
+          "text": "If matchCount is 2 or more,",
+          "level": 0
+        },
+        {
+          "text": "return 1.",
+          "level": 1
+        },
+        {
+          "text": "Otherwise,",
+          "level": 0
+        },
+        {
+          "text": "return 0.",
+          "level": 1
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1882,
+      "output": 7003
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "control",
+    "variant": 3,
+    "artifact": {
+      "steps": [
+        {
+          "text": "Take the two parameters, nAlice and nGuest, and set a counter named checked to 0 at the start.",
+          "level": 0
+        },
+        {
+          "text": "Get Alice's three digits: hundreds digit is nAlice / 100, tens digit is (nAlice / 10) % 10, ones digit is nAlice % 10.",
+          "level": 0
+        },
+        {
+          "text": "Cut nGuest into three 3-digit pieces: section1 = nGuest / 1000000, section2 = (nGuest / 1000) % 1000, section3 = nGuest % 1000.",
+          "level": 0
+        },
+        {
+          "text": "For a piece p, add its digits with (p / 100) + ((p / 10) % 10) + (p % 10); do this once for section1, once for section2, and once for section3, and keep the three sums.",
+          "level": 0
+        },
+        {
+          "text": "If section1's sum is the same as the hundreds digit, add 1 to checked.",
+          "level": 0
+        },
+        {
+          "text": "If section2's sum is the same as the tens digit, add 1 to checked.",
+          "level": 0
+        },
+        {
+          "text": "If section3's sum is the same as the ones digit, add 1 to checked.",
+          "level": 0
+        },
+        {
+          "text": "If checked is 2 or more:",
+          "level": 0
+        },
+        {
+          "text": "Return 1.",
+          "level": 1
+        },
+        {
+          "text": "Otherwise:",
+          "level": 0
+        },
+        {
+          "text": "Return 0.",
+          "level": 1
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1882,
+      "output": 3992
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "direct_syntax",
+    "variant": 1,
+    "artifact": {
+      "steps": [
+        {
+          "text": "int h = nAlice / 100;",
+          "level": 0
+        },
+        {
+          "text": "int t = (nAlice / 10) % 10;",
+          "level": 0
+        },
+        {
+          "text": "int o = nAlice % 10;",
+          "level": 0
+        },
+        {
+          "text": "int s1 = 0, s2 = 0, s3 = 0;",
+          "level": 0
+        },
+        {
+          "text": "s1 += nGuest / 100000000;",
+          "level": 0
+        },
+        {
+          "text": "s1 += (nGuest / 10000000) % 10;",
+          "level": 0
+        },
+        {
+          "text": "s1 += (nGuest / 1000000) % 10;",
+          "level": 0
+        },
+        {
+          "text": "s2 += (nGuest / 100000) % 10;",
+          "level": 0
+        },
+        {
+          "text": "s2 += (nGuest / 10000) % 10;",
+          "level": 0
+        },
+        {
+          "text": "s2 += nGuest / 1000;",
+          "level": 0
+        },
+        {
+          "text": "s3 += (nGuest / 100) % 10;",
+          "level": 0
+        },
+        {
+          "text": "s3 += (nGuest / 10) % 10;",
+          "level": 0
+        },
+        {
+          "text": "s3 += nGuest % 10;",
+          "level": 0
+        },
+        {
+          "text": "int checked = 0;",
+          "level": 0
+        },
+        {
+          "text": "if (s1 == h)",
+          "level": 0
+        },
+        {
+          "text": "checked = checked + 1;",
+          "level": 1
+        },
+        {
+          "text": "if (s2 == t)",
+          "level": 0
+        },
+        {
+          "text": "checked = checked + 1;",
+          "level": 1
+        },
+        {
+          "text": "if (s3 == o)",
+          "level": 0
+        },
+        {
+          "text": "checked = checked + 1;",
+          "level": 1
+        },
+        {
+          "text": "if (checked == 2)",
+          "level": 0
+        },
+        {
+          "text": "return 1;",
+          "level": 1
+        },
+        {
+          "text": "return 0;",
+          "level": 0
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1851,
+      "output": 2311
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "direct_syntax",
+    "variant": 2,
+    "artifact": {
+      "steps": [
+        {
+          "text": "int digitSum3(int x)",
+          "level": 0
+        },
+        {
+          "text": "{",
+          "level": 0
+        },
+        {
+          "text": "    int s = 0;",
+          "level": 1
+        },
+        {
+          "text": "    s = x / 100 + (x / 10) % 10 + x % 10;",
+          "level": 1
+        },
+        {
+          "text": "    return s;",
+          "level": 1
+        },
+        {
+          "text": "}",
+          "level": 0
+        },
+        {
+          "text": "int checkSecretCode(int nAlice, int nGuest)",
+          "level": 0
+        },
+        {
+          "text": "{",
+          "level": 0
+        },
+        {
+          "text": "    int hits = 0;",
+          "level": 1
+        },
+        {
+          "text": "    int a1 = nAlice / 100;",
+          "level": 1
+        },
+        {
+          "text": "    int a2 = (nAlice / 10) % 10;",
+          "level": 1
+        },
+        {
+          "text": "    int a3 = nAlice % 10;",
+          "level": 1
+        },
+        {
+          "text": "    int sec1 = nGuest / 1000000;",
+          "level": 1
+        },
+        {
+          "text": "    int sec2 = (nGuest / 1000) % 1000;",
+          "level": 1
+        },
+        {
+          "text": "    int sec3 = nGuest % 1000;",
+          "level": 1
+        },
+        {
+          "text": "    if (digitSum3(sec1) == a1) hits = hits + 1;",
+          "level": 1
+        },
+        {
+          "text": "    if (digitSum3(sec2) == a2) hits = hits + 1;",
+          "level": 1
+        },
+        {
+          "text": "    if (digitSum3(sec3) == a3) hits = hits + 1;",
+          "level": 1
+        },
+        {
+          "text": "    if (hits >= 2) return 1;",
+          "level": 1
+        },
+        {
+          "text": "    return 0;",
+          "level": 1
+        },
+        {
+          "text": "}",
+          "level": 0
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1851,
+      "output": 3379
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "direct_syntax",
+    "variant": 3,
+    "artifact": {
+      "steps": [
+        {
+          "text": "int checkSecretCode(int nAlice, int nGuest) {",
+          "level": 0
+        },
+        {
+          "text": "int aHundreds = nAlice / 100;",
+          "level": 1
+        },
+        {
+          "text": "int aTens = nAlice / 10 % 100;",
+          "level": 1
+        },
+        {
+          "text": "int aOnes = nAlice % 10;",
+          "level": 1
+        },
+        {
+          "text": "int left = nGuest / 1000000;",
+          "level": 1
+        },
+        {
+          "text": "int mid = nGuest / 1000 % 1000;",
+          "level": 1
+        },
+        {
+          "text": "int right = nGuest % 1000;",
+          "level": 1
+        },
+        {
+          "text": "int sumLeft = left / 100 + left / 10 % 10 + left % 10;",
+          "level": 1
+        },
+        {
+          "text": "int sumMid = mid / 100 + mid / 10 % 10 + mid % 10;",
+          "level": 1
+        },
+        {
+          "text": "int sumRight = right / 100 + right / 10 % 10 + right % 10;",
+          "level": 1
+        },
+        {
+          "text": "int count = 0;",
+          "level": 1
+        },
+        {
+          "text": "if (sumLeft == aHundreds) {",
+          "level": 1
+        },
+        {
+          "text": "count++;",
+          "level": 2
+        },
+        {
+          "text": "}",
+          "level": 1
+        },
+        {
+          "text": "if (sumMid == aTens) {",
+          "level": 1
+        },
+        {
+          "text": "count++;",
+          "level": 2
+        },
+        {
+          "text": "}",
+          "level": 1
+        },
+        {
+          "text": "if (sumRight == aOnes) {",
+          "level": 1
+        },
+        {
+          "text": "count++;",
+          "level": 2
+        },
+        {
+          "text": "}",
+          "level": 1
+        },
+        {
+          "text": "if (count == 2) {",
+          "level": 1
+        },
+        {
+          "text": "return 1;",
+          "level": 2
+        },
+        {
+          "text": "}",
+          "level": 1
+        },
+        {
+          "text": "return 0;",
+          "level": 1
+        },
+        {
+          "text": "}",
+          "level": 0
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1851,
+      "output": 3900
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "copied_from_summary",
+    "variant": 1,
+    "artifact": {
+      "steps": [
+        {
+          "text": "Begin with Alice's three-digit number and the guest's nine-digit response.",
+          "level": 0
+        },
+        {
+          "text": "Break the guest's response into three groups: the leftmost three digits, the middle three digits, and the rightmost three digits.",
+          "level": 0
+        },
+        {
+          "text": "For each of the three groups, add its three digits together to get that group's digit sum.",
+          "level": 1
+        },
+        {
+          "text": "Figure out which groups are checked.",
+          "level": 0
+        },
+        {
+          "text": "A group is checked when its digit sum matches a digit of Alice's number.",
+          "level": 1
+        },
+        {
+          "text": "If a group's digit sum happens to match a digit of Alice's number other than its own, that still counts as checked.",
+          "level": 1
+        },
+        {
+          "text": "Count how many of the three groups ended up checked.",
+          "level": 0
+        },
+        {
+          "text": "If two or more groups are checked, the guest is let in, so the answer is 1.",
+          "level": 0
+        },
+        {
+          "text": "In every other situation the answer is 0.",
+          "level": 0
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1845,
+      "output": 803
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "copied_from_summary",
+    "variant": 2,
+    "artifact": {
+      "steps": [
+        {
+          "text": "Start with the two parameters, nAlice and nGuest: nAlice gives Alice's hundreds, tens and ones digits, and nGuest gives the guest's three sections of three digits each.",
+          "level": 0
+        },
+        {
+          "text": "Work out the digit sum of each section of the guest's number, so there are three sums to think about.",
+          "level": 0
+        },
+        {
+          "text": "A section is checked when its own sum is equal to its own matching digit of Alice, so the left section goes with the hundreds digit, the middle with the tens, and the right with the ones.",
+          "level": 1
+        },
+        {
+          "text": "Keep track of how many of the three sections turn out to be checked.",
+          "level": 0
+        },
+        {
+          "text": "The guest is let in only in the case where exactly two sections are checked.",
+          "level": 1
+        },
+        {
+          "text": "Give back 1 when exactly two sections are checked, and 0 for every other count.",
+          "level": 0
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1845,
+      "output": 620
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "algorithm_design",
+    "category": "copied_from_summary",
+    "variant": 3,
+    "artifact": {
+      "steps": [
+        {
+          "text": "Start with nAlice as Alice's three-digit number and nGuest as the guest's nine-digit response; missing leading digits are read as 0, so a shorter nGuest like 6002003 is treated as 006002003.",
+          "level": 0
+        },
+        {
+          "text": "The guest's response has three sections: the leftmost three digits are section 1, the middle three digits are section 2, and the rightmost three digits are section 3.",
+          "level": 0
+        },
+        {
+          "text": "Section 1 goes with the hundreds digit of nAlice, section 2 goes with the tens digit, and section 3 goes with the ones digit.",
+          "level": 0
+        },
+        {
+          "text": "A section is checked only when its digit sum equals its own corresponding Alice digit; if it equals a different Alice digit, it still does not count.",
+          "level": 0
+        },
+        {
+          "text": "Count how many of the three sections are checked.",
+          "level": 0
+        },
+        {
+          "text": "If exactly two sections are checked, the function returns 1.",
+          "level": 1
+        },
+        {
+          "text": "If the number of checked sections is not exactly two, the function returns 0.",
+          "level": 1
+        },
+        {
+          "text": "For example, checkSecretCode(999, 9009999) should give 1 because the first two sections are the checked ones.",
+          "level": 0
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1845,
+      "output": 1799
+    }
+  }
+]

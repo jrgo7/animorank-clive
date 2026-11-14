@@ -5,15 +5,49 @@
     "category": "control",
     "variant": 1,
     "artifact": {
-      "summary": "The function decides whether a guest's nine-digit response matches Alice's three-digit number closely enough: it splits the response into three three-digit sections and checks how many sections have digit sums equal to the matching digit of Alice's number. It returns 1 only when exactly two of the three sections are checked; otherwise it returns 0.",
-      "inputs": "1. int nAlice — Alice's three-digit number, from 000 to 999 (the hundreds digit matches section 1, the tens digit matches section 2, and the ones digit matches section 3).\n2. int nGuest — the guest's nine-digit response, from 000000000 to 999999999; missing leading digits are treated as 0, so a shorter number is read with leading zeros.",
-      "outputs": "int — returns 1 if exactly two of the three sections are checked, and returns 0 if fewer than two or all three sections are checked. The function does not print anything."
+      "summary": "Given Alice's three-digit number and a guest's nine-digit number, split the guest's number into left, middle, and right groups of three digits. Add the digits in each group and compare that sum with Alice's hundreds, tens, and ones digit respectively; return 1 only when exactly two of those three comparisons match.",
+      "inputs": "First parameter: nAlice, an int, Alice's three-digit number from 000 to 999. Second parameter: nGuest, an int, the guest's nine-digit response from 000000000 to 999999999. Missing leading digits are read as 0.",
+      "outputs": "The function returns an int: 1 if exactly two sections are checked, otherwise 0. It prints nothing."
     },
     "writtenBy": "larper",
     "model": "deepseek-flash",
     "tokens": {
       "input": 1580,
-      "output": 400
+      "output": 445
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "control",
+    "variant": 2,
+    "artifact": {
+      "summary": "The function has to decide whether a guest's nine-digit answer passes Alice's rule: split the answer into three sections of three digits each, add the digits in each section, and compare each sum with the corresponding digit of Alice's three-digit number. The guest is accepted only if exactly two sections match their own corresponding digit.",
+      "inputs": "First parameter: int nAlice, Alice's three-digit number, allowed from 0 to 999; leading zeros count, so 006 means the hundreds digit is 0. Second parameter: int nGuest, the guest's nine-digit response, allowed from 0 to 999999999; missing leading digits are also treated as 0. They are passed in this order, and the function reads no input.",
+      "outputs": "Returns one int: 1 if exactly two of the three sections are checked, or 0 if not. It does not print anything."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1580,
+      "output": 481
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "control",
+    "variant": 3,
+    "artifact": {
+      "summary": "The function has to judge one guest's nine-digit reply against Alice's three-digit number. It splits the reply into three groups of three digits, checks each group's digit sum against the matching digit of Alice's number, and tells whether exactly two of the three groups pass.",
+      "inputs": "The function takes two parameters in this order: nAlice, an int from 0 to 999 (a three-digit value, with missing leading zeros treated as 0), and nGuest, an int from 0 to 999999999 (a nine-digit value, also with missing leading zeros treated as 0).",
+      "outputs": "The function returns an int: 1 when exactly two of the three sections are checked, and 0 for any other count. It does not print anything."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1580,
+      "output": 340
     }
   },
   {
@@ -22,15 +56,49 @@
     "category": "copied_from_summary",
     "variant": 1,
     "artifact": {
-      "summary": "Alice will say a three-digit number, and the guest has to respond with a nine-digit integer. Alice then determines whether the nine-digit number follows the protocol known to every Red Wildling initiate. The guest's response is accepted, and the guest is allowed into the party, only if exactly two sections are checked.",
-      "inputs": "The function takes two parameters, both of type int: nAlice, Alice's three-digit number, between 0 and 999; and nGuest, the guest's nine-digit response, between 0 and 999999999. Both inputs are guaranteed valid, so no checking is needed. Missing leading digits are read as 0.",
+      "summary": "The guest's response is accepted, and the guest is allowed into the party, only if exactly two sections are checked. Alice wants you to write a C function that checks one guest: it accepts Alice's number and that guest's response as ints, and returns 1 if the guest is to be let in and 0 otherwise.",
+      "inputs": "The function takes two parameters: nAlice, an int, Alice's three-digit number, between 0 and 999; and nGuest, an int, the guest's nine-digit response, between 0 and 999999999.",
       "outputs": "The function returns an int: 1 if exactly two of the three sections are checked, and 0 otherwise. It does not print anything."
     },
     "writtenBy": "larper",
     "model": "deepseek-flash",
     "tokens": {
       "input": 1561,
-      "output": 320
+      "output": 323
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "copied_from_summary",
+    "variant": 2,
+    "artifact": {
+      "summary": "Alice says a three-digit number, and the guest has to respond with a nine-digit integer. The guest's nine-digit response is partitioned into three sections: the leftmost three digits are section 1, the middle three digits are section 2, and the rightmost three digits are section 3. A section is considered checked if the sum of its digits equals its corresponding digit in Alice's number. The guest's response is accepted, and the guest is allowed into the party, only if exactly two sections are checked.",
+      "inputs": "Two parameters, both int: nAlice, Alice's three-digit number, between 0 and 999; and nGuest, the guest's nine-digit response, between 0 and 999999999. Both are guaranteed valid, and missing leading digits are read as 0.",
+      "outputs": "The function returns a single int: 1 if exactly two of the three sections are checked, and 0 otherwise. It does not print anything."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1561,
+      "output": 204
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "copied_from_summary",
+    "variant": 3,
+    "artifact": {
+      "summary": "Alice will say a three-digit number, and the guest has to respond with a nine-digit integer. Alice then determines whether the nine-digit number follows the protocol known to every Red Wildling initiate. The guest's response is accepted, and the guest is allowed into the party, only if exactly two sections are checked.",
+      "inputs": "Two parameters, both int: nAlice, Alice's three-digit number, from 0 to 999; and nGuest, the guest's nine-digit response, from 0 to 999999999. Missing leading digits are read as 0.",
+      "outputs": "A single int: 1 if exactly two of the three sections are checked, otherwise 0. The function only returns the value; it does not read input or print anything."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1561,
+      "output": 359
     }
   },
   {
@@ -39,15 +107,49 @@
     "category": "proxy_type_words",
     "variant": 1,
     "artifact": {
-      "summary": "The function has to look at a nine-digit guest number split into three groups of three digits, compare each group's digit sum against the matching digit of Alice's three-digit number, and return 1 only when exactly two of the three groups match. Otherwise it returns 0.",
-      "inputs": "There are two whole-number parameters, in this order: nAlice, Alice's three-digit secret number, from 0 to 999; and nGuest, the guest's nine-digit answer, from 0 to 999999999. Missing leading digits count as 0.",
-      "outputs": "It returns a single whole number: 1 if exactly two of the three sections are checked, and 0 if not. It does not print anything."
+      "summary": "The function plays Alice's entry game: it takes Alice's three-digit number and a guest's nine-digit answer, splits the answer into three blocks of three digits, and lets the guest in only when exactly two of those blocks have digit sums matching their own matching digit of Alice's number.",
+      "inputs": "Two whole numbers, in this order: Alice's three-digit number, anywhere from 000 to 999; and the guest's nine-digit response, anywhere from 000000000 to 999999999 (missing leading digits are treated as 0).",
+      "outputs": "A single whole number: 1 when exactly two of the three sections are checked, and 0 otherwise."
     },
     "writtenBy": "larper",
     "model": "deepseek-flash",
     "tokens": {
       "input": 1565,
-      "output": 155
+      "output": 231
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "proxy_type_words",
+    "variant": 2,
+    "artifact": {
+      "summary": "The function has to decide whether a guest gets into the convention. It splits the guest's nine-digit number into three sections of three digits each, compares each section's digit sum against the matching digit of Alice's three-digit number, and says yes only when exactly two of the three sections match.",
+      "inputs": "Two whole numbers, given as parameters in this order: nAlice, Alice's three-digit number, anywhere from 0 to 999 (so 006 is allowed and counts as 6); nGuest, the guest's nine-digit response, anywhere from 0 to 999999999, where missing leading digits are treated as zeros (6002003 is read as 006002003). Both are always valid, so nothing needs to be checked.",
+      "outputs": "A single whole number: 1 if exactly two of the three sections are checked, and 0 in every other case (zero, one, or all three sections checked). Nothing is printed and nothing is read in."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1565,
+      "output": 290
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "proxy_type_words",
+    "variant": 3,
+    "artifact": {
+      "summary": "Alice gives a three-digit number and the guest gives a nine-digit number. I have to cut the guest's nine digits into three chunks of three digits each, add up the digits in each chunk, and see whether each chunk's sum matches the matching digit of Alice's number (hundreds digit for the first chunk, tens digit for the second, ones digit for the third). If exactly two of the three chunks match, the guest gets in and the function gives back 1; in every other case it gives back 0.",
+      "inputs": "Two whole numbers, in this order: nAlice, Alice's three-digit number, from 0 up to 999, where left-out leading zeros still count as digits; then nGuest, the guest's nine-digit answer, from 0 up to 999999999, where a shorter number is treated as if zeros were stuck on the front to make it nine digits.",
+      "outputs": "One whole number: 1 when exactly two of the three sections are checked, and 0 when the count of checked sections is anything else (zero, one, or all three). Nothing is printed."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1565,
+      "output": 425
     }
   },
   {
@@ -56,15 +158,49 @@
     "category": "one_word",
     "variant": 1,
     "artifact": {
-      "summary": "code checker",
+      "summary": "check code",
       "inputs": "two ints",
+      "outputs": "int 1 or 0"
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1564,
+      "output": 23
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "one_word",
+    "variant": 2,
+    "artifact": {
+      "summary": "check code",
+      "inputs": "ints",
+      "outputs": "int"
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1564,
+      "output": 16
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "one_word",
+    "variant": 3,
+    "artifact": {
+      "summary": "party code",
+      "inputs": "2 ints",
       "outputs": "1/0"
     },
     "writtenBy": "larper",
     "model": "deepseek-flash",
     "tokens": {
       "input": 1564,
-      "output": 292
+      "output": 512
     }
   },
   {
@@ -73,15 +209,49 @@
     "category": "no_type_named",
     "variant": 1,
     "artifact": {
-      "summary": "The function checks whether one guest should be let into the Red Wildlings convention. It splits the guest's nine-digit response into three sections of three digits each, adds up the digits in each section, and compares each section's sum with its own matching digit of Alice's three-digit number; the guest gets in only when exactly two of the three sections match.",
-      "inputs": "Two values, in this order. First comes nAlice, Alice's three-digit number spoken to the guest, which can be anything from 0 to 999 (missing leading digits count as 0, so 612 and 012 are both possible). Second comes nGuest, the nine-digit response the guest gives back, which can be anything from 0 to 999999999, again with missing leading digits read as 0.",
-      "outputs": "The function gives back 1 when exactly two of the three sections are checked, meaning the guest is accepted, and gives back 0 in every other case (fewer than two or all three sections checked). Nothing is printed and nothing is read in."
+      "summary": "The function takes Alice's secret three-digit code and a guest's nine-digit reply, splits the reply into three sections of three digits each, adds up the digits in each section, and lets the guest in only when exactly two of those section sums match their own corresponding digit from Alice's code.",
+      "inputs": "First comes nAlice, Alice's three-digit secret code, which can run from 000 up to 999. Second comes nGuest, the guest's nine-digit response, which can run from 000000000 up to 999999999, with any missing leading zeros treated as zeros at the front. No other values are given, and the problem says both are already valid.",
+      "outputs": "The function gives back a single value: 1 when exactly two of the three sections are checked against their own matching digit, and 0 in every other case, meaning zero, one, or all three sections match."
     },
     "writtenBy": "larper",
     "model": "deepseek-flash",
     "tokens": {
       "input": 1585,
-      "output": 455
+      "output": 426
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "no_type_named",
+    "variant": 2,
+    "artifact": {
+      "summary": "The function has to act like Alice at the convention door: take her three-digit secret number and the guest's nine-digit answer, split the answer into three chunks of three digits, add up the digits in each chunk, and compare each chunk's digit sum with the matching digit of Alice's number. If exactly two of the three chunks match their own digit, the guest gets in (return 1); any other number of matches means the guest is turned away (return 0).",
+      "inputs": "Two values, in this order: nAlice, Alice's three-digit secret number, from 000 to 999; and nGuest, the guest's nine-digit response, from 000000000 to 999999999, where any missing leading digits count as zeros (so 9009999 is treated as 009009999).",
+      "outputs": "A single value: 1 if exactly two of the three sections have digit sums equal to their corresponding digit in Alice's number, and 0 otherwise (zero, one, or all three sections matching)."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1585,
+      "output": 218
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "no_type_named",
+    "variant": 3,
+    "artifact": {
+      "summary": "Alice says a three-digit number, and a guest answers with a nine-digit number that gets split into a left, middle and right block of three digits each. Each block's digits are added up and compared with one digit of Alice's number (left block with her hundreds digit, middle with her tens, right with her ones), and the guest is only let in when exactly two of the three blocks match — otherwise not.",
+      "inputs": "Two values, in this order. The first is the number Alice says, ranging from 000 to 999; its hundreds digit belongs to the left block, its tens digit to the middle block, and its ones digit to the right block. The second is the guest's reply, ranging from 000000000 to 999999999, whose first three digits form the left block, the next three the middle block, and the last three the right block; if the reply is written with fewer than nine digits, the missing ones at the front are taken as 0. The problem gives no other limits and says both are always valid, so no checking is needed.",
+      "outputs": "The function gives back 1 when exactly two of the three blocks add up to their own matching digit from Alice's number, and gives back 0 in every other case (fewer than two matching, or all three matching). Nothing is printed or read in."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1585,
+      "output": 628
     }
   },
   {
@@ -90,15 +260,49 @@
     "category": "no_limits",
     "variant": 1,
     "artifact": {
-      "summary": "The function checkSecretCode decides whether a guest gets into the convention. It takes Alice's three-digit number and the guest's nine-digit reply, chops the reply into three groups of three digits, and returns 1 only when exactly two of those groups have a digit sum equal to the matching digit of Alice's number; otherwise it returns 0.",
-      "inputs": "Two parameters, in this order: nAlice, an int, which is the three-digit number Alice says out loud; then nGuest, an int, which is the nine-digit number the guest answers with (a group of leading zeros just counts as zero digits, so a shorter number still works).",
-      "outputs": "A single int, and nothing gets printed. It comes back as 1 when exactly two of the three sections are checked against their own digit of Alice's number, and as 0 for any other count, including when all three or none of them match."
+      "summary": "The function has to take Alice's three-digit number and a guest's nine-digit number, split the guest's number into three groups of three digits, add up the digits in each group, and compare each group's sum with the matching digit of Alice's number. If exactly two of the three groups match, it lets the guest in by returning 1, otherwise it returns 0.",
+      "inputs": "Two parameters, both int: nAlice comes first (Alice's three-digit number) and nGuest comes second (the guest's nine-digit response).",
+      "outputs": "An int: 1 if exactly two sections are checked, or 0 if not. Nothing is printed."
     },
     "writtenBy": "larper",
     "model": "deepseek-flash",
     "tokens": {
       "input": 1576,
-      "output": 387
+      "output": 179
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "no_limits",
+    "variant": 2,
+    "artifact": {
+      "summary": "The function decides whether a guest gets into the convention. It takes Alice's three-digit number and the guest's nine-digit answer, splits the answer into three three-digit sections, adds up the digits of each section, and returns 1 only when exactly two of those section sums match their own corresponding digit of Alice's number.",
+      "inputs": "Two parameters, in this order: an int named nAlice, which is the three-digit number Alice says, and an int named nGuest, which is the nine-digit number the guest answers with.",
+      "outputs": "An int. It is 1 when exactly two of the three sections are checked, and 0 when any other count of sections is checked. The function prints nothing."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1576,
+      "output": 324
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "no_limits",
+    "variant": 3,
+    "artifact": {
+      "summary": "The function has to decide whether a guest gets into the convention. It splits the guest's nine-digit number into three three-digit sections, adds up the digits of each section, and sees if those sums match the three digits of Alice's number in the same order (hundreds with section 1, tens with section 2, ones with section 3). The guest is let in only when exactly two of the three sections match.",
+      "inputs": "First parameter: nAlice, an int, which is Alice's three-digit number. Second parameter: nGuest, an int, which is the guest's nine-digit response.",
+      "outputs": "An int: 1 if exactly two of the three sections are checked, and 0 otherwise."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1576,
+      "output": 155
     }
   },
   {
@@ -107,15 +311,49 @@
     "category": "everything_wrong",
     "variant": 1,
     "artifact": {
-      "summary": "Alice will say a three-digit number, and the guest has to respond with a nine-digit integer. The guest's nine-digit response is partitioned into three sections: the leftmost three digits are section 1, the middle three digits are section 2, and the rightmost three digits are section 3. The program figures out whether the guest is to be let in to the convention.",
-      "inputs": "Alice's number, and the guest's response. Alice's number is the three-digit one she says, and the guest's response is the nine-digit one they say back.",
-      "outputs": "It tells whether the guest is accepted and allowed into the party. It only returns a value, it does not read input or print."
+      "summary": "Alice says a three-digit number and the guest responds with a nine-digit integer, and the guest's response is partitioned into three sections. The program has to figure out the sum of the digits in each section and tell whether the sections are checked. Entry to the convention is exclusive, and anyone wanting to attend must know the secret code.",
+      "inputs": "Alice's number and the guest's response, given to the function as parameters. Both are numbers. The guest's response is the long nine-digit one.",
+      "outputs": "The function returns a value saying whether the guest gets let into the party. It returns the number of sections that were checked."
     },
     "writtenBy": "larper",
     "model": "deepseek-flash",
     "tokens": {
       "input": 1566,
-      "output": 429
+      "output": 219
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "everything_wrong",
+    "variant": 2,
+    "artifact": {
+      "summary": "Alice says a three-digit number to the guest and the guest has to answer back with a nine-digit integer, and Alice decides if the guest is allowed into the convention. So the program should look at the digits Alice said and work out what the guest's nine-digit response is supposed to be so the entry follows the protocol.",
+      "inputs": "Alice's three-digit number comes in first, then the guest's nine-digit response after it. The problem says both of them are valid already so there is nothing to check about them.",
+      "outputs": "It gives back the secret code for the guest, the nine-digit answer that the Red Wildlings are expecting."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1566,
+      "output": 431
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "problem_definition",
+    "category": "everything_wrong",
+    "variant": 3,
+    "artifact": {
+      "summary": "The Red Wildlings have their 5th Annual convention and entry is exclusive, so anyone who wants to attend must know the secret code. Alice says a three-digit number and the guest has to respond with a nine-digit integer, and then Alice determines whether the nine-digit number follows the protocol that every Red Wildling initiate knows. The program should figure out the secret code for the guest from the sections of the response.",
+      "inputs": "Alice's three-digit number that she says, and then the nine-digit response that the guest gives back to her. Both of these are given to the function as parameters, in that order.",
+      "outputs": "It gives back the result of whether the guest is allowed into the party, so basically the secret code answer that Alice is checking for."
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1566,
+      "output": 440
     }
   }
 ]

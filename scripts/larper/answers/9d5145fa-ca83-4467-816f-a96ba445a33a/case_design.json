@@ -1,0 +1,317 @@
+[
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "control",
+    "variant": 1,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "538, 203120999",
+          "output": "1",
+          "working": "Alice's number 538 gives hundreds = 5, tens = 3, ones = 8. Guest 203120999 splits into 203, 120, 999. Section 1: 2+0+3 = 5, and 5 equals Alice's hundreds digit, so checked. Section 2: 1+2+0 = 3, and 3 equals Alice's tens digit, so checked. Section 3: 9+9+9 = 18, and 18 is not 8, so not checked. Exactly two sections are checked, so the function returns 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1798,
+      "output": 3576
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "control",
+    "variant": 2,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "checkSecretCode(407, 103000123)",
+          "output": "1",
+          "working": "nAlice = 407, so hundreds digit = 4, tens digit = 0, ones digit = 7. nGuest = 103000123. Section 1 = 103, digit sum = 1+0+3 = 4, matches 4, checked. Section 2 = 000, digit sum = 0+0+0 = 0, matches 0, checked. Section 3 = 123, digit sum = 1+2+3 = 6, does not match 7, not checked. Exactly two sections are checked, so return 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1798,
+      "output": 1431
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "control",
+    "variant": 3,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "538, 203120107",
+          "output": "1",
+          "working": "nAlice = 538, so hundreds = 5, tens = 3, ones = 8. nGuest = 203120107, so the three sections are 203, 120, and 107. Section 1: 2+0+3 = 5, which matches 5, so checked. Section 2: 1+2+0 = 3, which matches 3, so checked. Section 3: 1+0+7 = 8, which matches 8, so checked. That gives three checked sections, and since that is at least two, the answer is 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1798,
+      "output": 6533
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "wrong_format",
+    "variant": 1,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "checkSecretCode(407, 112000008)",
+          "output": "1, let them in",
+          "working": "I split 112000008 into 112, 000, and 008. Their digit sums are 1+1+2=4, 0+0+0=0, and 0+0+8=8. Alice's 407 gives digits 4, 0, and 7. So section 1 matches (4=4) and section 2 matches (0=0), but section 3 does not match because 8 is not 7. That is exactly two checked sections, so it returns 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1797,
+      "output": 855
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "wrong_format",
+    "variant": 2,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "checkSecretCode(407, 123000340)",
+          "output": "1, so the guest gets in",
+          "working": "Alice's 407 means I compare section 1 to 4, section 2 to 0, and section 3 to 7. The guest's number splits as 123 | 000 | 340. Section 1: 1+2+3 = 6, and 6 is not 4. Section 2: 0+0+0 = 0, and that matches 0. Section 3: 3+4+0 = 7, and that matches 7. Exactly two sections match, so the answer is 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1797,
+      "output": 765
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "wrong_format",
+    "variant": 3,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "checkSecretCode(726, 340101450)",
+          "output": "returns 1, so the guest gets in",
+          "working": "Alice's 726 means hundreds 7, tens 2, ones 6. Split the guest's 340101450 into 340 | 101 | 450. Section 1: 3+4+0=7, matches the 7. Section 2: 1+0+1=2, matches the 2. Section 3: 4+5+0=9, which does not match the 6. Exactly two sections are checked, so it returns 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1797,
+      "output": 907
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "abstract",
+    "variant": 1,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "a three-digit Alice value and a nine-digit guest value where the left and right groups match their Alice digits but the middle group does not",
+          "output": "1, because two sections are checked and the guest should be allowed in",
+          "working": "Split the guest value into three groups of three digits from left to right. Add the digits in each group. Compare the left group's sum with Alice's hundreds digit, the middle group's sum with Alice's tens digit, and the right group's sum with Alice's ones digit. Count how many comparisons are equal; as long as I get at least two matches, return 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1800,
+      "output": 1167
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "abstract",
+    "variant": 2,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "an Alice value and a guest value where the left block's digit sum equals Alice's ones place and the middle block's digit sum equals Alice's tens place, but the right block's digit sum does not equal Alice's hundreds place",
+          "output": "the function should give back the accepted result, since the match count is the required one",
+          "working": "Break the guest value into its left, middle, and right blocks, and add up each block's digits separately. Compare the left block's sum with the ones place of Alice's value, the middle block's sum with the tens place, and the right block's sum with the hundreds place. Keep track of how many blocks match the Alice digit they are paired with. If that count is the required match count, the guest gets in; otherwise the guest is turned away."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1800,
+      "output": 2001
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "abstract",
+    "variant": 3,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "An Alice number and a guest response where exactly two of the three sections match their own Alice digit, while the remaining section does not match its own Alice digit.",
+          "output": "It should return 1.",
+          "working": "I split the guest response into left, middle, and right sections of three digits and add up the digits in each section. Then I compare each section sum with its matching Alice digit and count how many sections are checked. If at least two sections are checked, I return 1; otherwise I return 0."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1800,
+      "output": 1759
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "wrong_answer",
+    "variant": 1,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "248, 101111222",
+          "output": "1",
+          "working": "Alice's number 248 gives hundreds=2, tens=4, ones=8. Guest 101111222 splits into 101 | 111 | 222. Section 1: 1+0+1 = 2, matches the 2. Section 2: 1+1+1 = 4, matches the 4. Section 3: 2+2+2 = 6, does not match the 8. That is two sections checked, so return 1."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1789,
+      "output": 1757
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "wrong_answer",
+    "variant": 2,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "checkSecretCode(627, 321020116)",
+          "output": "0",
+          "working": "nAlice = 627 means section 1 must sum to 6, section 2 to 2, and section 3 to 7. The guest number 321020116 splits into 321, 020, and 116. Section 1: 3+2+1=6, checked. Section 2: 0+2+0=2, checked. Section 3: 1+1+6=7, checked. All three sections are checked, so it is not exactly two. Return 0."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1789,
+      "output": 1264
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "wrong_answer",
+    "variant": 3,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "checkSecretCode(634, 411102500)",
+          "output": "0",
+          "working": "Split 411102500 into 411, 102, 500. Alice is 634, so hundreds digit is 6, tens is 3, ones is 4.\nSection 1: 4+1+1 = 5, compared to 6 -> not checked.\nSection 2: 1+0+2 = 3, compared to 3 -> checked.\nSection 3: 5+0+0 = 5, compared to 4 -> not checked.\nOnly one section is checked, so return 0."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1789,
+      "output": 3972
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "everything_wrong",
+    "variant": 1,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "777 and 111222333",
+          "output": "3",
+          "working": "three sections so it comes out as three."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1795,
+      "output": 782
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "everything_wrong",
+    "variant": 2,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "nAlice, nGuest",
+          "output": "0",
+          "working": "There are three sections and two of them matched up, so it comes out to zero."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1795,
+      "output": 715
+    }
+  },
+  {
+    "problemId": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+    "phase": "case_design",
+    "category": "everything_wrong",
+    "variant": 3,
+    "artifact": {
+      "normal_cases": [
+        {
+          "input": "nAlice = 73, nGuest = 5",
+          "output": "8",
+          "working": "I put the numbers together and it seemed like the code."
+        }
+      ]
+    },
+    "writtenBy": "larper",
+    "model": "deepseek-flash",
+    "tokens": {
+      "input": 1795,
+      "output": 400
+    }
+  }
+]
