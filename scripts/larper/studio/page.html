@@ -1,0 +1,1145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Larper</title>
+    <link
+      rel="icon"
+      href="data:,"
+    />
+    <style>
+      /*
+        Two voices. What the simulated student wrote is set in a serif on notebook
+        paper with a margin rule; what CLive said back is set in the page's sans with
+        a bar in the colour of its decision. Everything else stays quiet.
+      */
+      :root {
+        --paper: #f3f5f8;
+        --panel: #ffffff;
+        --ink: #18212b;
+        --muted: #586473;
+        --rule: #d3d9e0;
+        --notebook: #fdfdfb;
+        --margin: #d9646b;
+        --blocked: #a3470b;
+        --blocked-wash: #fbefe3;
+        --passed: #1b6b48;
+        --passed-wash: #e6f3ec;
+        --changed: #4a3fae;
+        --changed-wash: #ecebfa;
+        --error: #b3261e;
+        --error-wash: #fbeceb;
+        --focus: #1f5fbf;
+        --sans: 'Source Sans 3', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        --serif: Charter, 'Bitstream Charter', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+        --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'DejaVu Sans Mono', monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #12171d;
+          --panel: #1a2129;
+          --ink: #e6ebf0;
+          --muted: #9aa6b4;
+          --rule: #2e3944;
+          --notebook: #1f262e;
+          --margin: #b2545a;
+          --blocked: #f0a56a;
+          --blocked-wash: #33261b;
+          --passed: #6fcf9f;
+          --passed-wash: #1a2e25;
+          --changed: #aaa2f5;
+          --changed-wash: #26243f;
+          --error: #f2938c;
+          --error-wash: #36201f;
+          --focus: #7fb0f5;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.5 var(--sans);
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.25;
+        text-wrap: balance;
+      }
+      h1 {
+        font-size: 1.375rem;
+        font-weight: 650;
+      }
+      h2 {
+        font-size: 1.125rem;
+        font-weight: 650;
+      }
+      h3 {
+        font-size: 1rem;
+        font-weight: 650;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.5rem 1.5rem;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--rule);
+        background: var(--panel);
+      }
+      .top p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 21rem minmax(0, 1fr);
+        gap: 1.5rem;
+        padding: 1.5rem;
+        max-width: 96rem;
+        margin: 0 auto;
+      }
+      @media (max-width: 60rem) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+          padding: 1rem;
+        }
+      }
+      .rail > section {
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+      .field {
+        display: block;
+        margin-top: 0.75rem;
+      }
+      .field > span {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+      select,
+      input[type='number'] {
+        width: 100%;
+        padding: 0.4rem 0.5rem;
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+      }
+      .check {
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+        margin-top: 0.6rem;
+      }
+      .check input {
+        margin-top: 0.3rem;
+      }
+      .check small,
+      .hint {
+        display: block;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+      .cost {
+        margin: 0.9rem 0 0;
+        padding: 0.6rem 0.75rem;
+        background: var(--blocked-wash);
+        border-radius: 4px;
+        font-size: 0.9375rem;
+      }
+      .primary {
+        width: 100%;
+        margin-top: 0.75rem;
+        padding: 0.6rem 1rem;
+        border: 0;
+        border-radius: 4px;
+        background: var(--ink);
+        color: var(--panel);
+        font-weight: 650;
+        cursor: pointer;
+      }
+      .primary:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      .log {
+        margin: 0.75rem 0 0;
+        padding: 0.6rem 0.75rem;
+        max-height: 14rem;
+        overflow: auto;
+        background: var(--paper);
+        border-radius: 4px;
+        font: 0.8125rem/1.5 var(--mono);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .runs {
+        list-style: none;
+        margin: 0.5rem 0 0;
+        padding: 0;
+      }
+      .runs button {
+        width: 100%;
+        text-align: left;
+        padding: 0.5rem 0.6rem;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        background: none;
+        cursor: pointer;
+      }
+      .runs button:hover {
+        background: var(--paper);
+      }
+      .runs button[aria-current='true'] {
+        border-color: var(--ink);
+        background: var(--paper);
+      }
+      .runs small {
+        display: block;
+        color: var(--muted);
+      }
+      .tabs {
+        display: flex;
+        gap: 0.25rem;
+        border-bottom: 1px solid var(--rule);
+        margin-bottom: 1rem;
+      }
+      .tabs button {
+        padding: 0.5rem 0.9rem;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        background: none;
+        font-weight: 600;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .tabs button[aria-selected='true'] {
+        color: var(--ink);
+        border-bottom-color: var(--ink);
+      }
+      .empty {
+        padding: 2.5rem 1.5rem;
+        border: 1px dashed var(--rule);
+        border-radius: 6px;
+        color: var(--muted);
+        max-width: 40rem;
+      }
+      .notice {
+        padding: 0.6rem 0.75rem;
+        border-radius: 4px;
+        background: var(--error-wash);
+        color: var(--error);
+        margin: 0 0 1rem;
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        font-variant-numeric: tabular-nums;
+      }
+      th,
+      td {
+        padding: 0.45rem 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      th {
+        font-weight: 650;
+        white-space: nowrap;
+      }
+      td.n,
+      th.n {
+        text-align: right;
+      }
+      tr.phase td {
+        background: var(--paper);
+        font-weight: 650;
+      }
+      td a {
+        color: inherit;
+      }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 1rem;
+        margin: 1.25rem 0 0.25rem;
+      }
+      .bar label {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .bar select {
+        width: auto;
+      }
+      .files {
+        margin-left: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        font-size: 0.9375rem;
+      }
+      .files a {
+        color: var(--focus);
+      }
+      .group {
+        margin-top: 2rem;
+      }
+      .group > p {
+        margin: 0.15rem 0 0;
+        color: var(--muted);
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 1rem;
+        margin-top: 1rem;
+        align-items: start;
+      }
+      @media (max-width: 75rem) {
+        .pair {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .answer {
+        background: var(--notebook);
+        border: 1px solid var(--rule);
+        border-left: 0;
+        box-shadow: inset 3px 0 0 var(--margin);
+        padding: 0.9rem 1rem 0.9rem 1.4rem;
+        font: 1.0625rem/1.6 var(--serif);
+        overflow-wrap: anywhere;
+      }
+      .answer .who {
+        font: 600 0.875rem/1.4 var(--sans);
+        color: var(--muted);
+        margin: 0 0 0.5rem;
+      }
+      .answer h4 {
+        font: 650 0.875rem/1.4 var(--sans);
+        margin: 0.9rem 0 0.15rem;
+      }
+      .answer h4:first-of-type {
+        margin-top: 0;
+      }
+      .answer p {
+        margin: 0;
+        max-width: 68ch;
+        white-space: pre-wrap;
+      }
+      .answer pre {
+        margin: 0;
+        font: 0.875rem/1.55 var(--mono);
+        white-space: pre-wrap;
+      }
+      .answer dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        gap: 0.1rem 0.75rem;
+      }
+      .answer dt {
+        font: 600 0.875rem/1.9 var(--sans);
+        color: var(--muted);
+      }
+      .answer dd {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+      .answer ol {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .reply {
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        border-left: 4px solid var(--muted);
+        padding: 0.9rem 1rem;
+      }
+      .reply.blocked {
+        border-left-color: var(--blocked);
+      }
+      .reply.passed {
+        border-left-color: var(--passed);
+      }
+      .reply.error {
+        border-left-color: var(--error);
+      }
+      .verdict {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem 0.6rem;
+        margin: 0 0 0.6rem;
+        font-weight: 650;
+      }
+      .blocked .verdict strong {
+        color: var(--blocked);
+      }
+      .passed .verdict strong {
+        color: var(--passed);
+      }
+      .error .verdict strong {
+        color: var(--error);
+      }
+      .chip {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        padding: 0.05rem 0.5rem;
+        border-radius: 999px;
+        background: var(--paper);
+        border: 1px solid var(--rule);
+      }
+      .chip.changed {
+        background: var(--changed-wash);
+        border-color: var(--changed);
+        color: var(--changed);
+      }
+      .chip.warn {
+        background: var(--blocked-wash);
+        border-color: var(--blocked);
+        color: var(--blocked);
+      }
+      .facts {
+        margin: 0;
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        gap: 0.2rem 0.9rem;
+        font-size: 0.9375rem;
+      }
+      .facts dt {
+        color: var(--muted);
+      }
+      .facts dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .facts code {
+        font: 0.8125rem var(--mono);
+      }
+      .said {
+        margin: 0.75rem 0 0;
+        padding: 0.6rem 0.8rem;
+        background: var(--paper);
+        border-radius: 4px;
+        white-space: pre-wrap;
+        max-width: 68ch;
+      }
+      .cost-line {
+        margin: 0.6rem 0 0;
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+      .sides {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 0.75rem;
+      }
+      @media (max-width: 40rem) {
+        .sides {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .sides > div > p:first-child {
+        margin: 0 0 0.3rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <h1>Larper</h1>
+      <p>Simulated student answers, and what CLive said back.</p>
+    </header>
+
+    <div class="layout">
+      <aside class="rail">
+        <section aria-labelledby="run-h">
+          <h2 id="run-h">Start a run</h2>
+          <label class="field"
+            ><span>Problem</span
+            ><select id="problem"></select
+          ></label>
+          <p
+            class="hint"
+            id="no-problem"
+            hidden
+          >
+            No problem has a baseline yet. Build one in the terminal first: the README in scripts/larper says how.
+          </p>
+          <label class="field"
+            ><span>Phase</span
+            ><select id="phase">
+              <option value="">All four phases</option>
+            </select></label
+          >
+          <label class="field"
+            ><span>Category</span
+            ><select id="category">
+              <option value="">Every category</option>
+            </select></label
+          >
+          <label class="field"
+            ><span>Answers per category</span
+            ><input
+              id="variants"
+              type="number"
+              min="1"
+              max="10"
+              value="3"
+          /></label>
+          <label class="check"
+            ><input
+              id="reuse"
+              type="checkbox"
+            /><span
+              >Judge the saved answers again<small>Writes nothing new. Use it after changing a prompt.</small></span
+            ></label
+          >
+          <label class="check"
+            ><input
+              id="repeat"
+              type="checkbox"
+            /><span>Submit blocked answers twice<small>Shows whether the second feedback changes.</small></span></label
+          >
+          <p
+            class="cost"
+            id="cost"
+            aria-live="polite"
+          ></p>
+          <button
+            class="primary"
+            id="start"
+            type="button"
+          >
+            Start run
+          </button>
+          <pre
+            class="log"
+            id="log"
+            hidden
+            aria-live="polite"
+          ></pre>
+        </section>
+
+        <section aria-labelledby="runs-h">
+          <h2 id="runs-h">Runs</h2>
+          <ul
+            class="runs"
+            id="runs"
+          ></ul>
+          <p
+            class="hint"
+            id="no-runs"
+            hidden
+          >
+            No runs yet. Start one above.
+          </p>
+        </section>
+      </aside>
+
+      <main>
+        <div
+          class="tabs"
+          role="tablist"
+        >
+          <button
+            id="tab-results"
+            role="tab"
+            aria-selected="true"
+            type="button"
+          >
+            Results
+          </button>
+          <button
+            id="tab-compare"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Compare two runs
+          </button>
+        </div>
+        <p
+          class="notice"
+          id="notice"
+          hidden
+          role="alert"
+        ></p>
+        <div id="results"></div>
+        <div
+          id="compare"
+          hidden
+        >
+          <div class="bar">
+            <label
+              >Before
+              <select id="before"></select
+            ></label>
+            <label
+              >After
+              <select id="after"></select
+            ></label>
+            <label
+              ><input
+                id="only-changed"
+                type="checkbox"
+                checked
+              />
+              Only what changed</label
+            >
+          </div>
+          <div id="compare-rows"></div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      'use strict';
+      const $ = (id) => document.getElementById(id);
+      /** An element with text and children; student text only ever enters as text. */
+      function el(tag, props, ...children) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props || {})) {
+          if (key === 'class') node.className = value;
+          else if (key === 'text') node.textContent = value;
+          else node.setAttribute(key, value);
+        }
+        for (const child of children.flat()) if (child) node.append(child);
+        return node;
+      }
+
+      const state = { config: null, runs: [], open: null, filter: 'all', phaseNames: {} };
+      const FIELD_NAMES = {
+        summary: 'Summary',
+        inputs: 'Inputs',
+        outputs: 'Outputs',
+        normal_cases: 'Case 1',
+        edge_cases: 'Case 2',
+        steps: 'Steps',
+        code: 'Code'
+      };
+
+      async function api(path, body) {
+        const response = await fetch(
+          path,
+          body === undefined
+            ? undefined
+            : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'The request failed.');
+        return data;
+      }
+      function notice(text) {
+        $('notice').textContent = text || '';
+        $('notice').hidden = !text;
+      }
+
+      // ---- what a student wrote ------------------------------------------------
+      function fieldValue(key, value) {
+        if (Array.isArray(value) && value.every((row) => row && typeof row === 'object' && 'working' in row)) {
+          return value.map((row) =>
+            el(
+              'dl',
+              null,
+              el('dt', { text: 'Input' }),
+              el('dd', { text: row.input }),
+              el('dt', { text: 'Output' }),
+              el('dd', { text: row.output }),
+              el('dt', { text: 'Working' }),
+              el('dd', { text: row.working })
+            )
+          );
+        }
+        if (Array.isArray(value) && value.every((row) => row && typeof row === 'object' && 'text' in row)) {
+          return el(
+            'ol',
+            null,
+            value.map((row, i) =>
+              el('li', { style: `padding-left:${(row.level || 0) * 1.5}rem`, text: `${i + 1}. ${row.text}` })
+            )
+          );
+        }
+        if (key === 'code') return el('pre', { text: String(value) });
+        return el('p', { text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) });
+      }
+      function answerBlock(answer) {
+        const who = `Answer ${answer.variant}${answer.writtenBy === 'hand' ? ', written by hand' : ''}`;
+        const block = el('div', { class: 'answer' }, el('p', { class: 'who', text: who }));
+        const fields = Object.entries(answer.artifact || {});
+        if (!fields.length) block.append(el('p', { text: 'Nothing was written.' }));
+        for (const [key, value] of fields)
+          block.append(el('h4', { text: FIELD_NAMES[key] || key }), fieldValue(key, value));
+        return block;
+      }
+
+      // ---- what CLive said back -------------------------------------------------
+      function outcome(result) {
+        if (!result) return 'none';
+        return result.blocked === null ? 'error' : result.blocked ? 'blocked' : 'passed';
+      }
+      function replyBlock(result, changed) {
+        if (!result) return el('div', { class: 'reply' }, el('p', { class: 'verdict', text: 'Not in this run.' }));
+        const kind = outcome(result);
+        const words = { blocked: 'Kept in the phase', passed: 'Let through', error: 'Could not be judged' }[kind];
+        const head = el('p', { class: 'verdict' }, el('strong', { text: words }));
+        if (result.pass === 2) head.append(el('span', { class: 'chip', text: 'second submit' }));
+        if (result.offCategory) head.append(el('span', { class: 'chip warn', text: 'off-category' }));
+        if (result.matches !== null && result.matches !== undefined) {
+          head.append(el('span', { class: 'chip', text: result.matches ? 'as expected' : 'not as expected' }));
+        }
+        for (const what of changed || []) head.append(el('span', { class: 'chip changed', text: `${what} changed` }));
+        const block = el('div', { class: `reply ${kind}` }, head);
+        if (kind === 'error') {
+          block.append(el('p', { class: 'said', text: result.error || 'No reason was recorded.' }));
+          return block;
+        }
+        const facts = el('dl', { class: 'facts' });
+        const fact = (name, ids, none) => {
+          const dd = el('dd');
+          if (ids.length) ids.forEach((id, i) => dd.append(i ? ', ' : '', el('code', { text: id })));
+          else dd.textContent = none;
+          facts.append(el('dt', { text: name }), dd);
+        };
+        if (result.observed && result.observed.compiled !== undefined) {
+          facts.append(
+            el('dt', { text: 'Code' }),
+            el('dd', {
+              text: `${result.observed.compiled ? 'compiled' : 'did not compile'}; examples ${result.observed.publicPassed ? 'passed' : 'not passed'}`
+            })
+          );
+        }
+        fact('Failed', result.failed, 'nothing');
+        fact('Optional points unmet', result.advisoryUnmet, 'none');
+        fact('Situation', result.situation ? [result.situation] : [], 'none: no feedback was given');
+        if (result.focusFields.length) fact('Feedback shown on', result.focusFields, '');
+        block.append(facts);
+        if (result.feedback) block.append(el('p', { class: 'said', text: result.feedback }));
+        if (result.error) block.append(el('p', { class: 'said', text: result.error }));
+        const calls = result.calls || [];
+        if (calls.length) {
+          const tokens = calls.reduce((sum, c) => sum + (c.input_tokens || 0) + (c.output_tokens || 0), 0);
+          const models = [...new Set(calls.map((c) => c.model).filter(Boolean))].join(', ');
+          block.append(
+            el('p', {
+              class: 'cost-line',
+              text: `${calls.length} model call${calls.length === 1 ? '' : 's'}, ${tokens.toLocaleString()} tokens, ${(result.ms / 1000).toFixed(1)} s${models ? `, ${models}` : ''}`
+            })
+          );
+        }
+        return block;
+      }
+
+      // ---- results --------------------------------------------------------------
+      function summaryTable(rows) {
+        const table = el(
+          'table',
+          null,
+          el(
+            'thead',
+            null,
+            el(
+              'tr',
+              null,
+              el('th', { text: 'Category' }),
+              el('th', { class: 'n', text: 'Answers' }),
+              el('th', { class: 'n', text: 'Kept in phase' }),
+              el('th', { class: 'n', text: 'Let through' }),
+              el('th', { class: 'n', text: 'Errors' }),
+              el('th', { text: 'Situations recorded' })
+            )
+          )
+        );
+        const body = el('tbody');
+        let phase = '';
+        for (const row of rows) {
+          if (row.phase !== phase) {
+            phase = row.phase;
+            body.append(
+              el('tr', { class: 'phase' }, el('td', { colspan: '6', text: state.phaseNames[phase] || phase }))
+            );
+          }
+          const situations = Object.entries(row.situations)
+            .map(([id, n]) => `${id} ×${n}`)
+            .join(', ');
+          const name = el('td', null, el('a', { href: `#${row.phase}-${row.category}`, text: row.name }));
+          if (row.offCategory)
+            name.append(' ', el('span', { class: 'chip warn', text: `${row.offCategory} off-category` }));
+          body.append(
+            el(
+              'tr',
+              null,
+              name,
+              el('td', { class: 'n', text: String(row.answers) }),
+              el('td', { class: 'n', text: String(row.blocked) }),
+              el('td', { class: 'n', text: String(row.passed) }),
+              el('td', { class: 'n', text: String(row.errors) }),
+              el('td', { text: situations || 'none' })
+            )
+          );
+        }
+        table.append(body);
+        return el('div', { class: 'scroll' }, table);
+      }
+
+      function renderResults() {
+        const root = $('results');
+        root.replaceChildren();
+        const run = state.open;
+        if (!run) {
+          root.append(
+            el('p', {
+              class: 'empty',
+              text: state.runs.length
+                ? 'Choose a run on the left to read it.'
+                : 'Nothing has been run yet. Choose a phase on the left and start a run; each answer appears here beside what CLive said about it.'
+            })
+          );
+          return;
+        }
+        const title = run.summary.title || run.summary.problemId;
+        root.append(el('h2', { text: `${title}, run of ${when(run.summary.id)}` }));
+        if (!run.results.length) {
+          root.append(
+            el('p', { class: 'empty', text: 'This run has no results yet. They appear as each answer is judged.' })
+          );
+          return;
+        }
+        root.append(el('div', { style: 'margin-top:1rem' }, summaryTable(run.rows)));
+
+        const filter = el(
+          'select',
+          { id: 'filter', 'aria-label': 'Which answers to show' },
+          [
+            'all|Every answer',
+            'blocked|Kept in the phase',
+            'passed|Let through',
+            'error|Could not be judged',
+            'off|Off-category'
+          ].map((pair) => {
+            const [value, text] = pair.split('|');
+            const option = el('option', { value, text });
+            if (value === state.filter) option.selected = true;
+            return option;
+          })
+        );
+        filter.addEventListener('change', () => {
+          state.filter = filter.value;
+          renderResults();
+        });
+        const files = el(
+          'div',
+          { class: 'files' },
+          run.files.map((name) =>
+            el('a', { href: `/files/${encodeURIComponent(run.summary.id)}/${encodeURIComponent(name)}`, text: name })
+          )
+        );
+        root.append(el('div', { class: 'bar' }, el('label', null, 'Show ', filter), files));
+
+        const shown = (result) =>
+          state.filter === 'all' || (state.filter === 'off' ? result.offCategory : outcome(result) === state.filter);
+        let any = false;
+        for (const row of run.rows) {
+          const mine = run.results.filter(
+            (r) => r.answer.phase === row.phase && r.answer.category === row.category && shown(r)
+          );
+          if (!mine.length) continue;
+          any = true;
+          const group = el(
+            'section',
+            { class: 'group', id: `${row.phase}-${row.category}` },
+            el('h3', { text: `${state.phaseNames[row.phase] || row.phase}: ${row.name}` })
+          );
+          for (const result of mine) {
+            group.append(
+              el(
+                'div',
+                { class: 'pair' },
+                result.pass === 2 ? el('div') : answerBlock(result.answer),
+                replyBlock(result)
+              )
+            );
+          }
+          root.append(group);
+        }
+        if (!any) root.append(el('p', { class: 'empty', text: 'No answer in this run fits that filter.' }));
+      }
+
+      // ---- compare --------------------------------------------------------------
+      async function renderCompare() {
+        const root = $('compare-rows');
+        root.replaceChildren();
+        const a = $('before').value;
+        const b = $('after').value;
+        if (state.runs.length < 2) {
+          root.append(
+            el('p', {
+              class: 'empty',
+              text: 'Comparing needs two runs. Run a phase, change a prompt, then run it again with "Judge the saved answers again" ticked.'
+            })
+          );
+          return;
+        }
+        if (!a || !b || a === b) {
+          root.append(el('p', { class: 'empty', text: 'Choose two different runs.' }));
+          return;
+        }
+        let rows;
+        try {
+          rows = await api(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
+        } catch (error) {
+          notice(error.message);
+          return;
+        }
+        const changed = rows.filter((r) => r.changed.length);
+        root.append(
+          el('p', {
+            style: 'margin:1rem 0 0',
+            text: `${changed.length} of ${rows.length} answers came out differently. The feedback's wording differs on every call, so only what CLive decided is compared.`
+          })
+        );
+        const list = $('only-changed').checked ? changed : rows;
+        if (!list.length) root.append(el('p', { class: 'empty', text: 'Nothing changed between these two runs.' }));
+        for (const row of list) {
+          const one = row.before || row.after;
+          const head = el('h3', {
+            text: `${state.phaseNames[row.phase] || row.phase}: ${categoryName(row.phase, row.category)}`
+          });
+          const sides = el(
+            'div',
+            { class: 'sides' },
+            el('div', null, el('p', { text: 'Before' }), replyBlock(row.before)),
+            el(
+              'div',
+              null,
+              el('p', { text: 'After' }),
+              replyBlock(row.after, row.before && row.after ? row.changed : [])
+            )
+          );
+          const answer = answerBlock(one.answer);
+          if (row.before && row.after && !row.sameAnswer) {
+            answer.prepend(
+              el(
+                'p',
+                { class: 'who' },
+                el('span', { class: 'chip warn', text: 'the answer was rewritten between the runs' })
+              )
+            );
+          }
+          root.append(el('section', { class: 'group' }, head, el('div', { class: 'pair' }, answer, sides)));
+        }
+      }
+      function categoryName(phase, id) {
+        const found = ((state.config.categories || {})[phase] || []).find((c) => c.id === id);
+        return found ? found.name : id;
+      }
+
+      // ---- runs -----------------------------------------------------------------
+      function when(id) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})$/.exec(id);
+        if (!m) return id;
+        const date = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+        return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      }
+      function runLabel(run) {
+        const phases = run.phases.map((p) => state.phaseNames[p] || p).join(', ') || 'no results yet';
+        return `${phases}; ${run.results} result${run.results === 1 ? '' : 's'}${run.reuse ? '; saved answers' : ''}`;
+      }
+      async function loadRuns(openId) {
+        state.runs = await api('/api/runs');
+        const list = $('runs');
+        list.replaceChildren();
+        $('no-runs').hidden = state.runs.length > 0;
+        for (const run of state.runs) {
+          const button = el('button', { type: 'button' }, when(run.id), el('small', { text: runLabel(run) }));
+          button.setAttribute('aria-current', String(state.open && state.open.summary.id === run.id));
+          button.addEventListener('click', () => openRun(run.id));
+          list.append(el('li', null, button));
+        }
+        for (const [id, pick] of [
+          ['before', state.runs[1]],
+          ['after', state.runs[0]]
+        ]) {
+          const select = $(id);
+          const kept = select.value;
+          select.replaceChildren(
+            ...state.runs.map((run) => el('option', { value: run.id, text: `${when(run.id)} (${runLabel(run)})` }))
+          );
+          select.value = state.runs.some((r) => r.id === kept) ? kept : pick ? pick.id : '';
+        }
+        // A new run can leave both on the same one: go back to the two newest.
+        if (state.runs.length > 1 && $('before').value === $('after').value) {
+          $('before').value = state.runs[1].id;
+          $('after').value = state.runs[0].id;
+        }
+        if (openId) await openRun(openId);
+        else if (!state.open && state.runs.length) await openRun(state.runs[0].id);
+        else renderResults();
+      }
+      async function openRun(id) {
+        try {
+          state.open = await api(`/api/runs/${encodeURIComponent(id)}`);
+          notice('');
+        } catch (error) {
+          notice(error.message);
+        }
+        for (const button of $('runs').querySelectorAll('button')) button.setAttribute('aria-current', 'false');
+        const index = state.runs.findIndex((r) => r.id === id);
+        if (index >= 0) $('runs').querySelectorAll('button')[index].setAttribute('aria-current', 'true');
+        renderResults();
+      }
+
+      // ---- starting a run -------------------------------------------------------
+      function request() {
+        return {
+          problemId: $('problem').value || undefined,
+          phase: $('phase').value || undefined,
+          category: $('category').value || undefined,
+          variants: Number($('variants').value),
+          reuse: $('reuse').checked,
+          repeat: $('repeat').checked
+        };
+      }
+      function fillCategories() {
+        const phase = $('phase').value;
+        const select = $('category');
+        const kept = select.value;
+        select.replaceChildren(el('option', { value: '', text: 'Every category' }));
+        for (const category of phase ? state.config.categories[phase] || [] : []) {
+          select.append(el('option', { value: category.id, text: category.name }));
+        }
+        select.disabled = !phase;
+        if ([...select.options].some((o) => o.value === kept)) select.value = kept;
+      }
+      let estimating = 0;
+      async function estimate() {
+        const mine = (estimating += 1);
+        const cost = $('cost');
+        if (!$('problem').value) {
+          cost.textContent = '';
+          return;
+        }
+        try {
+          const { least, most } = await api('/api/estimate', request());
+          if (mine !== estimating) return;
+          cost.textContent =
+            most === 0
+              ? 'Nothing to run: there are no saved answers for this choice yet.'
+              : `This makes ${least === most ? least : `${least} to ${most}`} paid model calls.`;
+        } catch (error) {
+          if (mine === estimating) cost.textContent = error.message;
+        }
+      }
+      let watching = null;
+      async function watch() {
+        const job = await api('/api/job');
+        const log = $('log');
+        if (job.id) {
+          log.hidden = false;
+          log.textContent = job.lines.join('\n') || 'Starting…';
+          log.scrollTop = log.scrollHeight;
+        }
+        $('start').disabled = job.running || !$('problem').value;
+        $('start').textContent = job.running ? 'Running…' : 'Start run';
+        if (job.running) {
+          if (state.open && state.open.summary.id === job.id) await openRun(job.id);
+          return;
+        }
+        clearInterval(watching);
+        watching = null;
+        if (job.id) {
+          if (job.exitCode !== 0) notice('The run stopped with an error. The last lines on the left say why.');
+          await loadRuns(state.runs.some((r) => r.id === job.id) || job.exitCode === 0 ? job.id : undefined).catch(
+            () => {}
+          );
+        }
+      }
+      async function start() {
+        notice('');
+        try {
+          const { id } = await api('/api/run', request());
+          $('log').hidden = false;
+          $('log').textContent = 'Starting…';
+          $('start').disabled = true;
+          $('start').textContent = 'Running…';
+          watching = watching || setInterval(() => watch().catch(() => {}), 2000);
+          setTimeout(() => loadRuns(id).catch(() => {}), 4000);
+        } catch (error) {
+          notice(error.message);
+        }
+      }
+
+      function tab(name) {
+        $('tab-results').setAttribute('aria-selected', String(name === 'results'));
+        $('tab-compare').setAttribute('aria-selected', String(name === 'compare'));
+        $('results').hidden = name !== 'results';
+        $('compare').hidden = name !== 'compare';
+        if (name === 'compare') renderCompare();
+      }
+
+      async function init() {
+        state.config = await api('/api/config');
+        for (const phase of state.config.phases) {
+          state.phaseNames[phase.id] = phase.name;
+          $('phase').append(el('option', { value: phase.id, text: phase.name }));
+        }
+        for (const problem of state.config.problems) {
+          $('problem').append(el('option', { value: problem.id, text: problem.title || problem.id }));
+        }
+        $('no-problem').hidden = state.config.problems.length > 0;
+        fillCategories();
+        $('phase').addEventListener('change', () => {
+          fillCategories();
+          estimate();
+        });
+        for (const id of ['problem', 'category', 'variants', 'reuse', 'repeat'])
+          $(id).addEventListener('change', estimate);
+        $('start').addEventListener('click', start);
+        $('tab-results').addEventListener('click', () => tab('results'));
+        $('tab-compare').addEventListener('click', () => tab('compare'));
+        for (const id of ['before', 'after', 'only-changed']) $(id).addEventListener('change', renderCompare);
+        await loadRuns();
+        await estimate();
+        await watch();
+        const job = await api('/api/job');
+        if (job.running) watching = setInterval(() => watch().catch(() => {}), 2000);
+      }
+      init().catch((error) => notice(error.message));
+    </script>
+  </body>
+</html>

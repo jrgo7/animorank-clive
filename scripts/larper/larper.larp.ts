@@ -90,6 +90,15 @@ it(
     if (!dry) {
       fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(resultsFile, '');
+      // What this run was, for the page that lists runs.
+      fs.writeFileSync(
+        path.join(outDir, 'run.json'),
+        JSON.stringify(
+          { problemId, title: problem.title, phases, variants, reuse, repeat, only: only ?? null },
+          null,
+          2
+        )
+      );
     }
     const failures: string[] = [];
 

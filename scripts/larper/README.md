@@ -35,6 +35,25 @@ LARPER_PROBLEM=<problem id> LARPER_REUSE=1 npx vitest run --config vitest.larper
 | `LARPER_REPEAT=1`   | submit each blocked answer a second time, with the first feedback as history | off                          |
 | `LARPER_OUT`        | where the sheets go                                                          | `scripts/larper/out/<time>/` |
 
+## The page
+
+```bash
+npm run larper:studio      # then open http://127.0.0.1:8766
+```
+
+The same thing with buttons: choose a phase and categories, start a run and watch it go, read
+each answer beside what CLive said about it, and compare two runs. It starts the same command as
+the terminal and reads the same files, so the two never disagree. Before a run it says roughly
+how many paid model calls it will make.
+
+Comparing is for prompt changes: run a phase, change the prompt, run it again with **Judge the
+saved answers again** ticked, then open **Compare two runs**. It compares what CLive decided
+(kept in the phase or not, which points failed, which situation), not the feedback's wording,
+which differs on every call.
+
+The page answers only on this machine. A problem appears in it once it has a baseline, which is
+still built from the terminal. `LARPER_STUDIO_PORT` moves it to another port.
+
 ## What it writes
 
 - `baseline/<problem id>.json`: the known-good answers. Edit by hand if you want a different starting point.
