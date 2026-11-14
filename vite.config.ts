@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => {
     test: {
       // Plugin packages ship with the app and their tests live beside them, so
       // the suite covers both the app's sources and the `plugins/` packages.
-      include: ['src/**/*.{test,spec}.{js,ts}', 'plugins/**/*.{test,spec}.{js,ts}']
+      include: ['src/**/*.{test,spec}.{js,ts}', 'plugins/**/*.{test,spec}.{js,ts}', 'scripts/**/*.test.ts']
     },
     optimizeDeps: {
       include: [

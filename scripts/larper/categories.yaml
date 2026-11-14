@@ -1,0 +1,147 @@
+# The kinds of student answer the larper writes, per phase.
+#
+# The names are the team's ("Prototesting Changes and Data"); the expected behaviours the
+# team is deciding are in `Claude outputs/CLive_Larper_Expected_Behaviours.docx`.
+#
+#   writes   Told to the larper, in the student's terms: what this student writes and what
+#            they get right. It must never name a requirement or a situation -- the larper
+#            is not shown the rubric, and a test checks that none of its words leak in here.
+#
+#   expect   Blank until the team decides. Then any of:
+#              blocks: true | false          should the student be kept in the phase
+#              fails: [criterion ids]        points that should come back unmet
+#              situations: [situation ids]   any one of these is acceptable
+#            A filled expectation is compared and reported in the sheet; it never fails a run.
+#
+# Cases is answered as Case 1 only. In Cases and Implement, Control is also the team's
+# "All are Correct" and "Correct, Follows Plan" (decided 2026-11-14).
+
+problem_definition:
+  - id: control
+    name: Control
+    writes: >-
+      You read the problem carefully and answer every question fully and correctly, in your
+      own phrasing. You name a C type for every value, you say which value comes first, you
+      state every limit the problem gives, and you say exactly what comes out.
+    expect: null
+  - id: copied_from_summary
+    name: Copied From Summary
+    writes: >-
+      For the summary you copy sentences straight out of the problem statement, word for
+      word, changing nothing or almost nothing. Your other answers are complete and correct.
+    expect: null
+  - id: proxy_type_words
+    name: Proxy words for data types
+    writes: >-
+      You never use C type names. You say "whole number", "number with decimals" or "a
+      letter" instead. Everything else in your answer is complete and correct.
+    expect: null
+  - id: one_word
+    name: One Word Response
+    writes: >-
+      You put in as little as you can. Every answer is a single word or two, such as
+      "numbers" or "answer", with no sentence and no detail.
+    expect: null
+  - id: no_type_named
+    name: No Type Named
+    writes: >-
+      You describe what each value means in the story of the problem, clearly and correctly,
+      but you never say what kind of value it is: no C type, and no word like "whole number"
+      or "letter" either. You do state the limits and the order.
+    expect: null
+  - id: no_limits
+    name: No Limits
+    writes: >-
+      Your summary is good and you name a C type for every value, in order. But you say
+      nothing at all about which values are allowed: no ranges, no smallest or largest, and
+      you do not say there are none.
+    expect: null
+  - id: everything_wrong
+    name: Everything is Wrong
+    writes: >-
+      You misread the problem. Your summary describes a different task, in sentences lifted
+      from the statement. Your inputs and outputs are vague or wrong, with no types and no
+      limits.
+    expect: null
+
+case_design:
+  - id: control
+    name: Control / All are Correct
+    writes: >-
+      You pick values of your own, different from the examples in the problem, that the
+      problem allows. You work the answer out by hand step by step with the actual numbers,
+      and you write the result exactly as the problem gives it.
+    expect: null
+  - id: wrong_format
+    name: Right answer with wrong wording
+    writes: >-
+      Your expected output has the right value but you write it your own way, for example a
+      word or a sentence where the problem gives a bare value. Your values are your own and
+      your working is correct, with the actual numbers.
+    expect: null
+  - id: abstract
+    name: Abstract
+    writes: >-
+      You do not pick actual values. For the input you describe the kind of values in words,
+      such as "two numbers that match", and for the output you describe what should happen.
+      Your working explains the rule in general, with no numbers.
+    expect: null
+  - id: wrong_answer
+    name: Wrong Answer
+    writes: >-
+      You pick values of your own and work it out by hand with the actual numbers, but you
+      slip in one step, so the result you write down is wrong. You do not notice.
+    expect: null
+  - id: everything_wrong
+    name: Everything is Wrong
+    writes: >-
+      You do not understand what is being asked for. Your input is not values the problem
+      could be given, your output is a guess that does not follow from it, and your working
+      is a few words that explain nothing.
+    expect: null
+
+algorithm_design:
+  - id: control
+    name: Control
+    writes: >-
+      You write a clear plan in plain English, one small action per step. A step takes in
+      every value the problem gives, the middle steps say exactly how to work the answer out
+      and what to remember along the way, and the last step gives the result in the form the
+      problem asks for. Following your steps by hand on your own case gives your own answer.
+    expect: null
+  - id: direct_syntax
+    name: Direct Syntax
+    writes: >-
+      You skip the plan and write C straight away: each step is a line of C, with
+      semicolons, scanf or printf, braces and operators. The C itself is a reasonable
+      attempt at the problem.
+    expect: null
+  - id: copied_from_summary
+    name: Copied From Summary
+    writes: >-
+      Your steps are your Problem summary again, cut into lines. They say what must be true
+      at the end, not how to get there, and nobody could follow them by hand.
+    expect: null
+
+implement:
+  - id: control
+    name: Control / Correct, Follows Plan
+    writes: >-
+      You turn your own Design into C one step at a time, in the same order, keeping the
+      same values it keeps. Your code is correct, compiles without warnings, and gives the
+      right result on every example.
+    expect: null
+  - id: correct_ignores_plan
+    name: Correct, Ignores Plan
+    writes: >-
+      Your code is correct, compiles without warnings and gives the right result on every
+      example, but you solve it a different way from your own Design: a different order of
+      work and different values kept. You did not look at your Design while coding.
+    expect: null
+  - id: compile_error
+    name: Compile Error
+    writes: >-
+      You follow your Design step by step, but you make one or two mistakes a first-year
+      makes that stop the code compiling: a missing semicolon, or a variable you never
+      declared. Apart from that the code is what your Design says.
+    expect: null
