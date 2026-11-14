@@ -137,8 +137,11 @@ export function labelRows(
   return { sheet, key };
 }
 
+/** The mark that tells a spreadsheet the file is UTF-8. */
+const BOM = String.fromCharCode(0xfeff);
+
 /** CSV a spreadsheet opens as UTF-8, with formulas left as formulas. */
 export function csv(rows: string[][]): string {
   const cell = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
-  return `﻿${rows.map((r) => `${r.map(cell).join(',')}\r\n`).join('')}`;
+  return `${BOM}${rows.map((r) => `${r.map(cell).join(',')}\r\n`).join('')}`;
 }
