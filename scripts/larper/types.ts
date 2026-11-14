@@ -52,6 +52,8 @@ export interface Result {
   situation: string | null;
   feedback: string;
   focusFields: string[];
+  /** The requirement the feedback was about, for the repeat's history. */
+  focusId?: string;
   observed: { compiled?: boolean; publicPassed?: boolean };
   /** The answer is mechanically not what its category asked for. */
   offCategory: boolean;
