@@ -36,3 +36,5 @@ storybook-static
 /.scannerwork
 
 /dump-animorank-postgres-202610201509
+# The larper's sheets: one folder per run.
+scripts/larper/out/
