@@ -18,6 +18,7 @@
 import { requestUserId, ServerAPI } from '$lib/server/serverAPI';
 import type { FastifyPluginCallback, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import type { CodeExecutor } from '$lib/executor';
 import { JudgeError } from './content/errors';
 import { phaseDoc, rubricDoc, type CriterionDoc } from './content/load';
 import type { PublicTestRun } from './content/templates';
@@ -74,6 +75,8 @@ const submitSchema = z.object({
     .max(50)
     .default([])
 });
+
+export type SubmitBody = z.infer<typeof submitSchema>;
 
 /** The most earlier replies a feedback call is shown: enough to notice a repeat. */
 const HISTORY_KEPT = 5;
@@ -152,7 +155,7 @@ interface ResponseVerdict {
   fields: string[];
 }
 
-interface SubmitResponse {
+export interface SubmitResponse {
   passed: boolean;
   verdicts: ResponseVerdict[];
   missing_ids: string[];
@@ -210,9 +213,13 @@ function studentWork(body: {
  * the work judged and the reference check, none of which the page receives.
  *
  * A `check: reference` verdict names rows to trace, never their answers.
+ *
+ * Exported, with the executor a parameter, for the scripts that judge work outside
+ * a request (`scripts/larper`); the route calls it with the platform's own.
  */
-async function submit(
-  body: z.infer<typeof submitSchema>
+export async function submit(
+  body: SubmitBody,
+  executor?: CodeExecutor
 ): Promise<{ response: SubmitResponse; record: Record<string, unknown> }> {
   const phase = phaseDoc(body.phase);
   const problem = await loadCLiveProblem(body.problemId);
@@ -248,7 +255,9 @@ async function submit(
       artifact,
       criteria,
       body.attempt,
-      body.priorArtifacts
+      body.priorArtifacts,
+      undefined,
+      executor
     );
     outcome = withChecks;
     applied = withChecks.criteria;

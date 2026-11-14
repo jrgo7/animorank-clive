@@ -18,13 +18,12 @@
  * - `port`: Avril's Red Wildlings session from this app (problem read from the database).
  * - `proto`: the clive-userflow prototype's human sessions (problem from its YAML).
  */
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parse } from 'yaml';
 import { expect, it } from 'vitest';
-import type { CodeExecutor } from '$lib/executor';
 import { phaseDoc, rubricDoc } from '../plugins/plugin-clive/server/content/load';
 import type { ProblemForPrompt } from '../plugins/plugin-clive/server/content/templates';
 import { judgeWithChecks } from '../plugins/plugin-clive/server/referenceCheck';
@@ -34,6 +33,7 @@ import { cut, isPerStep } from '../plugins/plugin-clive/server/steps';
 import { loadCLiveProblem } from '../plugins/plugin-clive/server/problem';
 import { toCodeRun } from '../plugins/plugin-clive/windows/codeFeedback';
 import type { PriorArtifact } from '../plugins/plugin-clive/server/artifact';
+import { localExecutor } from './larper/localExecutor';
 
 const ROOT = process.cwd();
 const AVRIL = path.join(
@@ -70,29 +70,6 @@ interface Event {
   passed: boolean;
   oldFeedback: string;
 }
-
-/** A gcc on this machine standing in for Judge0, so the reference check can run here. */
-const localExecutor = {
-  async execute(request: {
-    files: { path: string; content: Buffer }[];
-    processes: { command: string; args: string[]; stdin?: Buffer }[];
-  }) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clive-replay-'));
-    for (const f of request.files) fs.writeFileSync(path.join(dir, f.path), f.content);
-    const processOutputs = [];
-    for (const p of request.processes) {
-      const r = spawnSync(p.command, p.args, { cwd: dir, input: p.stdin, timeout: 5000 });
-      processOutputs.push({
-        exitCode: r.status ?? undefined,
-        stdout: r.stdout ?? Buffer.from(''),
-        stderr: r.stderr ?? Buffer.from('')
-      });
-      if (r.status !== 0) break;
-    }
-    fs.rmSync(dir, { recursive: true, force: true });
-    return { processOutputs };
-  }
-} as unknown as CodeExecutor;
 
 function readJsonl(file: string): Record<string, unknown>[] {
   return fs
