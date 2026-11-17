@@ -1,5 +1,5 @@
 id: phase.case_design
-version: 15
+version: 16
 phase: case_design
 label: Cases
 order: 2
@@ -7,6 +7,7 @@ layout: steps
 judge: per_step
 created: 2026-08-20
 changelog: |
+  v16: Shorter wording, in the author's words (2026-11-17). The intro keeps only "Before you plan anything, solve the problem yourself." Each case's question is "Pick some values and solve the problem by hand." The hint is "Write the values you would give it, and work out by hand the output. Do not use values provided by the examples in the problem." It no longer says to write a function's arguments in order and separated by commas (case_is_concrete accepts any clear form), or to show how (the How I got it box asks for that, and Submit needs it filled). CaseDesignWindow.window.svelte shows the same lines, and its passed banner drops "It stays passed either way."
   v15: The judge's system prompt uses the shared rules plus this phase's own, with a new rule that YOUR CASE 1 is context only. user_template renders the student's Case 1 as YOUR CASE 1 when Case 2 (edge_cases) is judged, for worked_out_differently. criteria v11 (2026-11-17): worked_out_differently added (optional, Case 2 only); output_format_matches_statement dropped.
   v14: The hint says how to write a function's arguments (in order, separated by commas) and to use values of one's own rather than the problem's examples, which the judge refuses as not designed. criteria v10: "print or return" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
   criteria v9 (2026-10-25): a correct expected output with wrong reasoning passes outputs_are_correct; misquoting a rule is a work_is_shown matter (jm_uy, prototype). A function problem's case input is its arguments.
@@ -31,7 +32,7 @@ model:
   response_format: json_schema
   schema: base/output_schema.json
 task_description: |
-  Before you plan anything, solve the problem yourself. If you can't work out an example by hand, you can't tell a computer how to.
+  Before you plan anything, solve the problem yourself.
 example_problem: |
   Read the length and width of a rectangle, each a whole number of centimeters from 1 to
   100. Print the area.
@@ -39,8 +40,8 @@ artifact_fields:
 - id: normal_cases
   label: Case 1
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
-  hint: Write the values you would give it (for a function, its arguments in order, separated by commas), then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.
+  prompt: Pick some values and solve the problem by hand.
+  hint: Write the values you would give it, and work out by hand the output. Do not use values provided by the examples in the problem.
   example:
   - input: 4 6
     output: '24'
@@ -48,8 +49,8 @@ artifact_fields:
 - id: edge_cases
   label: Case 2
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
-  hint: Write the values you would give it (for a function, its arguments in order, separated by commas), then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.
+  prompt: Pick some values and solve the problem by hand.
+  hint: Write the values you would give it, and work out by hand the output. Do not use values provided by the examples in the problem.
   example:
   - input: 1 1
     output: '1'
@@ -58,8 +59,8 @@ artifact_fields:
   label: Case 3
   added: true
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
-  hint: Write the values you would give it (for a function, its arguments in order, separated by commas), then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.
+  prompt: Pick some values and solve the problem by hand.
+  hint: Write the values you would give it, and work out by hand the output. Do not use values provided by the examples in the problem.
   example:
   - input: 1 1
     output: '1'
@@ -68,8 +69,8 @@ artifact_fields:
   label: Case 4
   added: true
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
-  hint: Write the values you would give it (for a function, its arguments in order, separated by commas), then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.
+  prompt: Pick some values and solve the problem by hand.
+  hint: Write the values you would give it, and work out by hand the output. Do not use values provided by the examples in the problem.
   example:
   - input: 1 1
     output: '1'
@@ -78,8 +79,8 @@ artifact_fields:
   label: Case 5
   added: true
   kind: cases
-  prompt: Pick some values and solve the problem by hand, the way your program will have to. What values would you give it (typed in, or passed to the function), what should come out, and how did you get there?
-  hint: Write the values you would give it (for a function, its arguments in order, separated by commas), then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.
+  prompt: Pick some values and solve the problem by hand.
+  hint: Write the values you would give it, and work out by hand the output. Do not use values provided by the examples in the problem.
   example:
   - input: 1 1
     output: '1'

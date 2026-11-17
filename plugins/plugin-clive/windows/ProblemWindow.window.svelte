@@ -70,7 +70,8 @@
       'Give the C type of the value it returns (int, float, double or char), and say what the value means. If it prints instead, say exactly what that looks like.',
     outputsExample: 'It returns the area as an int, for example, 24.'
   };
-  const SUMMARY_HINT = "One or two sentences is enough, as if explaining to a classmate who hasn't read the problem.";
+  const SUMMARY_HINT =
+    'One or two sentences suffice. Write simply and generally as if you are explaining to someone else.';
 
   let session = $derived(cliveSessionFor(context));
   let copy = $derived(isFunctionProblem(context.problem.extension_data) ? FUNCTION_COPY : PROGRAM_COPY);
@@ -289,13 +290,13 @@
 
       {#if phaseState.passed}
         <Alert class="bg-base-200 text-sm text-base-content/70">
-          <span>You can keep improving this and submit again. It stays passed either way.</span>
+          <span>You can keep improving this and submit again.</span>
         </Alert>
       {/if}
 
       <p class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed text-base-content/70">
-        Every solution starts with understanding the problem. Before you think about code, make sure you know exactly
-        what it asks.
+        Every solution starts with understanding the problem. Before we code, let us first make sure we understand the
+        problem at a high level.
       </p>
 
       <div class="flex flex-col gap-5">

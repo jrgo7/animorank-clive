@@ -9,8 +9,9 @@
  * `truncate` Jinja uses on a long printed output.
  *
  * Except: the 2026-11-17 criteria review regenerated `phase_user`, `phase_user_empty`,
- * `phase_system` and `nudge_user` from this renderer, so those entries match the
- * prototype only once clive-userflow carries the same content.
+ * `phase_system` and `nudge_user` from this renderer, and the same day's shorter
+ * phase wording regenerated `nudge_user` and the three `stuck_user*` entries, so those
+ * entries match the prototype only once clive-userflow carries the same content.
  */
 import { describe, expect, it } from 'vitest';
 import { failingGates } from '../criteria';

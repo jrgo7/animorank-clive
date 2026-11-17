@@ -6,13 +6,15 @@ import type { PageServerLoad } from './$types';
 import type { SortOrder, SortType } from '$lib/problemSet/problemSetService';
 import { groupBy } from '$lib/utils/groupBy';
 import { parseFilters, parseSort } from '../../problemSets/filterUtils';
+import { DEV_ACCESS_BYPASS } from '$lib/devAccessBypass';
 
 const pageSize = 12;
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   const session = await locals.auth();
   if (!session?.user.id) return redirect(302, '/');
-  if (session.user?.type !== 'teacher') return redirect(302, '/');
+  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: students may open the instructor catalogue too.
+  if (session.user?.type !== 'teacher' && !DEV_ACCESS_BYPASS) return redirect(302, '/');
 
   const rp = ServerRegistryProvider.instance();
   const problemSetService = await rp.getService(ProblemSetService);

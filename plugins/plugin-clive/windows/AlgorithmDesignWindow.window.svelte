@@ -42,11 +42,9 @@
   /** The phase after this one, for the "Phase passed" line and the way on. */
   const nextPhase = PHASES[3];
 
-  const QUESTION =
-    'Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.';
+  const QUESTION = 'Look back at how you worked out your cases. What did you do, step by step?';
   const HINT =
-    'Place one action per step, and say how to do it, not only what you get: plain arithmetic such as "divide by 10" is fine. ' +
-    'If you do the same thing to several values, write it once and say which values. ' +
+    'Place one action per step, such as plain arithmetic like "divide by 10". ' +
     'You may use indentation to express conditional or repeating statements.';
 
   /**
@@ -68,7 +66,7 @@
   const FUNCTION_COPY = {
     exampleProblem:
       'Write a function int getSum(int n) that returns the sum 1 + 2 + ... + n, where n is a whole number, 1 or more.',
-    hint: HINT + " Start from the function's parameters, and end with what it returns.",
+    hint: HINT + " Start from the function's parameters, and end with the return value.",
     exampleText: outlineText([
       { text: 'Take n.', level: 0 },
       { text: 'Set the total to 0 and the counter to 1.', level: 0 },
@@ -364,12 +362,13 @@
 
       {#if phaseState.passed}
         <Alert class="bg-base-200 text-sm text-base-content/70">
-          <span>You can keep improving this and submit again. It stays passed either way.</span>
+          <span>You can keep improving this and submit again.</span>
         </Alert>
       {/if}
 
       <p class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed text-base-content/70">
-        Now turn what you did by hand into steps. Plan in plain English first; the C comes after.
+        Let us think about a more general solution. Write the plan in plain English, after which should we implement in
+        code.
       </p>
 
       <div class="flex flex-col gap-1.5">

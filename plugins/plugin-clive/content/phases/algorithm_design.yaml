@@ -1,11 +1,13 @@
 id: phase.algorithm_design
-version: 13
+version: 14
 phase: algorithm_design
 label: Design
 order: 3
 layout: steps
 created: 2026-08-20
 changelog: >
+  v14: Shorter wording, in the author's words (2026-11-17). The intro is "Let us think about a more general solution. Write the plan in plain English, after which should we implement in code." The question drops "Write it so anyone could follow it." The hint drops "say how to do it, not only what you get" and "write it once and say which values", gives "plain arithmetic like 'divide by 10'" as an example of one action, and ends a function plan with "the return value". AlgorithmDesignWindow.window.svelte shows the same lines. traceable_on_own_case still gates a plan that only restates the problem.
+
   v13: The judge's system prompt uses the shared rules plus this phase's own; the plan is described as plain words or pseudocode; the rule that a value no earlier step produced is a gap "however obvious the fix" is dropped so it does not override the lenient traceable_on_own_case. criteria v9 (2026-11-17): inputs_are_consumed dropped; traceable_on_own_case reads the plan leniently until prototype testing.
 
   v12: The hint asks for how, not only what ("divide by 10" is plain arithmetic, not C), lets a step done to several values be written once, and says a function plan starts from its parameters and ends with what it returns -- the example still reads and prints. criteria v8: inputs_are_consumed reads for parameters; repeating earlier steps on named values is traceable; a value set once needs no starting value (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
@@ -84,15 +86,15 @@ model:
   schema: base/output_schema.json
 
 task_description: |
-  Now turn what you did by hand into steps. Plan in plain English first; the C comes after.
+  Let us think about a more general solution. Write the plan in plain English, after which should we implement in code.
 example_problem: |
   Read a whole number n, which is 1 or more. Print the sum 1 + 2 + ... + n.
 artifact_fields:
   - id: steps
     label: Algorithm steps
     kind: steps
-    prompt: Look back at how you worked out your cases. What did you do, step by step? Write it so anyone could follow it.
-    hint: 'Place one action per step, and say how to do it, not only what you get: plain arithmetic such as "divide by 10" is fine. If you do the same thing to several values, write it once and say which values. You may use indentation to express conditional or repeating statements. For a function, start from its parameters and end with what it returns.'
+    prompt: Look back at how you worked out your cases. What did you do, step by step?
+    hint: 'Place one action per step, such as plain arithmetic like "divide by 10". You may use indentation to express conditional or repeating statements. For a function, start from its parameters and end with the return value.'
     example:
       - {text: Read n., level: 0}
       - {text: Set the total to 0 and the counter to 1., level: 0}

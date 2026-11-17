@@ -1,0 +1,944 @@
+-- "The Red Wildlings' Secret Code" (problem 9d5145fa-ca83-4467-816f-a96ba445a33a), exported 2026-11-04
+-- from the local database, with its 12 test cases, its set "Beta Test - CLive Problems" and its difficulty tag.
+-- The same data is in red-wildlings-problem-2026-11-04.json.
+--
+-- Loads it into another copy of the database. Safe to run more than once:
+--   - the difficulty tag is matched by label and added only if missing;
+--   - the problem set is added only if missing, owned by the exported owners whose accounts are teachers there;
+--   - the problem and its test cases are made to match this export: test cases not in it are deleted.
+-- Practice sessions and submissions on the problem are left alone.
+-- Needs the migrations through 20260929000000_repair_empty_practice_session_state.
+-- Run from the repo root, with DATABASE_URL set from .env:
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/clive/red-wildlings-problem-2026-11-04.sql
+\set ON_ERROR_STOP on
+set client_encoding = 'UTF8';
+begin;
+set local time zone 'UTC';
+
+create temp table rw_export on commit drop as
+select $rw_export$
+{
+    "format": "animorank-problem-export/1",
+    "problem": {
+        "id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+        "name": "The Red Wildlings' Secret Code",
+        "visible": true,
+        "language": "C",
+        "created_at": "2026-10-23T00:06:18.219+00:00",
+        "subject_id": null,
+        "updated_at": "2026-10-26T04:20:07.808925+00:00",
+        "uses_slots": true,
+        "description": "## Problem Description\n\nAlice is nominated as the leader for the week for the Red Wildlings club. This week, they will have their 5th Annual Red Wildlings convention! Entry to the convention is exclusive, and anyone wanting to attend must know the secret code.\n\nThe process is simple. Alice will say a three-digit number, and the guest has to respond with a nine-digit integer. Alice then determines whether the nine-digit number follows the protocol known to every Red Wildling initiate.\n\nThe guest's nine-digit response is partitioned into three sections:\n\n- The leftmost three digits are **section 1**.\n\n- The middle three digits are **section 2**.\n\n- The rightmost three digits are **section 3**.\n\nEach digit of Alice's three-digit number corresponds to one section:\n\n- The digit in the hundreds place corresponds to section 1.\n\n- The digit in the tens place corresponds to section 2.\n\n- The digit in the ones place corresponds to section 3.\n\nA section is considered **checked** if the sum of its digits equals its corresponding digit in Alice's number. A section only counts when it is compared with its own corresponding digit. For example, if the digit sum of section 2 equals the hundreds digit of Alice's number, that does not count as a check.\n\nThe guest's response is accepted, and the guest is allowed into the party, only if **exactly two** sections are checked. Alice wants you to **write a C function that checks one guest: it accepts Alice's number and that guest's response as `int`s, and returns `1` if the guest is to be let in and `0` otherwise.**\n\n## Function Specification\n\n```c\nint checkSecretCode(int nAlice, int nGuest);\n```\n\n\n|Parameter|Description|\n|:---|:---|\n|`nAlice`|Alice's three-digit number (`000`–`999`).|\n|`nGuest`|The guest's nine-digit response (`000000000`–`999999999`).|\n\n**Returns:** `1` if exactly two sections are checked, `0` otherwise.\n\n## Worked Example\n\nAlice says `612`, and the guest responds `123456002`.\n\n\n|Section|Digits|Digit sum|Alice's digit|Checked?|\n|:---|:---|:---|:---|:---|\n|1|`123`|6|6|Yes|\n|2|`456`|15|1|No|\n|3|`002`|2|2|Yes|\n\nExactly two sections are checked, so the function returns `1`.\n\n## Assumptions\n\n- `nAlice` is between `0` and `999`, and `nGuest` is between `0` and `999999999`.\n- Both inputs are valid, so the function does not check them.\n- Missing leading digits are read as `0`, so `6002003` is read as `006002003`.\n- The function only returns a value. It does not read input or print.",
+        "starter_code": "#include <stdio.h>\n\n%slot functions%\n// If you want to implement more functions to help\n// you solve this problem, feel free to do so here.\n\n%endslot functions%\n\nint checkSecretCode(int nAlice, int nGuest)\n{\n    // Implement the function here.\n%slot studentCode%\n\n    return 0; // Edit this.\n%endslot studentCode%\n}",
+        "difficulty_id": "18894961-f69c-4f4b-8bdf-fb6b7f25c112",
+        "extension_data": {
+            "clive": {
+                "reference_solution": "#include <stdio.h>\n \n/* Returns the sum of the digits of n, where 0 <= n <= 999. */\nint digitSum(int n)\n{\n    return n / 100 + n / 10 % 10 + n % 10;\n}\n/* Returns 1 if exactly two sections of nGuest are checked against nAlice, 0 otherwise. */\nint checkSecretCode(int nAlice, int nGuest)\n{\n    int nChecked = 0;\n \n    /* Alice's digits */\n    int nAlice1 = nAlice / 100;\n    int nAlice2 = nAlice / 10 % 10;\n    int nAlice3 = nAlice % 10;\n \n    /* Guest's sections */\n    int nSection1 = nGuest / 1000000;\n    int nSection2 = nGuest / 1000 % 1000;\n    int nSection3 = nGuest % 1000;\n \n    if (digitSum(nSection1) == nAlice1)\n        nChecked++;\n    if (digitSum(nSection2) == nAlice2)\n        nChecked++;\n    if (digitSum(nSection3) == nAlice3)\n        nChecked++;\n \n    return nChecked == 2;\n}"
+            },
+            "builtin_testCase_function": {
+                "functions": {
+                    "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68": {
+                        "name": "checkSecretCode",
+                        "parameters": [
+                            {
+                                "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                                "name": "nAlice",
+                                "type": {
+                                    "type": "int",
+                                    "options": {
+                                        "size": 32,
+                                        "signed": null
+                                    }
+                                }
+                            },
+                            {
+                                "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                                "name": "nGuest",
+                                "type": {
+                                    "type": "int",
+                                    "options": {
+                                        "size": 32,
+                                        "signed": null
+                                    }
+                                }
+                            }
+                        ],
+                        "returnType": [
+                            {
+                                "type": "int",
+                                "options": {
+                                    "size": 32,
+                                    "signed": null
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        "problem_set_id": "de6cac69-8e09-4a86-bea7-40337cc90ba7"
+    },
+    "test_cases": [
+        {
+            "id": "208b0a1d-fdfb-4145-8517-0f0880284daf",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "123"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "6002003"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "1"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:13:02.679+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.686+00:00"
+        },
+        {
+            "id": "a18bc145-d3cf-4eef-a30e-33143ee9ad02",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "123"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "100020003"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "0"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:13:18.644+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.687+00:00"
+        },
+        {
+            "id": "e55b8d25-f78e-461d-a22d-fef717d7d2d6",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "123"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "100999999"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "0"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:14:07.572+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.688+00:00"
+        },
+        {
+            "id": "6313a9da-5d0e-4ccf-ab30-af54da18fece",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "123"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "999999999"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "0"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": true,
+            "created_at": "2026-10-23T00:14:22.976+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.688+00:00"
+        },
+        {
+            "id": "2de9cf42-e93f-4208-bb7a-a95ebd04f111",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "123"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "200100300"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "0"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:14:33.711+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.689+00:00"
+        },
+        {
+            "id": "48ffac4a-6b8a-4ba8-9289-7ac8e0e923e4",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "123"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "100999111"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "1"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": true,
+            "created_at": "2026-10-23T00:14:50.998+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.69+00:00"
+        },
+        {
+            "id": "8f91b5ff-56b8-4065-b97c-2332f5fc14a3",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "123"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "10011999"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "1"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:15:04.444+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.691+00:00"
+        },
+        {
+            "id": "7e3a08a6-0410-44c6-84ee-99f86cd696c3",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "105"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "100000050"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "0"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:15:32.652+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.692+00:00"
+        },
+        {
+            "id": "60cb6ac3-300d-4c77-9209-2228346a763b",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "100"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "0"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "1"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:16:00.684+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.695+00:00"
+        },
+        {
+            "id": "1b1ceb18-a6b0-408c-9fd2-3a037cd93702",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "111"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "1010100"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "0"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": false,
+            "created_at": "2026-10-23T00:16:33.349+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.693+00:00"
+        },
+        {
+            "id": "e9d0ea15-28b9-4ec4-b423-37118343c592",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "999"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "9009999"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "1"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": true,
+            "created_at": "2026-10-23T00:16:49.552+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.694+00:00"
+        },
+        {
+            "id": "38c7754c-69ea-4987-a78d-4ac877007b45",
+            "data": {
+                "function": "0205d123-8b7b-4b9e-ab6b-a0c0d4bcac68",
+                "parameters": [
+                    {
+                        "id": "2e4c77eb-aa0f-45eb-a787-768527287e2d",
+                        "name": "nAlice",
+                        "value": {
+                            "data": {
+                                "value": "612"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    },
+                    {
+                        "id": "1a8643ac-19bd-40f1-af39-f531184e9155",
+                        "name": "nGuest",
+                        "value": {
+                            "data": {
+                                "value": "123456002"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        }
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "value": {
+                            "data": {
+                                "value": "1"
+                            },
+                            "type": "int",
+                            "options": {
+                                "size": 32,
+                                "signed": null
+                            }
+                        },
+                        "symbol": "return",
+                        "operator": {
+                            "type": "equal",
+                            "options": null
+                        }
+                    }
+                ]
+            },
+            "type": "function",
+            "public": true,
+            "created_at": "2026-10-23T00:17:03.582+00:00",
+            "problem_id": "9d5145fa-ca83-4467-816f-a96ba445a33a",
+            "updated_at": "2026-10-23T00:18:25.694+00:00"
+        }
+    ],
+    "topic_tags": [
+    ],
+    "exported_at": "2026-11-04T07:52:20Z",
+    "problem_set": {
+        "id": "de6cac69-8e09-4a86-bea7-40337cc90ba7",
+        "title": "Beta Test - CLive Problems",
+        "is_global": false,
+        "created_at": "2026-10-23T00:05:06.233+00:00",
+        "subject_id": null,
+        "updated_at": "2026-10-23T00:21:06.53+00:00",
+        "auto_accept": false,
+        "description": "Thank you for volunteering to test CLive! Try our early prototype on CCPROG1-style C problems, then share your feedback afterward. We’re testing the system, not you.",
+        "difficulty_id": "18894961-f69c-4f4b-8bdf-fb6b7f25c112",
+        "featured_rank": null
+    },
+    "last_migration": "20260929000000_repair_empty_practice_session_state",
+    "difficulty_tags": [
+        {
+            "id": "18894961-f69c-4f4b-8bdf-fb6b7f25c112",
+            "type": "difficulty",
+            "label": "Intermediate",
+            "order": 2
+        }
+    ],
+    "problem_set_owners": [
+        "justin_rainier_go@dlsu.edu.ph"
+    ]
+}
+$rw_export$::jsonb as doc;
+
+-- The difficulty tag, matched by label.
+insert into "Tag" (id, type, label, "order")
+select t.id, t.type, t.label, t."order"
+from rw_export, jsonb_populate_recordset(null::"Tag", doc->'difficulty_tags') t
+on conflict (label) do nothing;
+
+insert into "DifficultyTag" (id)
+select g.id
+from rw_export, jsonb_populate_recordset(null::"Tag", doc->'difficulty_tags') t
+join "Tag" g on g.label = t.label
+on conflict (id) do nothing;
+
+create temp table rw_difficulty on commit drop as
+select t.id as exported_id, g.id as local_id
+from rw_export, jsonb_populate_recordset(null::"Tag", doc->'difficulty_tags') t
+join "Tag" g on g.label = t.label;
+
+-- The problem set, only if missing.
+insert into "ProblemSet" (id, title, description, auto_accept, is_global, difficulty_id, subject_id,
+                          created_at, updated_at, featured_rank)
+select ps.id, ps.title, ps.description, ps.auto_accept, ps.is_global,
+       (select local_id from rw_difficulty where exported_id = ps.difficulty_id), ps.subject_id,
+       ps.created_at, ps.updated_at, ps.featured_rank
+from rw_export, jsonb_populate_record(null::"ProblemSet", doc->'problem_set') ps
+on conflict (id) do nothing;
+
+insert into "ProblemSetCollaborator" (collaborator_id, problem_set_id)
+select te.id, (doc->'problem_set'->>'id')::uuid
+from rw_export, jsonb_array_elements_text(doc->'problem_set_owners') o(email)
+join "User" u on lower(u.email) = lower(o.email)
+join "Teacher" te on te.id = u.id
+on conflict do nothing;
+
+-- The problem, made to match the export.
+insert into "Problem" (id, name, description, language, starter_code, visible, difficulty_id, subject_id,
+                       problem_set_id, created_at, updated_at, uses_slots, extension_data)
+select p.id, p.name, p.description, p.language, p.starter_code, p.visible,
+       (select local_id from rw_difficulty where exported_id = p.difficulty_id), p.subject_id,
+       p.problem_set_id, p.created_at, p.updated_at, p.uses_slots, p.extension_data
+from rw_export, jsonb_populate_record(null::"Problem", doc->'problem') p
+on conflict (id) do update set
+  name = excluded.name,
+  description = excluded.description,
+  language = excluded.language,
+  starter_code = excluded.starter_code,
+  visible = excluded.visible,
+  difficulty_id = excluded.difficulty_id,
+  subject_id = excluded.subject_id,
+  problem_set_id = excluded.problem_set_id,
+  created_at = excluded.created_at,
+  updated_at = excluded.updated_at,
+  uses_slots = excluded.uses_slots,
+  extension_data = excluded.extension_data;
+
+-- Its topic tags, matched by label (the export has none, so any are removed).
+delete from "ProblemTopic" pt
+using rw_export
+where pt.problem_id = (doc->'problem'->>'id')::uuid
+  and pt.tag_id not in (select g.id from "Tag" g where g.label in (select jsonb_array_elements_text(doc->'topic_tags')));
+
+insert into "ProblemTopic" (problem_id, tag_id)
+select (doc->'problem'->>'id')::uuid, g.id
+from rw_export, jsonb_array_elements_text(doc->'topic_tags') l(label)
+join "Tag" g on g.label = l.label
+join "TopicTag" tt on tt.id = g.id
+on conflict do nothing;
+
+-- Its test cases, made to match the export.
+delete from "ProblemTestCase" tc
+using rw_export
+where tc.problem_id = (doc->'problem'->>'id')::uuid
+  and tc.id not in (select (e->>'id')::uuid from jsonb_array_elements(doc->'test_cases') e);
+
+insert into "ProblemTestCase" (id, public, problem_id, created_at, updated_at, data, type)
+select tc.id, tc.public, tc.problem_id, tc.created_at, tc.updated_at, tc.data, tc.type
+from rw_export, jsonb_populate_recordset(null::"ProblemTestCase", doc->'test_cases') tc
+on conflict (id) do update set
+  public = excluded.public,
+  problem_id = excluded.problem_id,
+  created_at = excluded.created_at,
+  updated_at = excluded.updated_at,
+  data = excluded.data,
+  type = excluded.type;
+
+-- Stop, and change nothing, unless the problem and its test cases now match the export.
+do $check$
+declare
+  d jsonb := (select doc from rw_export);
+begin
+  if (select to_jsonb(p) - 'difficulty_id' from "Problem" p where p.id = (d->'problem'->>'id')::uuid)
+     is distinct from (d->'problem') - 'difficulty_id' then
+    raise exception 'the problem does not match the export';
+  end if;
+  if (select jsonb_agg(to_jsonb(tc) order by tc.created_at, tc.id) from "ProblemTestCase" tc
+      where tc.problem_id = (d->'problem'->>'id')::uuid)
+     is distinct from d->'test_cases' then
+    raise exception 'the test cases do not match the export';
+  end if;
+end
+$check$;
+
+-- Expect 12 test cases, 4 of them public, and at least 1 owner (0 means no exported owner has an account here).
+select p.name,
+       (select count(*) from "ProblemTestCase" where problem_id = p.id) as test_cases,
+       (select count(*) from "ProblemTestCase" where problem_id = p.id and public) as public_cases,
+       (select label from "Tag" where id = p.difficulty_id) as difficulty,
+       ps.title as problem_set,
+       (select count(*) from "ProblemSetCollaborator" where problem_set_id = ps.id) as owners
+from "Problem" p join "ProblemSet" ps on ps.id = p.problem_set_id
+where p.id = '9d5145fa-ca83-4467-816f-a96ba445a33a';
+
+commit;

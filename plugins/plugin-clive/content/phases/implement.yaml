@@ -23,13 +23,15 @@
 #              of the student's code, because that is the artifact being judged.
 
 id: phase.implement
-version: 12
+version: 13
 phase: implement
 label: Implement
 order: 4
 gate: tests
 created: 2026-09-07
 changelog: >
+  v13: Shorter intro, in the author's words (2026-11-17): "Refer to your design beside the code", "hidden test cases", and "Don't use AI tools like ChatGPT or external references." A function problem's intro no longer says to write the function and any helpers but not main, or to return only what the problem asks for. A program's intro still says to print only what the problem asks for, with no "Enter a number:", since extra prompts fail the tests. ImplementWindow.window.svelte shows the same lines.
+
   v12: The judge's system prompt uses the shared rules plus this phase's own (the program has already passed every test; do not report bugs). criteria v6 (2026-11-17): wording revised; every criterion stays advisory.
 
   v11: For a function problem the intro says to write the function and any helpers, not main, and "print or return"; the field hint no longer says "whole program" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
@@ -107,12 +109,10 @@ model:
   schema: base/output_schema.json
 
 task_description: |
-  Now translate your plan into C, one step at a time. Your design is beside your code. Press
-  Run to test it on the examples. Press Submit when
-  it works for a final check against test cases you haven't seen. Print or return only what the
-  problem asks for, with no extra messages like "Enter a number:". If the problem asks for a
-  function, write that function and any helpers it needs; you don't write main. Don't use AI
-  tools like ChatGPT.
+  Now translate your plan into C, one step at a time. Refer to your design beside the code.
+  Press Run to test it on the examples. Press Submit when it works for a final check against
+  hidden test cases. For a program, print only what the problem asks for, with no extra
+  messages like "Enter a number:". Don't use AI tools like ChatGPT or external references.
 
 artifact_fields:
   - id: code

@@ -2,6 +2,7 @@ import { SvelteKitAuth, type DefaultSession } from '@auth/sveltekit';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import Google from '@auth/sveltekit/providers/google';
 import { db } from './zenstack';
+import { DEV_ACCESS_BYPASS } from './devAccessBypass';
 
 declare module '@auth/sveltekit' {
   interface Session {
@@ -64,6 +65,8 @@ export const { handle } = SvelteKitAuth({
      */
     async signIn({ user }) {
       if (!user.email || !user.id) return false;
+      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: admits any Google account.
+      if (DEV_ACCESS_BYPASS) return true;
       const teacher = await db.teacherList.findUnique({ where: { email: user.email } });
 
       if (!teacher && !user.email.endsWith('@dlsu.edu.ph')) return false;
