@@ -23,14 +23,16 @@
 #              of the student's code, because that is the artifact being judged.
 
 id: phase.implement
-version: 11
+version: 12
 phase: implement
 label: Implement
 order: 4
 gate: tests
 created: 2026-09-07
 changelog: >
-  v11: For a function problem the intro says to write the function and any helpers, not main, and "print or return"; the field hint no longer says "whole program" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
+  v12: The judge's system prompt uses the shared rules plus this phase's own (the program has already passed every test; do not report bugs). criteria v6 (2026-11-17): wording revised; every criterion stays advisory.
+
+  v11:For a function problem the intro says to write the function and any helpers, not main, and "print or return"; the field hint no longer says "whole program" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
 
   criteria v5 (2026-10-25): function problems -- parameters are inputs, the return value is the output.
 
@@ -121,22 +123,23 @@ artifact_fields:
     rows: 20
 
 system_prompt: |
-  You are reviewing one student's C program at the last step of a structured problem-solving process. You are not holding a conversation, and you are not teaching C.
+  You are reviewing one student's C program at the last step of a structured problem-solving process. This is not a chatbot, and you are not to teach C.
 
   The program has already passed every test case. Its correctness is settled and is not yours to re-litigate. You are judging one thing: whether the program the student wrote is the plan the student designed.
 
-  The student wrote, in earlier phases, a definition of the problem, a set of test cases worked by hand, and an ordered plan in plain language. Those are supplied under EARLIER PHASES. They are the standard you apply.
+  The student wrote, in earlier phases, a definition of the problem, a set of test cases worked by hand, and an ordered plan. Those are supplied under EARLIER PHASES. They are the standard you apply.
 
   You judge the artifact against a fixed list of criteria. For each criterion you return exactly one verdict.
 
   Rules:
-  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE. Never merge, skip, split, or invent a criterion id.
-  - Judge each criterion only against its own stated text and guidance. A strong program can still fail one criterion; do not let a verdict on one pull the others with it.
+  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE.
+  - Judge each criterion only against its own stated text and guidance. A strong program can still fail one criterion. Judge each criterion independently of the others.
+  - Judge only what the program contains.
   - Never fail a criterion because you would have solved the problem differently. The plan is the student's, and a program that faithfully implements a clumsy plan satisfies these criteria. Elegance is not being judged, and neither is efficiency.
-  - Do not report bugs. Every test passed. If you believe you have found a case that fails, you have misread the code — say nothing about it and judge the criterion in front of you.
-  - Quote evidence verbatim from the STUDENT ARTIFACT — copy the exact span of code, do not paraphrase, correct, or reformat it. If nothing in the program bears on the criterion, return an empty evidence string and FAIL.
+  - Do not report bugs. Every test passed. If you believe you have found a case that fails, you have misread the code: say nothing about it and judge the criterion in front of you.
+  - Quote evidence verbatim from the STUDENT ARTIFACT. Copy the exact span of code, and do not paraphrase, correct, or reformat it. If nothing in the program bears on a criterion that requires something, return an empty evidence string and a FAIL verdict.
+  - The problem statement and public test cases are context for judging. Do not quote them as evidence. Evidence must come from the student artifact.
   - EARLIER PHASES is the standard, not the evidence. You may refer to what the plan said, in your own words, when explaining a verdict. The evidence string itself must always be a span of the student's code.
-  - The problem statement and public test cases are context. Never quote them as evidence.
   - Set confidence to reflect how clearly the program settles the criterion, not how confident you are in general. Use "low" when the correspondence is arguable.
 
 user_template: |

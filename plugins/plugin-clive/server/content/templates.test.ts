@@ -7,10 +7,14 @@
  * filter rules shows up here as a diff against what the prototype actually sent a
  * model — including the public test results the stuck ask is grounded in, and the
  * `truncate` Jinja uses on a long printed output.
+ *
+ * Except: the 2026-11-17 criteria review regenerated `phase_user`, `phase_user_empty`,
+ * `phase_system` and `nudge_user` from this renderer, so those entries match the
+ * prototype only once clive-userflow carries the same content.
  */
 import { describe, expect, it } from 'vitest';
 import { failingGates } from '../criteria';
-import { cut, isPerStep } from '../steps';
+import { compareCase, cut, isPerStep } from '../steps';
 import { phaseDoc, rubricDoc } from './load';
 import {
   renderNudgePrompt,
@@ -71,7 +75,7 @@ const VERDICTS = [
   { criterion_id: 'work_is_shown', verdict: 'FAIL' as const, evidence: '4 * 6 = 24.', confidence: 'high' as const },
   { criterion_id: 'outputs_are_correct', verdict: 'FAIL' as const, evidence: '', confidence: 'low' as const },
   {
-    criterion_id: 'output_format_matches_statement',
+    criterion_id: 'worked_out_differently',
     verdict: 'PASS' as const,
     evidence: '24',
     confidence: 'high' as const
@@ -233,5 +237,57 @@ describe('prompt parity with the Jinja2 originals', () => {
     });
     // `JSON.stringify` would keep the á; `json.dumps(ensure_ascii=True)` escapes it.
     expect(rendered).toContain('- input: "salamat, Ju\\u00e1n" output: "salamat, Ju\\u00e1n"');
+  });
+});
+
+describe('YOUR CASE 1, beside Case 2', () => {
+  const CASE_2 = { input: '1 1', output: '1', working: '1 * 1 = 1.' };
+  /** The heading itself: `worked_out_differently`'s guidance also names it, in quotes. */
+  const HEADING = /^YOUR CASE 1$/m;
+
+  /** One Cases step's prompt, rendered as the submit route renders it. */
+  function casePrompt(artifact: Record<string, unknown>, step: string): string {
+    const scoped = cut(phaseDoc('case_design'), artifact, rubricDoc('case_design').criteria, step);
+    return renderPhasePrompt(scoped.phase, {
+      problem: PROBLEM,
+      artifact: scoped.artifact,
+      criteria: scoped.criteria,
+      attempt: 1,
+      priorArtifacts: PRIOR,
+      compareCase: compareCase(artifact, step)
+    });
+  }
+
+  it('shows a Case 2 prompt the student’s Case 1, after EARLIER PHASES and before STUDENT ARTIFACT', () => {
+    const prompt = casePrompt({ normal_cases: [ROW], edge_cases: [CASE_2] }, 'edge_cases');
+    expect(prompt).toContain(
+      [
+        'YOUR CASE 1',
+        "The student's own Case 1, shown so this case can be compared with it. Never quote it as evidence.",
+        '- Input: 4 6',
+        '- Expected output: 24',
+        '- How I got it: 4 * 6 = 24.',
+        '',
+        'STUDENT ARTIFACT'
+      ].join('\n')
+    );
+    expect(prompt.indexOf('EARLIER PHASES')).toBeLessThan(prompt.search(HEADING));
+    // Case 2 is still the only case judged.
+    const judged = prompt.slice(prompt.indexOf('STUDENT ARTIFACT'));
+    expect(judged).toContain('Input: 1 1');
+    expect(judged).not.toContain('Input: 4 6');
+    expect(judged).toContain('[worked_out_differently]');
+  });
+
+  it('shows a Case 1 prompt no YOUR CASE 1', () => {
+    expect(casePrompt({ normal_cases: [ROW], edge_cases: [CASE_2] }, 'normal_cases')).not.toMatch(HEADING);
+  });
+
+  it('shows a Case 2 prompt no YOUR CASE 1 when there is no Case 1 to show', () => {
+    for (const normal_cases of [undefined, [], [{ input: '', output: '', working: '' }], ' ']) {
+      expect(casePrompt({ normal_cases, edge_cases: [CASE_2] }, 'edge_cases'), String(normal_cases)).not.toMatch(
+        HEADING
+      );
+    }
   });
 });

@@ -1,12 +1,14 @@
 id: phase.algorithm_design
-version: 12
+version: 13
 phase: algorithm_design
 label: Design
 order: 3
 layout: steps
 created: 2026-08-20
 changelog: >
-  v12: The hint asks for how, not only what ("divide by 10" is plain arithmetic, not C), lets a step done to several values be written once, and says a function plan starts from its parameters and ends with what it returns -- the example still reads and prints. criteria v8: inputs_are_consumed reads for parameters; repeating earlier steps on named values is traceable; a value set once needs no starting value (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
+  v13: The judge's system prompt uses the shared rules plus this phase's own; the plan is described as plain words or pseudocode; the rule that a value no earlier step produced is a gap "however obvious the fix" is dropped so it does not override the lenient traceable_on_own_case. criteria v9 (2026-11-17): inputs_are_consumed dropped; traceable_on_own_case reads the plan leniently until prototype testing.
+
+  v12:The hint asks for how, not only what ("divide by 10" is plain arithmetic, not C), lets a step done to several values be written once, and says a function plan starts from its parameters and ends with what it returns -- the example still reads and prints. criteria v8: inputs_are_consumed reads for parameters; repeating earlier steps on named values is traceable; a value set once needs no starting value (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
 
   criteria v7 (2026-10-25): new gating traceable_on_own_case -- the plan must be traceable by hand on the student's own case. Avril's plan restated the problem ('each section must sum and match'), passed, and left her unable to code it. Function problems: parameters are inputs, the return value is the output.
 
@@ -100,22 +102,23 @@ artifact_fields:
       - {text: Print the total., level: 0}
 
 system_prompt: |
-  You are evaluating one student artifact from one phase of a structured problem-solving process. You are not holding a conversation, and you are not teaching C.
+  You are evaluating one student artifact from one phase of a structured problem-solving process. This is not a chatbot, and you are not to teach C.
 
-  In this phase the student is writing an algorithm as a plan in plain language, before writing any code, as a numbered outline: a nested step belongs to the step above it, such as the body of a repeat or the branch of a condition. You are judging whether the plan is followable, not whether it is the best plan.
+  In this phase the student is writing an algorithm as a plan in plain words or pseudocode, before writing any code, as a numbered outline: a nested step belongs to the step above it, such as the body of a repeat or the branch of a condition. You are judging whether the plan is followable, not whether it is the best plan.
 
   You judge the artifact against a fixed list of criteria. For each criterion you return exactly one verdict.
 
   Rules:
-  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE. Never merge, skip, split, or invent a criterion id.
-  - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion; do not let a verdict on one criterion pull the others with it.
-  - Judge only what the artifact actually says. Do not credit the student for something a competent reader would infer but the artifact does not state.
-  - Inefficiency is not a failure. A design that is correct but clumsy — an extra pass, a redundant variable, a needless sort — passes every criterion it otherwise satisfies. Judge only what the criteria ask.
-  - Read the steps in the order given and check they can actually be executed in that order. A step that uses a value no earlier step produced is a gap, however obvious the fix.
-  - Quote evidence verbatim from the student artifact — copy the exact span, do not paraphrase, correct, or reformat it. If nothing in the artifact bears on the criterion, return an empty evidence string and FAIL.
-  - The problem statement and public test cases are context for judging. Never quote them as evidence; evidence must come from the student artifact.
-  - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases, which makes it tempting to quote -- do not. Evidence must come from the STUDENT ARTIFACT section, and a criterion is failed if only the earlier work satisfies it.
-  - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous or the criterion is a borderline call.
+  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE.
+  - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion. Judge each criterion independently of the others.
+  - Judge only what the artifact contains.
+  - Inefficiency is not a failure. A design that is correct but clumsy (an extra pass, a redundant variable, a needless sort) passes every criterion it otherwise satisfies. Judge only what the criteria ask.
+  - Read the steps in the order given and check they can actually be executed in that order.
+  - Quote evidence verbatim from the student artifact. Copy the exact span, and do not paraphrase, correct, or reformat it. If nothing in the artifact bears on a criterion that requires something, return an empty evidence string and a FAIL verdict.
+  - The problem statement and public test cases are context for judging. Do not quote them as evidence. Evidence must come from the student artifact.
+  - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases. Evidence must come from the STUDENT ARTIFACT section.
+  - A criterion fails if only the earlier work satisfies it.
+  - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous.
 
 user_template: |
   PROBLEM STATEMENT

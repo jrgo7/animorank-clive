@@ -94,8 +94,13 @@ const NEXT_SESSION = '223e4567-e89b-42d3-a456-426614174000';
 const CASE_VERDICTS = [
   { criterion_id: 'case_is_concrete', verdict: 'PASS', evidence: '4 6', confidence: 'high' },
   { criterion_id: 'work_is_shown', verdict: 'PASS', evidence: '4 * 6 = 24.', confidence: 'high' },
-  { criterion_id: 'outputs_are_correct', verdict: 'PASS', evidence: '', confidence: 'high' },
-  { criterion_id: 'output_format_matches_statement', verdict: 'PASS', evidence: '', confidence: 'high' }
+  { criterion_id: 'outputs_are_correct', verdict: 'PASS', evidence: '', confidence: 'high' }
+];
+
+/** Case 2 is judged on one more point than Case 1: whether it works out differently. */
+const CASE_2_VERDICTS = [
+  ...CASE_VERDICTS,
+  { criterion_id: 'worked_out_differently', verdict: 'PASS', evidence: '', confidence: 'high' }
 ];
 
 const IMPLEMENT_VERDICTS = [
@@ -106,12 +111,11 @@ const IMPLEMENT_VERDICTS = [
 ];
 
 const PROBLEM_VERDICTS = [
+  { criterion_id: 'summary_is_correct', verdict: 'PASS', evidence: '', confidence: 'high' },
   { criterion_id: 'novel_wording', verdict: 'PASS', evidence: '', confidence: 'high' },
   { criterion_id: 'input_types', verdict: 'PASS', evidence: '', confidence: 'high' },
   { criterion_id: 'output_types', verdict: 'PASS', evidence: '', confidence: 'high' },
-  { criterion_id: 'constraints_noted', verdict: 'FAIL', evidence: '', confidence: 'high' },
-  { criterion_id: 'input_order_stated', verdict: 'PASS', evidence: '', confidence: 'high' },
-  { criterion_id: 'output_form_exact', verdict: 'PASS', evidence: '', confidence: 'high' }
+  { criterion_id: 'constraints_noted', verdict: 'FAIL', evidence: '', confidence: 'high' }
 ];
 
 const NUDGE = {
@@ -268,11 +272,37 @@ describe('CLive plugin routes', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.passed).toBe(true);
-    expect(body.verdicts).toHaveLength(4);
+    expect(body.verdicts).toHaveLength(3);
     expect(body.nudge).toBeUndefined();
     expect(body.verdicts.map((v: { criterion_id: string }) => v.criterion_id)).toContain('outputs_are_correct');
     // Each verdict carries the line the student reads for that requirement.
     expect(body.verdicts.every((v: { not_met: string }) => v.not_met.length > 0)).toBe(true);
+    // Case 1 has nothing to be compared with.
+    expect(state.users[0]).not.toMatch(/^YOUR CASE 1$/m);
+  });
+
+  it('shows the judge the student’s Case 1 when Case 2 is submitted', async () => {
+    state.queue = [{ verdicts: CASE_2_VERDICTS }];
+    const response = await post(
+      '/submit',
+      casesBody({
+        step: 'edge_cases',
+        artifact: {
+          normal_cases: [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }],
+          edge_cases: [{ input: '1 1', output: '1', working: '1 * 1 = 1.' }]
+        }
+      })
+    );
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.verdicts.map((v: { criterion_id: string }) => v.criterion_id)).toContain('worked_out_differently');
+    expect(state.users[0]).toMatch(/^YOUR CASE 1$/m);
+    expect(state.users[0]).toContain('- Input: 4 6\n- Expected output: 24\n- How I got it: 4 * 6 = 24.');
+    // The case judged is still Case 2 alone.
+    const judged = state.users[0].slice(state.users[0].indexOf('STUDENT ARTIFACT'));
+    expect(judged).toContain('Input: 1 1');
+    expect(judged).not.toContain('Input: 4 6');
   });
 
   it('answers a blocking failure with a nudge in the same call', async () => {

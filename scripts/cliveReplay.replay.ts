@@ -30,7 +30,7 @@ import type { ProblemForPrompt } from '../plugins/plugin-clive/server/content/te
 import { judgeWithChecks } from '../plugins/plugin-clive/server/referenceCheck';
 import { nudge } from '../plugins/plugin-clive/server/nudge';
 import { codeNudge, type CodeRun } from '../plugins/plugin-clive/server/codeNudge';
-import { cut, isPerStep } from '../plugins/plugin-clive/server/steps';
+import { compareCase, cut, isPerStep } from '../plugins/plugin-clive/server/steps';
 import { loadCLiveProblem } from '../plugins/plugin-clive/server/problem';
 import { toCodeRun } from '../plugins/plugin-clive/windows/codeFeedback';
 import type { PriorArtifact } from '../plugins/plugin-clive/server/artifact';
@@ -349,7 +349,9 @@ it('replays past submissions through the current prompts', async () => {
               e.attempt,
               prior,
               undefined,
-              localExecutor
+              localExecutor,
+              // As the submit route does: Case 2 is judged beside the student's Case 1.
+              compareCase(e.artifact as Record<string, unknown>, step)
             );
             const failing = judged.verdicts
               .filter((v) => v.verdict === 'FAIL')

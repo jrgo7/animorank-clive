@@ -172,10 +172,12 @@ describe('feedback one thing at a time', () => {
       passed: true,
       verdicts: [
         verdict('constraints_noted', ['inputs'], { verdict: 'PASS' }),
-        verdict('input_order_stated', ['inputs'], { gate: 'advisory' })
+        // Problem has no optional point since criteria v10; Design's stands in for one. The
+        // page reads a point's question and gate from the verdict, not its id.
+        verdict('values_are_tracked', ['inputs'], { gate: 'advisory' })
       ],
       missing_ids: [],
-      advisory_unmet: ['input_order_stated']
+      advisory_unmet: ['values_are_tracked']
     });
     const { session, app } = mountProblem('feedback-look');
 
@@ -186,7 +188,7 @@ describe('feedback one thing at a time', () => {
 
     const text = document.body.textContent ?? '';
     expect(text).toContain('Worth a look');
-    expect(text).toContain('You should fix input_order_stated.');
+    expect(text).toContain('You should fix values_are_tracked.');
     expect(text).toContain('Optional. You can move on without these.');
     unmount(app);
   });

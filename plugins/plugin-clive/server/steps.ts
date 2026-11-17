@@ -5,7 +5,7 @@
  * narrows the phase, the artifact and the criteria to that one step, so
  * submitting Case 1 judges Case 1 alone.
  */
-import type { ArtifactValue } from './artifact';
+import { caseRows, type ArtifactValue, type CaseRow } from './artifact';
 import { JudgeError } from './content/errors';
 import type { CriterionDoc, PhaseDoc } from './content/load';
 
@@ -36,4 +36,22 @@ export function cut(
     artifact: { [step]: (artifact ?? {})[step] as ArtifactValue },
     criteria: criteria.filter((c) => (c.fields ?? []).includes(step)).map((c) => ({ ...c, fields: [step] }))
   };
+}
+
+/**
+ * The student's Case 1, for the judge to read beside Case 2: `worked_out_differently`
+ * compares the two, and {@link cut} keeps only the case being submitted, so this is
+ * taken from the whole artifact before it runs. The first row of `normal_cases`, for
+ * the `edge_cases` step only; `undefined` for any other step, or when Case 1 is
+ * missing or empty, so the prompt renders as it did without it.
+ */
+export function compareCase(
+  artifact: Record<string, unknown> | null | undefined,
+  step: string | null | undefined
+): CaseRow | undefined {
+  if (step !== 'edge_cases') return undefined;
+  const row = caseRows((artifact ?? {}).normal_cases)?.[0];
+  if (!row) return undefined;
+  const trimmed = { input: row.input.trim(), output: row.output.trim(), working: row.working.trim() };
+  return trimmed.input || trimmed.output || trimmed.working ? trimmed : undefined;
 }

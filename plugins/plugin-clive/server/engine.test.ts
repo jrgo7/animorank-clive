@@ -121,7 +121,7 @@ describe('nudge', () => {
     { criterion_id: 'work_is_shown', verdict: 'FAIL' as const, evidence: '4 * 6', confidence: 'high' as const },
     { criterion_id: 'outputs_are_correct', verdict: 'FAIL' as const, evidence: '', confidence: 'low' as const },
     {
-      criterion_id: 'output_format_matches_statement',
+      criterion_id: 'worked_out_differently',
       verdict: 'FAIL' as const,
       evidence: '24',
       confidence: 'high' as const
@@ -140,7 +140,7 @@ describe('nudge', () => {
   it('rejects a focus_id that is not among the failing gating criteria', async () => {
     const provider = fakeProvider({
       summary: 's',
-      focus_id: 'output_format_matches_statement',
+      focus_id: 'worked_out_differently',
       reason: 'r',
       nudge: 'n'
     });
@@ -429,7 +429,7 @@ describe('reference check', () => {
       verdicts: [
         { criterion_id: 'case_is_concrete', verdict: 'FAIL', evidence: '', confidence: 'low' },
         { criterion_id: 'work_is_shown', verdict: 'PASS', evidence: '', confidence: 'high' },
-        { criterion_id: 'output_format_matches_statement', verdict: 'PASS', evidence: '', confidence: 'high' }
+        { criterion_id: 'worked_out_differently', verdict: 'PASS', evidence: '', confidence: 'high' }
       ]
     });
     const result = await judgeWithChecks(phase, PROBLEM, CASES_ARTIFACT, criteria, 1, [], provider, undefined);
@@ -448,7 +448,7 @@ describe('reference check', () => {
       verdicts: [
         { criterion_id: 'case_is_concrete', verdict: 'PASS', evidence: '', confidence: 'high' },
         { criterion_id: 'work_is_shown', verdict: 'PASS', evidence: '', confidence: 'high' },
-        { criterion_id: 'output_format_matches_statement', verdict: 'PASS', evidence: '', confidence: 'high' }
+        { criterion_id: 'worked_out_differently', verdict: 'PASS', evidence: '', confidence: 'high' }
       ]
     });
     const result = await judgeWithChecks(
@@ -477,8 +477,15 @@ describe('steps.cut', () => {
     const step = cut(phase, CASES_ARTIFACT, criteria, 'normal_cases');
     expect(step.phase.artifact_fields.map((f) => f.id)).toEqual(['normal_cases']);
     expect(Object.keys(step.artifact)).toEqual(['normal_cases']);
-    expect(step.criteria.length).toBe(criteria.length);
+    expect(step.criteria.map((c) => c.id)).toEqual(
+      criteria.filter((c) => (c.fields ?? []).includes('normal_cases')).map((c) => c.id)
+    );
     expect(step.criteria.every((c) => c.fields?.join() === 'normal_cases')).toBe(true);
+    // `worked_out_differently` names Case 2 alone.
+    expect(step.criteria.map((c) => c.id)).not.toContain('worked_out_differently');
+    expect(cut(phase, CASES_ARTIFACT, criteria, 'edge_cases').criteria.map((c) => c.id)).toContain(
+      'worked_out_differently'
+    );
   });
 
   it('rejects an unknown step', () => {

@@ -8,71 +8,56 @@
 # They are also all *comparative*. The question is never "is this good C" in the abstract,
 # it is "is this the program the student planned" -- which is the only question that needs
 # the earlier phases, and the only one a plain autograder cannot ask.
+#
+#   v6 (2026-11-17 criteria review): wording revised. `handles_own_edge_cases` names what counts
+#       as handling a case (the main calculation, a guard, a branch, or a loop that plainly covers
+#       it); `readable` allows a loop counter like `i` and names the problem's signature gives.
+#       Every criterion stays advisory.
 
 id: criteria.implement
 phase: implement
-version: 5
+version: 6
 
 criteria:
   - id: follows_own_design
-    text: Your program carries out the steps of your own Design, in that order.
+    text: The program must follow the steps of the design, in that order.
     gate: advisory
-    not_met: "You could also make your program follow your design's steps in order."
+    not_met: "Look back at your design and try to make your program follow your design's steps in order."
     explain: >-
-      The program should carry out the steps you planned in Design, in the same order.
+      The program should carry out the steps you planned in Design, in the order you planned
+      them.
     guidance: |
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
-      PASS if a reader holding the Design beside the code can match the plan's steps onto
-      the program -- the same work happening in the same order. Extra code the plan did
-      not mention is fine when it serves a step (reading input, printing the result).
-      FAIL if the program reaches the right answer by a route the plan does not describe:
-      a different traversal, a different decomposition, a step the plan required that the
-      code does not perform. Do not fail this because the code is more detailed than the
-      plan -- a plan is meant to be less specific than the program.
+      PASS if the plan's steps can be matched onto the program, with the same work happening in the same order. Extra code the plan did not mention is fine if it is minor.
+      FAIL if the program reaches the right answer by a route the plan does not describe, such as skipping a step the plan required. Do not fail this because the code is more detailed than the plan, as a plan is meant to be less specific than the program.
 
   - id: state_matches_design
-    text: Your variables match the values your Design said it keeps track of.
+    text: The variables match the values the design keeps track of.
     gate: advisory
-    not_met: "You could also match your variables to the values your design keeps track of."
+    not_met: "Look back at your design and match your variables to the values your design keeps track of."
     explain: >-
-      The variables in the program should match the values your Design said it keeps
-      track of.
+      The variables in the program should match the values your Design said it keeps track of.
     guidance: |
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
-      PASS if each thing the Design named as state -- a counter, a total, a flag, a running
-      best-so-far -- exists in the program, and the program does not silently depend on state the plan
-      never mentioned. Names need not match; roles must.
-      FAIL if a named piece of state is absent, or if the program carries something between
-      iterations that the plan does not account for. A loop index or a scratch variable
-      local to one step is not state and does not fail this.
+      PASS if the state-tracking variables in the design, such as counters or flags, exist in the program, and the program does not depend on state the plan doesn't contain. Note that the specific names can differ, but the role must generally be the same.
+      FAIL if a piece of state in the design is absent in the code, or if the program keeps track of something that the plan does not account for.
+      State means values that are central to the implementation of the program. Values needed only within one step (such as the counter of an isolated for loop) do not count.
 
   - id: handles_own_edge_cases
-    text: Your program handles each case you worked out in Cases on purpose, not by accident.
+    text: The program handles each case worked out in Cases.
     gate: advisory
-    not_met: "You could also check that something in your program is written for each of your cases."
+    not_met: "Check that something in your program is written for each of your cases."
     explain: >-
-      Each case you worked out in Cases should have something in the code written for
-      it.
+      Each case you worked out in Cases should have something in the code written for it.
     guidance: |
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
-      PASS if, for each case the student worked out in the Cases phase, the code contains
-      something that addresses it -- the main calculation, a guard, a branch, an
-      initialisation, or a loop structure that plainly covers it.
-      FAIL if a case the student themselves worked out gives the right output only by
-      accident, with nothing in the program written for it. Say which case. PASS if no
-      earlier case is given.
+      PASS if, for each case the student worked out in the Cases phase, the program contains something that handles it intentionally: the main calculation, a guard, a branch, or a loop that plainly covers it.
+      FAIL if a case the student themselves worked out gives the right output only by accident. Say which case.
 
   - id: readable
     text: Your program can be followed by someone reading it once.
     gate: advisory
     not_met: "You could also make your program easier to follow on a first read."
     explain: >-
-      Someone reading the code once should be able to follow it -- names that say what
-      they hold, logic that is not tangled.
+      Someone reading the code once should be able to follow it. Try writing descriptive names
+      for your variables.
     guidance: |
-      PASS if names say what they hold, the structure is flat enough to follow, and a
-      reader does not have to simulate the program to understand it.
-      FAIL only for something a reader would genuinely stumble on: single-letter names for
-      values that carry meaning, a condition compounded past the point of reading, repeated
-      blocks that obscure what differs. Do not fail this for formatting, brace style,
-      comment density, or any preference a linter would settle.
+      PASS if names of variables match their purpose and the structure is not too nested.
+      FAIL if the variable names are incomprehensible from their purpose, such as single-letter variable names. A loop counter like `i`, or a name the problem's signature gives, is fine. Do not fail this for formatting, brace style, or a lack of comments.

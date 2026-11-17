@@ -5,7 +5,7 @@
  * prompt, hands it to the provider (picked from the phase's `model.id`, falling
  * back to `CLIVE_PROVIDER`), and audits the reply.
  */
-import { textArtifact, type PriorArtifact } from './artifact';
+import { textArtifact, type CaseRow, type PriorArtifact } from './artifact';
 import { JudgeError } from './content/errors';
 import { JUDGE_JSON_SCHEMA_TEXT, type CriterionDoc, type PhaseDoc } from './content/load';
 import { JudgeResultSchema, type ModelVerdict } from './content/schema';
@@ -64,7 +64,9 @@ export async function judge(
   criteria: CriterionDoc[],
   attempt = 1,
   priorArtifacts: PriorArtifact[] = [],
-  provider?: Provider
+  provider?: Provider,
+  /** The student's Case 1, when Case 2 is judged (see `steps.compareCase`); context, never evidence. */
+  compareCase?: CaseRow
 ): Promise<JudgeOutcome> {
   if (criteria.length === 0) {
     throw new JudgeError('This phase has no criteria yet. Add at least one before running.');
@@ -78,7 +80,7 @@ export async function judge(
     );
   }
   const model = phase.model.id || chosen.defaultModel;
-  const user = renderPhasePrompt(phase, { problem, artifact, criteria, attempt, priorArtifacts });
+  const user = renderPhasePrompt(phase, { problem, artifact, criteria, attempt, priorArtifacts, compareCase });
 
   const result = await callModel(chosen, 'judge', {
     system: phase.system_prompt,

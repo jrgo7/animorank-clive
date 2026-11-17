@@ -19,124 +19,90 @@
 #   v8  `inputs_are_consumed` reads as well for a function's parameters; a step that repeats
 #       earlier steps on other named values is traceable; a value set once needs no starting
 #       value (2026-10-26, walkthrough of Red Wildlings).
+#
+#   v9 (2026-11-17 criteria review; function problems that return a value only):
+#       `inputs_are_consumed` dropped (a function's parameters are given, and a plan that ignores
+#       one rarely traces to the right output). `traceable_on_own_case` traces the case 'generally
+#       as written', a lenient reading the team chose until prototype testing. `not_c_code` passes
+#       pseudocode; `output_is_produced` checks only that a step returns the answer. Wording revised.
 
 id: criteria.algorithm_design
 phase: algorithm_design
-version: 8
+version: 9
 
 criteria:
   - id: not_c_code
     text: The steps are written in plain words, not C.
     gate: gating
     fields: [steps]
-    not_met: "You should rewrite any step that uses C in plain words."
+    not_met: "Rewrite any step that uses C in plain words."
     explain: >-
-      Describe each step in plain words. The C comes in the Implement phase.
+      Describe each step in plain words. The C code will be written in the next phase.
     guidance: |
-      PASS if a reader who does not know C could follow the steps.
-      FAIL if the artifact is C source or near-source -- semicolon-terminated
-      statements, `for (i = 0; i < n; i++)`, `printf`/`scanf` calls, type
-      declarations, braces used as blocks. Naming a variable, or writing an ordinary
-      arithmetic expression such as 'total / n', is not C code and does not fail.
-  - id: inputs_are_consumed
-    text: The steps use every input the program is given.
-    gate: gating
-    fields: [steps]
-    not_met: "You should add a step that reads or takes each input."
-    explain: >-
-      Include a step that reads each input the program takes, or, for a function, that
-      takes each of its parameters.
-    guidance: |
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way. A step that takes the parameters, or names them as given, consumes them.
-      PASS if the design accounts for reading each input the problem supplies,
-      including repetition where the count is read at runtime ('repeat n times:
-      read the next score').
-      FAIL if the steps begin from data that has appeared out of nowhere, or if a
-      variable-length input is treated as a single read.
+      PASS if the steps are in plain words or pseudocode that a reader who does not know C could follow.
+      FAIL if the artifact is C source code, such as semicolon-terminated statements, or if it includes statements like "for (i = 0; i < n; i++)", "printf" or "scanf" calls, type declarations, or braces used as blocks. Variables and arithmetic expressions such as 'total / n' are allowed.
+
   - id: output_is_produced
-    text: A step produces the answer in the form the problem asks for.
+    text: A step returns the answer.
     gate: gating
     fields: [steps]
-    not_met: "You should add a step that gives the answer in the form the problem asks for."
+    not_met: "Add a step that provides the answer."
     explain: >-
-      Include a step that prints (or returns) the answer, in the exact form the problem
-      asks for.
+      Include a step that returns the answer based on the problem description.
     guidance: |
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way. A step that says what the function returns produces the output.
-      PASS if some step states what is emitted and it matches the output format the
-      problem statement fixes (rounding, decimal places, ordering, wording). The step need
-      not be the last one.
-      FAIL if the plan computes an answer but never says it is output, or outputs
-      something in a shape the statement does not ask for.
+      PASS if some step states the value the function returns.
+      FAIL if the plan computes an answer but never states that it is the output, or outputs something in a shape the statement does not ask for.
 
   - id: traceable_on_own_case
-    text: Your steps can be carried out by hand on your own case.
+    text: Steps can be carried out by hand on your own case.
     gate: gating
     fields: [steps]
-    not_met: "You should make each step something you could do by hand, then follow your own case through them."
+    not_met: "Make each step something you could do by hand, then try following your Case 1 through your design."
     explain: >-
-      Take the first case you wrote in Cases and follow it through your steps, one at a time. Each step
-      should be something you could actually do with those numbers, and the last should give your
-      expected output.
+      Take your Case 1 and follow it through your steps, one at a time. Each step should be
+      something you could concretely do with the values and should lead to the output.
     guidance: |
-      Take the student's typical case from EARLIER PHASES (the Cases phase: its input and expected output)
-      and trace it through the steps exactly as written.
-      FAIL if a step cannot be carried out as written -- it restates the goal ("each section must sum and
-      match", "compute the answer") without saying how -- or if the trace does not reach the case's
-      expected output.
-      PASS if every step can be done by hand on that case and the trace reaches the expected output.
-      A step that says to do earlier steps again on other named values ("do steps 2-4 for the
-      second number too") can be carried out; trace it that way.
-      PASS when no case from Cases is given to trace.
-      Judge whether the plan can be followed, not whether it is the best plan.
+      Take the student's typical case from EARLIER PHASES (the Cases phase: its input and expected output) and trace it through the steps generally as written.
+      FAIL if a step cannot be carried out as written and does not reach the case's expected output.
+      PASS if every step can be done by hand on that case and the trace can be followed to the expected output.
+      Judge whether the plan can be followed, not whether it is the best plan or follows a particular solution.
 
   # ---- Advisory: extra understanding, never blocking -------------------------
 
   - id: values_are_tracked
-    text: The values your steps keep track of are named and given starting values.
+    text: The values the steps keep track of must be named and given starting values.
     gate: advisory
     fields: [steps]
     not_met: "You could also name each value your steps keep track of and give it a starting value."
     explain: >-
-      Name each value the plan keeps track of, such as a running total or a counter, and
-      give it a starting value before any step changes it. A value worked out once and never
+      Name each value the plan keeps track of, such as a running total or a counter, and give
+      it a starting value before any step changes it. A value worked out once and never
       changed needs no starting value.
     guidance: |
-      PASS if every value carried across steps -- a total, a counter, a best-so-far, a
-      flag -- is named and given a starting value before any step updates it. PASS a plan
-      that carries no value across steps. A value set once (worked out from the inputs) and
-      never updated is not carried: it needs no starting value.
-      FAIL if a step updates or uses a value ('add it to the total') that no earlier step
-      introduced or started.
+      PASS if every value carried across steps, such as a total, a running counter or a flag, is defined and given a starting value before any step updates it. PASS a plan that carries no value across steps. A value set once (worked out from the inputs) and never updated is not carried: it needs no starting value.
+      FAIL if a step updates or uses a value ('add it to the total') that no earlier step introduced or started.
 
   - id: covers_own_edge_cases
-    text: Your steps handle each case you worked out in Cases.
+    text: The steps handle each case you worked out in Cases.
     gate: advisory
     fields: [steps]
-    not_met: "You could also walk each of your cases through your steps."
+    not_met: "Try simulating each of your cases through your plan."
     explain: >-
-      Walk each case you worked out in Cases through your steps. The plan should give the
+      Simulate each case you worked out in Cases through your steps. The plan should give the
       output you worked out for it.
     guidance: |
-      If an EARLIER PHASES section gives this student's cases from Cases, trace each one
-      through the steps. PASS if the plan would produce the right output for it, by a step
-      that treats it specially or by a general step that plainly covers it.
-      FAIL if it would fall through the steps, repeat the wrong number of times, or reach
-      a step that does not apply to it; quote that step as evidence (never the earlier
-      phase, which is context only).
+      If an EARLIER PHASES section gives this student's cases from Cases, trace each one through the steps. PASS if the plan would produce the right output for it, by a step that treats it specially or by a general step that plainly covers it.
+      FAIL if it would fall through the steps, repeat the wrong number of times, or reach a step that does not apply to it; quote that step as evidence (do not quote the earlier phase).
       PASS if no earlier case is given.
 
   - id: termination_is_clear
-    text: Every repeat says what ends it.
+    text: Every repeat states what ends it.
     gate: advisory
     fields: [steps]
-    not_met: "You could also say what makes each repeated step stop."
+    not_met: "State termination conditions for each iteration statement."
     explain: >-
-      For every loop or repeated step, say what makes it stop.
+      For every iteration statement, state a termination condition.
     guidance: |
-      PASS if each repeated step states its bound -- a count read from input, the
-      length of a collection, a condition that the steps themselves make false.
-      FAIL if a step repeats 'until done' or 'for each' with nothing establishing what
-      done means or what is being walked.
-      PASS a design with no repetition in it; a straight-line algorithm satisfies this
-      criterion vacuously and must not be marked down for having nothing to terminate.
+      PASS if each repeated step states its bound: a count read from input, the length of a collection, or a condition that the steps themselves make false.
+      FAIL if a step repeats 'until done' or 'for each' with nothing establishing what done means or what is being walked.
+      PASS if the design does not indicate any repetition statement at all.
