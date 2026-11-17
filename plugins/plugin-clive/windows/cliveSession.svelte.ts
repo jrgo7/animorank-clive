@@ -92,6 +92,8 @@ interface PersistedState {
     step: number;
     added: number;
     stepResults: Record<string, StepResult>;
+    /** Each field as it was when it last passed; absent from a session saved before it was kept. */
+    passedArtifact?: Record<string, ArtifactValue>;
     result: JudgeResult | null;
     stuck: StuckEntry[];
     /** The ask the student was part-way through typing. */
@@ -155,6 +157,12 @@ export class PhaseState {
   result: JudgeResult | null = $state(null);
   /** Each step's own result, for a per-step phase. */
   stepResults: Record<string, StepResult> = $state({});
+  /**
+   * Each field as it was when it last passed, by field id: what later phases are
+   * judged against. A passed phase stays editable, so `artifact` may since have been
+   * erased or broken; this copy changes only when the field passes again.
+   */
+  passedArtifact: Record<string, ArtifactValue> = $state({});
   /** Every stuck ask in this phase and its reply, newest first. */
   stuck: StuckEntry[] = $state([]);
   /** The ask the student is typing, kept across a reload. */
@@ -260,6 +268,7 @@ export class CliveSession {
         step: saved.step,
         added: saved.added,
         stepResults: saved.stepResults ?? {},
+        passedArtifact: saved.passedArtifact ?? {},
         result: saved.result,
         stuck: saved.stuck ?? [],
         stuckDraft: typeof saved.stuckDraft === 'string' ? saved.stuckDraft : '',
@@ -286,6 +295,7 @@ export class CliveSession {
         step: phase.step,
         added: phase.added,
         stepResults: $state.snapshot(phase.stepResults) as Record<string, StepResult>,
+        passedArtifact: $state.snapshot(phase.passedArtifact) as Record<string, ArtifactValue>,
         result: $state.snapshot(phase.result) as JudgeResult | null,
         stuck: $state.snapshot(phase.stuck) as StuckEntry[],
         stuckDraft: phase.stuckDraft,
@@ -370,8 +380,11 @@ export class CliveSession {
     const step = state.stepResults[fieldId] ?? { result: null, passed: false, attempt: 1 };
     this.remember(index, fieldId, step.attempt, result);
     step.result = result;
-    if (result.passed) step.passed = true;
-    else step.attempt += 1;
+    if (result.passed) {
+      step.passed = true;
+      // A copy, not the row itself: the case boxes edit the row in place.
+      state.passedArtifact[fieldId] = $state.snapshot(state.artifact[fieldId]) as ArtifactValue;
+    } else step.attempt += 1;
     state.stepResults[fieldId] = step;
 
     const allRequired = config.artifactFields
@@ -385,8 +398,10 @@ export class CliveSession {
     const state = this.phases[index];
     this.remember(index, 'phase', state.attempt, result);
     state.result = result;
-    if (result.passed) this.pass(index);
-    else state.attempt += 1;
+    if (result.passed) {
+      state.passedArtifact = $state.snapshot(state.artifact) as Record<string, ArtifactValue>;
+      this.pass(index);
+    } else state.attempt += 1;
   }
 
   /**
@@ -507,21 +522,25 @@ export class CliveSession {
   }
 
   /**
-   * Earlier phases' filled fields, carried into a later phase's judge call. An
-   * added case carries forward only once it has passed: a wrong extra case must
-   * not mislead the plan.
+   * Earlier phases' work, carried into a later phase's judge call: each field as it
+   * last passed, so a passed field the student has since erased or broken still
+   * reaches the judge as it was. A field with no passing version -- a phase the
+   * researcher moved the student on from, or a session saved before passing versions
+   * were kept -- is carried as it stands, if filled. An added case carries forward
+   * only once it has passed: a wrong extra case must not mislead the plan.
    */
   priorArtifacts(uptoIndex: number): { label: string; fields: { label: string; value: ArtifactValue }[] }[] {
     const out: { label: string; fields: { label: string; value: ArtifactValue }[] }[] = [];
     for (let i = 0; i < uptoIndex; i++) {
       const config = PHASES[i];
       const state = this.phases[i];
-      const fields = this.inPlay(i)
-        .filter(
-          (field) =>
-            isFilled(state.artifact[field.id]) && (!field.added || state.stepResults[field.id]?.passed === true)
-        )
-        .map((field) => ({ label: field.label, value: state.artifact[field.id] }));
+      const fields = this.inPlay(i).flatMap((field) => {
+        const passed = state.passedArtifact[field.id];
+        if (passed !== undefined) return [{ label: field.label, value: passed }];
+        const live = state.artifact[field.id];
+        const carried = isFilled(live) && (!field.added || state.stepResults[field.id]?.passed === true);
+        return carried ? [{ label: field.label, value: live }] : [];
+      });
       if (fields.length) out.push({ label: config.label, fields });
     }
     return out;

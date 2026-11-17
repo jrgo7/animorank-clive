@@ -7,6 +7,7 @@ import { ServerRegistryProvider } from '$lib/registry/server';
 import { ServerTestCaseRegistry } from './testCaseRegistry.server';
 import type { ServerTestCase } from './testCase.server';
 import { validateFunctionTestCaseKeys } from './builtin/functionTestCase/types.server';
+import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export interface FindByProblemOptions {
   problemId: string;
@@ -38,9 +39,12 @@ export class TestCaseService {
     return db.problemTestCase.findUnique({
       where: {
         id,
-        problem: {
-          problem_set: { collaborators: { some: { collaborator_id: user.id || '' } } }
-        }
+        // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every test case is editable.
+        ...unlessDevBypass({
+          problem: {
+            problem_set: { collaborators: { some: { collaborator_id: user.id || '' } } }
+          }
+        })
       }
     });
   }
@@ -49,7 +53,10 @@ export class TestCaseService {
     const problem = await db.problem.findUnique({
       where: {
         id: options.problemId,
-        problem_set: { collaborators: { some: { collaborator_id: options.user.id || '' } } }
+        // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: test cases can be added to any problem.
+        ...unlessDevBypass({
+          problem_set: { collaborators: { some: { collaborator_id: options.user.id || '' } } }
+        })
       }
     });
 
@@ -83,15 +90,18 @@ export class TestCaseService {
     const models = await db.problemTestCase.findMany({
       where: {
         problem_id: options.problemId,
-        problem: {
-          problem_set: {
-            OR: [
-              { collaborators: { some: { collaborator_id: options.user.id || '' } } },
-              { is_global: true },
-              { subscriptions: { some: { student_id: options.user.id || '' } } }
-            ]
+        // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every problem's test cases are readable.
+        ...unlessDevBypass({
+          problem: {
+            problem_set: {
+              OR: [
+                { collaborators: { some: { collaborator_id: options.user.id || '' } } },
+                { is_global: true },
+                { subscriptions: { some: { student_id: options.user.id || '' } } }
+              ]
+            }
           }
-        }
+        })
       },
       orderBy: { created_at: 'asc' }
     });

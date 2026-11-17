@@ -8,6 +8,7 @@ import { ProblemService } from '$lib/problem/problemService';
 import { Problem, toProblemLink } from '$lib/problem';
 import { toJsonValue } from '$lib/types/utils';
 import { readUuidParam } from '$lib/utils/params';
+import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   const session = await locals.auth();
@@ -19,13 +20,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const problemResult = await db.problem.findUnique({
     where: {
       id: readUuidParam(params.slug),
-      problem_set: {
-        OR: [
-          { collaborators: { some: { collaborator_id: session.user.id } } },
-          { subscriptions: { some: { student_id: session.user.id } } },
-          { is_global: true }
-        ]
-      }
+      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every problem is reachable.
+      ...unlessDevBypass({
+        problem_set: {
+          OR: [
+            { collaborators: { some: { collaborator_id: session.user.id } } },
+            { subscriptions: { some: { student_id: session.user.id } } },
+            { is_global: true }
+          ]
+        }
+      })
     },
     include: {
       topics: true

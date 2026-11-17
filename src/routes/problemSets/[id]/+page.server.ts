@@ -4,6 +4,7 @@ import { db } from '$lib/zenstack';
 import { groupBy } from '$lib/utils/groupBy';
 import { problemOrderInSet } from '$lib/problem/problemService';
 import { readUuidParam } from '$lib/utils/params';
+import { DEV_ACCESS_BYPASS, unlessDevBypass } from '$lib/devAccessBypass';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   const session = await locals.auth();
@@ -13,11 +14,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const problemSet = await db.problemSet.findUnique({
     where: {
       id: readUuidParam(params.id),
-      OR: [
-        { is_global: true },
-        { collaborators: { some: { collaborator_id: session.user.id } } },
-        { subscriptions: { some: { student_id: session.user.id } } }
-      ]
+      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every set is readable.
+      ...unlessDevBypass({
+        OR: [
+          { is_global: true },
+          { collaborators: { some: { collaborator_id: session.user.id } } },
+          { subscriptions: { some: { student_id: session.user.id } } }
+        ]
+      })
     },
     include: {
       problems: {
@@ -45,7 +49,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   // they have hidden. Everything below works from this filtered list, so the
   // solver/attempt aggregates don't query problems that are never rendered.
   const isCollaborator = problemSet.collaborators.some((c) => c.collaborator.user.id === session.user.id);
-  const problems = problemSet.problems.filter((p) => p.visible || isCollaborator);
+  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: hidden problems are listed for everyone.
+  const problems = problemSet.problems.filter((p) => p.visible || isCollaborator || DEV_ACCESS_BYPASS);
 
   const problemIds = problems.map((p) => p.id);
 

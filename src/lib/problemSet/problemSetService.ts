@@ -12,6 +12,7 @@ import { ProblemSet, type CollaboratorInfo, type ProblemSetSummary } from '.';
 import { ServerRegistryProvider } from '$lib/registry/server';
 import { Tag, TagService } from '$lib/tag';
 import { arrayToHashMap } from '$lib/utils/arrayToHashMap';
+import { DEV_ACCESS_BYPASS, unlessDevBypass } from '$lib/devAccessBypass';
 
 export interface CreateOptions {
   title: string;
@@ -100,18 +101,20 @@ export type StudentProgress = { finished: number; total: number };
  * sets they are subscribed to, or sets they collaborate on.
  */
 function readableBy(userId: string) {
-  return {
+  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every set is readable.
+  return unlessDevBypass({
     OR: [
       { is_global: true },
       { subscriptions: { some: { student_id: userId } } },
       { collaborators: { some: { collaborator_id: userId } } }
     ]
-  };
+  });
 }
 
 /** Prisma `where` fragment matching problem sets the user collaborates on (and may edit). */
 function editableBy(userId: string) {
-  return { collaborators: { some: { collaborator_id: userId } } };
+  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every set is editable.
+  return unlessDevBypass({ collaborators: { some: { collaborator_id: userId } } });
 }
 
 export class ProblemSetService {
@@ -518,25 +521,28 @@ export class ProblemSetService {
 
     // Restrict to problem sets the user may read: global, subscribed to, or
     // collaborating on.
-    query = query.where((eb) =>
-      eb.or([
-        eb('ProblemSet.is_global', '=', eb.lit(true)),
-        eb.exists(
-          eb
-            .selectFrom('Subscription')
-            .whereRef('Subscription.problem_set_id', '=', 'ProblemSet.id')
-            .where('Subscription.student_id', '=', options.user.id || '')
-            .select('Subscription.problem_set_id')
-        ),
-        eb.exists(
-          eb
-            .selectFrom('ProblemSetCollaborator')
-            .whereRef('ProblemSetCollaborator.problem_set_id', '=', 'ProblemSet.id')
-            .where('ProblemSetCollaborator.collaborator_id', '=', options.user.id || '')
-            .select('ProblemSetCollaborator.problem_set_id')
-        )
-      ])
-    );
+    // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: lists every set.
+    if (!DEV_ACCESS_BYPASS) {
+      query = query.where((eb) =>
+        eb.or([
+          eb('ProblemSet.is_global', '=', eb.lit(true)),
+          eb.exists(
+            eb
+              .selectFrom('Subscription')
+              .whereRef('Subscription.problem_set_id', '=', 'ProblemSet.id')
+              .where('Subscription.student_id', '=', options.user.id || '')
+              .select('Subscription.problem_set_id')
+          ),
+          eb.exists(
+            eb
+              .selectFrom('ProblemSetCollaborator')
+              .whereRef('ProblemSetCollaborator.problem_set_id', '=', 'ProblemSet.id')
+              .where('ProblemSetCollaborator.collaborator_id', '=', options.user.id || '')
+              .select('ProblemSetCollaborator.problem_set_id')
+          )
+        ])
+      );
+    }
 
     if (options.filters?.bookmarked) {
       query = query.where((eb) => eb('bookmarked.bookmarked', '=', eb.lit(true)));
