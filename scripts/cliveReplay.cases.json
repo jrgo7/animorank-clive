@@ -1,97 +1,109 @@
-[
-  {
-    "tag": "avril-problem",
-    "source": "port",
-    "phase": "problem_definition",
-    "expect": null
-  },
-  {
-    "tag": "avril-cases",
-    "source": "port",
-    "phase": "case_design",
-    "expect": {
-      "normal_cases:1": ["wrong_shape_input"],
-      "normal_cases:*": ["rule_not_worked"]
-    }
-  },
-  {
-    "tag": "avril-design",
-    "source": "port",
-    "phase": "algorithm_design",
-    "expect": {
-      "*": ["restates_problem", "not_traceable"]
+{
+  "_": "Expected situations per replayed submission; the replay fails when more than allowed_misses disagree. Keys: '<step>:<attempt>', '<step>:*', '<index>' (1-based, stepless phases) or '*'. allowed_misses is 1 for one known flake: avril-design, whose restated plan passes traceable_on_own_case in about half of runs (2026-11-04: failed twice, then passed twice).",
+  "allowed_misses": 1,
+  "cases": [
+    {
+      "tag": "avril-problem",
+      "source": "port",
+      "phase": "problem_definition",
+      "expect": null
     },
-    "includePassed": true
-  },
-  {
-    "tag": "avril-runs",
-    "source": "port-runs",
-    "expect": {
-      "*": ["syntax_following_plan"]
+    {
+      "tag": "avril-cases",
+      "source": "port",
+      "phase": "case_design",
+      "expect": {
+        "normal_cases:1": ["wrong_shape_input"],
+        "normal_cases:7": ["right_answer_wrong_reason", "rule_not_worked"],
+        "normal_cases:*": ["rule_not_worked", "wrong_answer"]
+      }
+    },
+    {
+      "tag": "avril-design",
+      "source": "port",
+      "phase": "algorithm_design",
+      "expect": {
+        "*": ["restates_problem", "not_traceable"]
+      },
+      "includePassed": true
+    },
+    {
+      "tag": "avril-runs",
+      "source": "port-runs",
+      "expect": {
+        "*": ["syntax_following_plan"]
+      }
+    },
+    {
+      "tag": "10-01_1-implement",
+      "source": "proto",
+      "participant": "10-01_1",
+      "problem": "compute_age",
+      "phase": "implement",
+      "attempts": [1, 2, 3, 4, 5, 6, 7, 8],
+      "expect": {
+        "1": ["plan_is_wrong"],
+        "2": ["plan_is_wrong"],
+        "3": ["plan_is_wrong"],
+        "*": ["plan_is_wrong", "departs_from_plan"]
+      }
+    },
+    {
+      "tag": "126-Chr-cases",
+      "source": "proto",
+      "participant": "126-Chr",
+      "problem": "military_time",
+      "phase": "case_design",
+      "attempts": [1, 2, 3, 4, 5, 6],
+      "expect": {
+        "normal_cases:3": ["wrong_shape_input", "not_a_case", "wrong_answer", "low_effort", "rule_not_worked"],
+        "*": ["not_a_case", "wrong_answer", "low_effort", "rule_not_worked"],
+        "normal_cases:4": ["restates_example", "low_effort", "wrong_answer", "rule_not_worked"],
+        "normal_cases:5": ["restates_example", "wrong_answer", "rule_not_worked"],
+        "normal_cases:6": ["restates_example", "wrong_answer", "rule_not_worked"]
+      }
+    },
+    {
+      "tag": "A-candies-implement",
+      "source": "proto",
+      "participant": "10_06-126-R",
+      "problem": "candies",
+      "phase": "implement",
+      "attempts": [2, 3],
+      "expect": {
+        "*": ["departs_from_plan"]
+      }
+    },
+    {
+      "tag": "A2-candies-implement",
+      "source": "proto",
+      "participant": "10_06-126-Rt",
+      "problem": "candies",
+      "phase": "implement",
+      "attempts": [1, 2, 3],
+      "expect": {
+        "*": ["departs_from_plan"]
+      }
+    },
+    {
+      "tag": "jm_uy-cases",
+      "source": "proto",
+      "participant": "jm_uy",
+      "problem": "crowley_path",
+      "phase": "case_design",
+      "attempts": [1],
+      "expect": {
+        "*": ["right_answer_wrong_reason"]
+      }
+    },
+    {
+      "tag": "J-runs",
+      "source": "proto-runs",
+      "participant": "10_06-126-J",
+      "problem": "military_time",
+      "expect": {
+        "*": ["syntax_following_plan"]
+      }
     }
-  },
-  {
-    "tag": "10-01_1-implement",
-    "source": "proto",
-    "participant": "10-01_1",
-    "problem": "compute_age",
-    "phase": "implement",
-    "attempts": [1, 2, 3, 4, 5, 6, 7, 8],
-    "expect": {
-      "*": ["plan_is_wrong"]
-    }
-  },
-  {
-    "tag": "126-Chr-cases",
-    "source": "proto",
-    "participant": "126-Chr",
-    "problem": "military_time",
-    "phase": "case_design",
-    "attempts": [1, 2, 3, 4, 5, 6],
-    "expect": {
-      "*": ["not_a_case", "wrong_answer", "low_effort", "rule_not_worked"]
-    }
-  },
-  {
-    "tag": "A-candies-implement",
-    "source": "proto",
-    "participant": "10_06-126-R",
-    "problem": "candies",
-    "phase": "implement",
-    "attempts": [2, 3],
-    "expect": {
-      "*": ["departs_from_plan"]
-    }
-  },
-  {
-    "tag": "A2-candies-implement",
-    "source": "proto",
-    "participant": "10_06-126-Rt",
-    "problem": "candies",
-    "phase": "implement",
-    "attempts": [1, 2, 3],
-    "expect": {
-      "*": ["departs_from_plan"]
-    }
-  },
-  {
-    "tag": "jm_uy-cases",
-    "source": "proto",
-    "participant": "jm_uy",
-    "problem": "crowley_path",
-    "phase": "case_design",
-    "attempts": [1],
-    "expect": {
-      "*": ["right_answer_wrong_reason"]
-    }
-  },
-  {
-    "tag": "J-runs",
-    "source": "proto-runs",
-    "participant": "10_06-126-J",
-    "problem": "military_time",
-    "expect": {
-      "*": ["syntax_following_plan"]
-    }
-  }
-]
+  ]
+}

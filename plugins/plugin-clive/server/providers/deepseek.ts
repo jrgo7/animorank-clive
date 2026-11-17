@@ -104,14 +104,15 @@ export class DeepSeekProvider extends BaseProvider {
     } catch (cause) {
       throw new JudgeError(
         `DeepSeek did not return valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
-        { raw: text, reasoning }
+        { raw: text, reasoning, unreadable: true }
       );
     }
     const result = options.schema.safeParse(parsed);
     if (!result.success) {
       throw new JudgeError(`DeepSeek did not return a valid reply: ${result.error.message}`, {
         raw: text,
-        reasoning
+        reasoning,
+        unreadable: true
       });
     }
 

@@ -1,6 +1,8 @@
 <script lang="ts">
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
-  import { MORE_TO_FIX, type FieldFeedback } from './feedback';
+  import Button from '$lib/components/ui/buttons/Button.svelte';
+  import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
+  import { HELP_OFFER, MORE_TO_FIX, type FieldFeedback } from './feedback';
 
   /**
    * What one question shows after a submit, right under it: "Start here" on the
@@ -9,7 +11,16 @@
    * one, and its lines, is `fieldFeedback`'s call (`feedback.ts`); this only
    * draws it. Shared by the three stepped phases.
    */
-  let { feedback }: { feedback: FieldFeedback } = $props();
+  let {
+    feedback,
+    offerHelp = false,
+    onstuck
+  }: {
+    feedback: FieldFeedback;
+    /** The third failed submit in a row on this point: say so, and put the ask right here. */
+    offerHelp?: boolean;
+    onstuck?: () => void;
+  } = $props();
 </script>
 
 {#if feedback.kind === 'start'}
@@ -20,6 +31,19 @@
     <p class="max-w-[66ch] text-sm leading-relaxed whitespace-pre-wrap text-base-content/70">{feedback.nudge}</p>
     {#if feedback.more}
       <div class="border-t border-base-content/10 pt-2.5 text-xs text-base-content/60">{MORE_TO_FIX}</div>
+    {/if}
+    {#if offerHelp}
+      <div class="flex flex-wrap items-center gap-2.5 border-t border-base-content/10 pt-2.5">
+        <span class="text-sm">{HELP_OFFER}</span>
+        <Button
+          class="btn-sm gap-2"
+          type="button"
+          onclick={() => onstuck?.()}
+        >
+          <LightbulbIcon class="h-3.5 w-3.5" />
+          I'm stuck
+        </Button>
+      </div>
     {/if}
   </div>
 {:else if feedback.kind === 'fix'}

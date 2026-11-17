@@ -62,7 +62,10 @@ export class AnthropicProvider extends BaseProvider {
 
     const result = options.schema.safeParse(message.parsed_output);
     if (!result.success) {
-      throw new JudgeError(`Anthropic did not return a valid reply: ${result.error.message}`, { raw });
+      throw new JudgeError(`Anthropic did not return a valid reply: ${result.error.message}`, {
+        raw,
+        unreadable: true
+      });
     }
 
     return {

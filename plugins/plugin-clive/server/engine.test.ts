@@ -3,7 +3,7 @@
  * no Judge0. Ported contract-by-contract from the prototype's `judge.py`,
  * `nudge.py`, `stuck.py`, `reference_check.py`, `grade.py` and `steps.py`.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CodeExecutor } from '$lib/executor';
 import type { ExecutionRequest, ExecutionResult } from '$lib/executor/types';
 import { phaseDoc, rubricDoc } from './content/load';
@@ -90,6 +90,22 @@ describe('judge', () => {
     expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 5 });
   });
 
+  it('judges at the effort CLIVE_JUDGE_EFFORT names, when it is set', async () => {
+    vi.stubEnv('CLIVE_JUDGE_EFFORT', 'low');
+    const efforts: string[] = [];
+    const base = fakeProvider({ verdicts: [] });
+    const provider: Provider = {
+      ...base,
+      judgeJson: async (options) => {
+        efforts.push(options.effort);
+        return base.judgeJson(options);
+      }
+    };
+    await judge(phase, PROBLEM, artifact, criteria, 1, [], provider);
+    expect(efforts).toEqual(['low']);
+    vi.unstubAllEnvs();
+  });
+
   it('rejects a phase with no criteria', async () => {
     await expect(judge(phase, PROBLEM, artifact, [], 1, [], fakeProvider({ verdicts: [] }))).rejects.toThrow(
       /no criteria yet/
@@ -143,6 +159,23 @@ describe('nudge', () => {
     });
     const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, verdicts, 1, [], [], provider);
     expect(result.situation).toBe('rule_not_worked');
+  });
+
+  it('never calls a wrong expected output the reference confirmed a right answer', async () => {
+    const provider = fakeProvider({
+      situation: 'right_answer_wrong_reason',
+      summary: 's',
+      focus_id: 'work_is_shown',
+      reason: 'r',
+      nudge: 'n'
+    });
+    const refuted = verdicts.map((v) =>
+      v.criterion_id === 'outputs_are_correct'
+        ? { ...v, source: 'reference' as const, evidence: 'Expected 12:00 PM' }
+        : v
+    );
+    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, refuted, 1, [], [], provider);
+    expect(result.situation).toBe('wrong_answer');
   });
 
   it('turns a situation the phase does not list into other', async () => {
@@ -489,7 +522,8 @@ describe('code nudge', () => {
   });
 
   it('reads a reply with no situation as other', async () => {
-    const { situation: _omit, ...noSituation } = REPLY;
+    const noSituation: Partial<typeof REPLY> = { ...REPLY };
+    delete noSituation.situation;
     const { provider } = capturing(noSituation);
     expect((await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider)).situation).toBe('other');
   });
@@ -516,6 +550,13 @@ describe('code nudge', () => {
     await codeNudge(PROBLEM, '', run, [], [], 1, provider);
     expect(users[0]).toContain('COMPILER ERRORS');
     expect(users[0]).toContain("expected ';' before 'if'");
+  });
+
+  it('a program that did not compile is the syntax situation, whatever the model says', async () => {
+    const { provider, users } = capturing({ ...REPLY, situation: 'far_from_plan' });
+    const run: CodeRun = { compiled: false, compilerOutput: 'error: expected expression', cases: [], hiddenFailed: 0 };
+    expect((await codeNudge(PROBLEM, 'int x = ;', run, [], [], 1, provider)).situation).toBe('syntax_following_plan');
+    expect(users[0]).toContain('the situation is syntax_following_plan');
   });
 
   it('tells the model only how many hidden cases failed', async () => {

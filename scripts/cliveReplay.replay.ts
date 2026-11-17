@@ -2,11 +2,17 @@
  * Replays real past submissions through CLive's current prompts, with the real
  * provider, and writes what CLive would say now beside what it said then.
  *
- * Not a test: it costs a few cents and reads local, gitignored research logs.
+ * Not a unit test: it costs a few cents and reads local, gitignored research logs. It is
+ * the regression gate for the situation feedback: each replayed submission has the
+ * situations it may be read as, and a full run fails when more than `allowed_misses`
+ * of them come out otherwise. Raise `allowed_misses` only for a disagreement you have
+ * read and accept; the model is not deterministic, so run it twice before trusting a
+ * new baseline.
  *
  *   npx vitest run --config vitest.replay.config.ts
  *   REPLAY_ONLY=avril-cases REPLAY_DRY=1 REPLAY_OUT=/tmp/replay.md npx vitest run --config vitest.replay.config.ts
- *   (REPLAY_EVIDENCE=1 adds the judged work and every verdict to the output)
+ *   (REPLAY_EVIDENCE=1 adds the judged work and every verdict to the output; a partial
+ *   or dry run never fails on misses)
  *
  * Sources (selection and expected situations in `cliveReplay.cases.json`):
  * - `port`: Avril's Red Wildlings session from this app (problem read from the database).
@@ -17,7 +23,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parse } from 'yaml';
-import { it } from 'vitest';
+import { expect, it } from 'vitest';
 import type { CodeExecutor } from '$lib/executor';
 import { phaseDoc, rubricDoc } from '../plugins/plugin-clive/server/content/load';
 import type { ProblemForPrompt } from '../plugins/plugin-clive/server/content/templates';
@@ -264,7 +270,9 @@ it('replays past submissions through the current prompts', async () => {
   const only = process.env.REPLAY_ONLY;
   const dry = process.env.REPLAY_DRY === '1';
   const outFile = process.env.REPLAY_OUT ?? path.join(os.tmpdir(), 'clive-replay.md');
-  const specs: CaseSpec[] = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/cliveReplay.cases.json'), 'utf8'));
+  const { allowed_misses: allowedMisses, cases: specs } = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'scripts/cliveReplay.cases.json'), 'utf8')
+  ) as { allowed_misses: number; cases: CaseSpec[] };
   const lines: string[] = [`# CLive replay — ${new Date().toISOString()}`, ''];
   let hits = 0;
   let misses = 0;
@@ -304,8 +312,9 @@ it('replays past submissions through the current prompts', async () => {
         );
         continue;
       }
-      let situation = '';
+      let situation: string;
       let reply = '';
+      const t0 = performance.now();
       try {
         if (e.kind === 'run' || e.phase === 'implement') {
           const r = await codeNudge(problem, e.code, e.run as CodeRun, prior, codeHistory.slice(-5), index + 1);
@@ -383,7 +392,7 @@ it('replays past submissions through the current prompts', async () => {
       if (ok === false) misses += 1;
       lines.push(
         `- old: ${e.oldFeedback.replace(/\n/g, ' / ') || '(none)'}`,
-        `- **new situation: ${situation}**${want ? ` (expected ${want.join(' | ')}) ${ok ? '✓' : '✗'}` : ''}`,
+        `- **new situation: ${situation}**${want ? ` (expected ${want.join(' | ')}) ${ok ? '✓' : '✗'}` : ''} — ${Math.round(performance.now() - t0)} ms`,
         ...reply
           .split('\n')
           .filter((l) => l.trim())
@@ -395,4 +404,7 @@ it('replays past submissions through the current prompts', async () => {
   lines.splice(1, 0, `Expected situations: ${hits} ✓, ${misses} ✗`, '');
   fs.writeFileSync(outFile, lines.join('\n'));
   console.log(`replay written to ${outFile} — ${hits} ✓, ${misses} ✗`);
+  if (!only && !dry) {
+    expect(misses, `situations that came out unexpected; see ${outFile}`).toBeLessThanOrEqual(allowedMisses);
+  }
 });

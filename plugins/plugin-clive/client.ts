@@ -124,7 +124,8 @@ export default class CLivePlugin extends ClientPlugin {
       context.telemetry.record(CLIVE_EVENT.sessionStart, {
         problem: context.problem.id,
         new_session: !session.restored,
-        live: live.mode
+        live: live.mode,
+        live_reason: live.reason
       });
     })();
 

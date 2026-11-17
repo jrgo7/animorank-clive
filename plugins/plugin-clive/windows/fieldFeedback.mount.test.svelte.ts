@@ -145,6 +145,28 @@ describe('feedback one thing at a time', () => {
     unmount(app);
   });
 
+  it('offers help on the third failed submit in a row on the same point, and opens the ask', async () => {
+    stubSubmit(FAILED_PROBLEM);
+    const { session, app } = mountProblem('feedback-help');
+    const offer = "That's three tries on this one point.";
+
+    for (let n = 1; n <= 3; n += 1) {
+      clickButton(n === 1 ? 'Submit' : 'Resubmit');
+      await vi.waitFor(() => expect([session.phases[0].attempt, session.busy]).toEqual([n + 1, null]));
+      flushSync();
+      expect((document.body.textContent ?? '').includes(offer)).toBe(n === 3);
+    }
+
+    const buttons = Array.from(document.querySelectorAll('button')).filter((el) =>
+      el.textContent?.includes("I'm stuck")
+    );
+    expect(buttons.length).toBeGreaterThanOrEqual(2); // the offer's own, beside the usual one
+    buttons[0].click();
+    flushSync();
+    expect(document.body.textContent).toContain('What are you having trouble with?');
+    unmount(app);
+  });
+
   it('offers a passed submit’s optional points as worth a look, on their question', async () => {
     stubSubmit({
       passed: true,

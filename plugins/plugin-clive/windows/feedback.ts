@@ -11,6 +11,7 @@
  * Plain TypeScript, so the windows and the tests share one copy of the rules; the
  * wording is the prototype's.
  */
+import type { NudgeTurn } from './api';
 import type { JudgeResult, Verdict } from './cliveSession.svelte';
 
 /** Said under the one failure shown when there is more than one: the rest come on the next submit. */
@@ -157,4 +158,19 @@ const CASE_PART: Record<string, 'input' | 'output' | 'working'> = {
  */
 export function casePartFor(focusId: string | undefined): 'input' | 'output' | 'working' | null {
   return (focusId && CASE_PART[focusId]) || null;
+}
+
+/** Said with the third failed submit in a row on one point, beside the way to ask for help. */
+export const HELP_OFFER =
+  "That's three tries on this one point. Say what's unclear about it in your own words, and the reply will be about that.";
+
+/**
+ * Whether to offer help: the last three nudges the student was shown on this
+ * phase or step were all about the same point. Avril's session had seven in a
+ * row on one Cases point and no ask for help after the first minutes; this is
+ * where an offer would have landed.
+ */
+export function helpOffered(turns: NudgeTurn[]): boolean {
+  const last = turns.slice(-3);
+  return last.length === 3 && last.every((t) => t.focus_id === last[0].focus_id);
 }

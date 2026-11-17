@@ -16,6 +16,7 @@ import CaseDesignWindow from './CaseDesignWindow.window.svelte';
 import AlgorithmDesignWindow from './AlgorithmDesignWindow.window.svelte';
 import ImplementWindow from './ImplementWindow.window.svelte';
 import { cliveSessionFor } from './cliveSession.svelte';
+import { live } from './live.svelte';
 import { onResearcherKey } from './shortcuts';
 import { CLIVE_WINDOW_KEYS, PROBLEM_INFO_WINDOW_KEY } from './phase';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -342,6 +343,29 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  it('shows a badge with the reason when live checking is unavailable on this machine', () => {
+    stubBoot();
+    const context = stubContext('live-strip');
+    cliveSessionFor(context);
+    live.mode = 'unavailable';
+    live.reason = 'the page is not cross-origin isolated';
+    const app = mount(PhaseTrackWindow, { target: document.body, props: { context } });
+    flushSync();
+    const badge = Array.from(document.querySelectorAll('[title]')).find((el) =>
+      el.textContent?.includes('NO LIVE CHECK')
+    );
+    expect(badge?.getAttribute('title')).toBe('the page is not cross-origin isolated');
+    unmount(app);
+
+    live.mode = 'on';
+    const again = mount(PhaseTrackWindow, { target: document.body, props: { context } });
+    flushSync();
+    expect(document.body.textContent).not.toContain('NO LIVE CHECK');
+    unmount(again);
+    live.mode = 'unavailable';
+    live.reason = '';
+  });
+
   it('mounts every phase window without writing state from a derived', () => {
     stubBoot();
 
@@ -354,6 +378,41 @@ describe('CLive windows', () => {
       expect(document.body.textContent, phase.id).toContain(phase.label);
       unmount(app);
     });
+  });
+
+  it('shows the shape of a case in each empty box, worded for a function or for a program', () => {
+    stubBoot();
+    const placeholders = (functionProblem: boolean): Record<string, string> => {
+      const context = stubContext(`shape-${functionProblem}`);
+      if (functionProblem) {
+        (context.problem as { extension_data?: unknown }).extension_data = {
+          builtin_testCase_function: { functions: { 'fn-1': { name: 'getArea', parameters: [] } } }
+        };
+      }
+      const session = cliveSessionFor(context);
+      session.phases[0].read = true;
+      for (const phaseState of session.phases) phaseState.unlocked = true;
+      const app = mountPhase(context, 1);
+      flushSync();
+      const out: Record<string, string> = {};
+      for (const label of ['Input', 'Expected output', 'How I got it']) {
+        const box = document.querySelector(`[aria-label^="${label},"]`);
+        out[label] = box?.getAttribute('placeholder') ?? '';
+      }
+      unmount(app);
+      return out;
+    };
+
+    const fn = placeholders(true);
+    expect(fn['Input']).toContain('4, 6');
+    expect(fn['Expected output']).toContain('returns');
+    expect(fn['How I got it']).toContain('one step per line');
+    expect(fn['How I got it']).toContain('returns 24');
+
+    const program = placeholders(false);
+    expect(program['Input']).toContain('4 6');
+    expect(program['Expected output']).toContain('prints');
+    expect(program['How I got it']).toContain('prints 24');
   });
 
   it('shows a function problem a function example in every phase, and the no-prompts rule only to a program problem', () => {

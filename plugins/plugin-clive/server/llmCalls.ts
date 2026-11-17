@@ -64,12 +64,25 @@ export async function captureLlmCalls<T>(
   }
 }
 
-/** Make one model call, recording it in the capture it runs inside, if any. */
+/**
+ * Make one model call, recording it in the capture it runs inside, if any. A reply
+ * that could not be read as JSON is asked for once more (a replay saw one such
+ * reply in about ninety DeepSeek calls); both calls are recorded.
+ */
 export async function callModel(
   provider: Provider,
   purpose: LlmPurpose,
   options: JudgeJsonOptions
 ): Promise<ProviderResult> {
+  try {
+    return await callOnce(provider, purpose, options);
+  } catch (error) {
+    if (!(error instanceof JudgeError) || !error.unreadable) throw error;
+    return callOnce(provider, purpose, options);
+  }
+}
+
+async function callOnce(provider: Provider, purpose: LlmPurpose, options: JudgeJsonOptions): Promise<ProviderResult> {
   const started = new Date();
   const t0 = performance.now();
   const base = {

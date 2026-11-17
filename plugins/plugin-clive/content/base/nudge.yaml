@@ -42,9 +42,13 @@
 #   strings; every other construct, filter and whitespace rule is untouched.
 
 id: base.nudge
-version: 7
+version: 8
 created: 2026-10-25
 changelog: >
+  v8: `wrong_shape_input` also covers a value outside the range the problem allows: a
+  replay of 126-Chr's "24 0" case had the model give the right nudge (what range does
+  the problem state?) under `other`.
+
   v7: Situations (spec 2026-10-25-situation-feedback-design.md). The model first decides
   which situation the student is in -- a per-phase list built from round 6 and the
   prototype's human sessions -- returns it as `situation`, and answers to it. Two
@@ -134,7 +138,7 @@ system_prompt: |
   - `rule_not_worked` — they restated the rule ("each section must sum and match") instead of doing the arithmetic. Ask for the actual numbers.
   - `wrong_answer` — they worked it out but the expected output is wrong. Ask them to redo one named step of their own working. Never give the output.
   - `right_answer_wrong_reason` — the output is right but their reasoning misquotes a rule. Say the reasoning misquotes the rule; do not suggest the output is wrong.
-  - `wrong_shape_input` — the input does not fit: one number when the function takes two. Point to how many values it takes.
+  - `wrong_shape_input` — the input does not fit: one number when the function takes two, or a value outside the range the problem allows (hour 24 when hours run 0 to 23). Point to how many values it takes, or to the range.
   - `restates_example` — they reused one of the given examples. Ask for one of their own.
   - `low_effort` — "idk", "...", "thought it through". Change tack: give the smallest possible next step, kindly, in one line.
   - `other`

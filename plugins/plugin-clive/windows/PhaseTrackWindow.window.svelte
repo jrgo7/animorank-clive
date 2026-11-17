@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from '$lib/components/ui/buttons/Button.svelte';
   import { cliveSessionFor } from './cliveSession.svelte';
+  import { live } from './live.svelte';
   import { PHASES } from './phase';
   import { showPhaseWindows } from './phaseWindows';
   import TutorialDialog from './TutorialDialog.svelte';
@@ -138,6 +139,12 @@
         <span
           class="badge badge-error badge-sm font-bold"
           title={session.logging.reason}>NOT LOGGING</span
+        >
+      {/if}
+      {#if live.mode === 'unavailable'}
+        <span
+          class="badge badge-warning badge-sm font-bold"
+          title={live.reason}>NO LIVE CHECK</span
         >
       {/if}
     </span>

@@ -80,7 +80,7 @@ describe('shouldAsk', () => {
 describe('LatestOnly', () => {
   it('drops a reply that arrives after a newer request was made', async () => {
     const latest = new LatestOnly();
-    let releaseFirst: (v: string) => void = () => {};
+    let releaseFirst: (_v: string) => void = () => {};
     const first = latest.run(() => new Promise<string>((resolve) => (releaseFirst = resolve)));
     const second = latest.run(async () => 'second');
     expect(await second).toEqual({ current: true, value: 'second' });
@@ -128,7 +128,7 @@ describe('review fixes', () => {
 describe('quick fixes', () => {
   it('drops an older reply once a later Run has passed', async () => {
     const latest = new LatestOnly();
-    let release: (v: string) => void = () => {};
+    let release: (_v: string) => void = () => {};
     const pending = latest.run(() => new Promise<string>((resolve) => (release = resolve)));
     latest.cancel();
     release('old');

@@ -19,9 +19,15 @@
 #              is; never write the line that closes it.
 
 id: base.nudge_code
-version: 6
+version: 7
 created: 2026-09-07
 changelog: >
+  v7: A program that did not compile is always syntax_following_plan (the server fixes
+  the situation too), and a plan whose words allow more than one reading is followed by
+  a program that fits any of them. Replays of Avril's Runs (eight far_from_plan, each
+  saying to empty the function) and of 10-01_1 (the same submissions judged
+  plan_is_wrong one run and departs_from_plan the next).
+
   v6: plan_is_wrong never names a step, rule or condition, nor suggests how to rework the plan: a replay of 10-01_1 had it say "rewrite step 5" and propose a four-row table.
 
   v5: Situations. The model first decides which of five situations the student is in
@@ -49,15 +55,15 @@ system_prompt: |
 
   Pick exactly one id:
 
-  - `syntax_following_plan` — the program did not compile, but what is there follows the plan. Say which step of their plan they are on, then say what the FIRST compiler error means in plain words. Later errors are often caused by the first; leave them.
+  - `syntax_following_plan` — the program did not compile. This is the situation whenever there are compiler errors, however far the code is from the plan: say which step of their plan the code is on, then say what the FIRST compiler error means in plain words. Later errors are often caused by the first; leave them.
   - `departs_from_plan` — the program skips a step, does steps in a different order, or does something the plan never said (for example, prints messages like "Enter a number:" or a label before the answer). Point at the first place the program and the plan part ways.
   - `plan_is_wrong` — the program does what the plan says, step for step, but the plan itself does not produce the right answer. Tell them their code follows their plan, but the plan needs revisiting: go back to Design. In this situation never name a step number, a rule, or a condition from their plan, and do not suggest how to rework it (no tables, no "split it into cases"). You may tell them to take one example the program gets wrong and follow it through their plan, by hand, in Design. Refer to it only as a whole: say "your plan", never "step 5" or "the line with ||", even to ask a question about it.
-  - `far_from_plan` — the program bears little relation to the plan. Keep it short: ask them to start again from step 1 of their plan and write one step at a time.
+  - `far_from_plan` — the program compiled but bears little relation to the plan. Keep it short: ask them to start again from step 1 of their plan and write one step at a time.
   - `other` — none of these fits. Name the one thing most worth looking at.
 
   ## Judge the plan as it is written
 
-  Read the plan's words literally. Never tell a student their program departs from their plan when it does what the plan says. If the plan says "if the day or the month is earlier, subtract one" and the program does exactly that, the program follows the plan — and if that gives a wrong answer, the situation is `plan_is_wrong`, not `departs_from_plan`.
+  Read the plan's words literally. Never tell a student their program departs from their plan when it does what the plan says. If the plan says "if the day or the month is earlier, subtract one" and the program does exactly that, the program follows the plan — and if that gives a wrong answer, the situation is `plan_is_wrong`, not `departs_from_plan`. When the plan's words allow more than one reading (an "and/or", a condition that does not say which comes first), a program that fits any of those readings follows the plan.
 
   ## Name what is missing; never supply it
 
@@ -113,7 +119,7 @@ user_template: |
 
   {% if not run.compiled %}
   COMPILER ERRORS
-  The program did not compile. The compiler said:
+  The program did not compile, so the situation is syntax_following_plan. The compiler said:
   {{ run.compilerOutput | truncate(3000) }}
   {% else %}
   WHAT FAILED

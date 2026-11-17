@@ -87,6 +87,35 @@ describe('callModel', () => {
     });
   });
 
+  it('asks once more when the reply could not be read, and records both calls', async () => {
+    let n = 0;
+    const flaky = fakeProvider(async () => {
+      n += 1;
+      if (n === 1) {
+        throw new JudgeError('DeepSeek did not return valid JSON: Expected , at position 76', {
+          raw: '{"situation": "wrong_answer" "summary"',
+          unreadable: true
+        });
+      }
+      return answered.judgeJson(options);
+    });
+    const { calls, result } = await captureLlmCalls(() => callModel(flaky, 'nudge', options));
+
+    expect(result.ok).toBe(true);
+    expect(calls.map((c) => c.error)).toEqual(['DeepSeek did not return valid JSON: Expected , at position 76', null]);
+    expect(calls[0].raw_text).toBe('{"situation": "wrong_answer" "summary"');
+  });
+
+  it('gives up after the second unreadable reply', async () => {
+    const broken = fakeProvider(async () => {
+      throw new JudgeError('DeepSeek did not return valid JSON: nope', { raw: '{', unreadable: true });
+    });
+    const { calls, result } = await captureLlmCalls(() => callModel(broken, 'nudge', options));
+
+    expect(result.ok).toBe(false);
+    expect(calls).toHaveLength(2);
+  });
+
   it('keeps calls in the order they were made', async () => {
     const { calls } = await captureLlmCalls(async () => {
       await callModel(answered, 'judge', options);

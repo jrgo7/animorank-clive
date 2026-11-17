@@ -8,7 +8,7 @@
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
   import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
-  import { fieldFeedback } from './feedback';
+  import { fieldFeedback, helpOffered } from './feedback';
   import { isFunctionProblem } from './problemKind';
   import {
     PHASES,
@@ -435,7 +435,13 @@
       {#if session.busy === 'submit'}
         {@render thinking()}
       {:else if feedback}
-        <FieldFeedback {feedback} />
+        <FieldFeedback
+          {feedback}
+          offerHelp={helpOffered(session.historyFor(2))}
+          onstuck={() => {
+            phaseState.stuckOpen = true;
+          }}
+        />
       {/if}
 
       <!-- "What are you stuck on?": the student says what they find hard, in their own

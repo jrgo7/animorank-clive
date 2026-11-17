@@ -22,7 +22,7 @@ export interface JudgeJsonOptions {
   /** The same schema as JSON text, for a provider told the shape in its system message. */
   schemaText: string;
   /** Called with each piece of reasoning as it streams, when the provider streams it. */
-  onReasoning?: (chunk: string) => void;
+  onReasoning?: (_chunk: string) => void;
 }
 
 export interface ProviderResult {

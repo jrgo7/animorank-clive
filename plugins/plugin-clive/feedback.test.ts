@@ -4,7 +4,7 @@
  * `startHere`, `renderFieldFeedback` and the question tabs' marks).
  */
 import { describe, expect, it } from 'vitest';
-import { MORE_TO_FIX, fieldFeedback, fieldMark, fieldStates, startHere } from './windows/feedback';
+import { MORE_TO_FIX, fieldFeedback, fieldMark, fieldStates, helpOffered, startHere } from './windows/feedback';
 import type { JudgeResult, Verdict } from './windows/cliveSession.svelte';
 
 const FIELDS = ['summary', 'inputs', 'outputs'];
@@ -171,5 +171,29 @@ describe('the question tabs', () => {
     expect(fieldMark(r, 'summary')).toBe('ok');
     expect(fieldMark(result([verdict('input_order_stated', ['inputs'], { gate: 'advisory' })]), 'inputs')).toBe('look');
     expect(fieldMark(null, 'inputs')).toBe('');
+  });
+});
+
+describe('offering help', () => {
+  const turn = (attempt: number, focus_id: string) => ({ attempt, focus_id, situation: 'other', nudge: 'n' });
+
+  it('comes on the third failed submit in a row on the same point', () => {
+    expect(helpOffered([turn(1, 'work_is_shown'), turn(2, 'work_is_shown'), turn(3, 'work_is_shown')])).toBe(true);
+  });
+
+  it('waits while the point keeps changing, or there have been fewer than three', () => {
+    expect(helpOffered([turn(1, 'work_is_shown'), turn(2, 'work_is_shown')])).toBe(false);
+    expect(helpOffered([turn(1, 'case_is_concrete'), turn(2, 'work_is_shown'), turn(3, 'work_is_shown')])).toBe(false);
+  });
+
+  it('looks only at the last three', () => {
+    expect(
+      helpOffered([
+        turn(1, 'case_is_concrete'),
+        turn(2, 'work_is_shown'),
+        turn(3, 'work_is_shown'),
+        turn(4, 'work_is_shown')
+      ])
+    ).toBe(true);
   });
 });

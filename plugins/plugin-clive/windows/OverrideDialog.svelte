@@ -24,8 +24,8 @@
     from: string;
     to: string | null;
     participant: string;
-    onconfirm: (reason: string) => void;
-    onparticipant: (tag: string, next: boolean) => Promise<void>;
+    onconfirm: (_reason: string) => void;
+    onparticipant: (_tag: string, _next: boolean) => Promise<void>;
     oncancel: () => void;
   } = $props();
 
