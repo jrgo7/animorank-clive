@@ -32,7 +32,7 @@ created: 2026-09-07
 changelog: >
   v12: The judge's system prompt uses the shared rules plus this phase's own (the program has already passed every test; do not report bugs). criteria v6 (2026-11-17): wording revised; every criterion stays advisory.
 
-  v11:For a function problem the intro says to write the function and any helpers, not main, and "print or return"; the field hint no longer says "whole program" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
+  v11: For a function problem the intro says to write the function and any helpers, not main, and "print or return"; the field hint no longer says "whole program" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
 
   criteria v5 (2026-10-25): function problems -- parameters are inputs, the return value is the output.
 

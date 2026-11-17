@@ -28,7 +28,7 @@ layout: steps
 created: 2026-08-18
 changelog: |
   v17: The judge's system prompt is rewritten (2026-11-17 criteria review): shared rules for all four phases; the evidence rule FAILs an empty artifact only for a criterion that requires something. criteria v10 (2026-11-17): summary_is_correct added; input_order_stated and output_form_exact dropped; function problems that return a value only.
-  v16:The Outputs hint asks for exact printed form only of a printed output; a returned value needs its type and meaning. The Inputs hint says an int holds up to about two billion, so a nine-digit input does not send a student to `long`. criteria v9: input order and output form no longer assume reading and printing (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
+  v16: The Outputs hint asks for exact printed form only of a printed output; a returned value needs its type and meaning. The Inputs hint says an int holds up to about two billion, so a nine-digit input does not send a student to `long`. criteria v9: input order and output form no longer assume reading and printing (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
   criteria v8 (2026-10-25): input_types/output_types accept plain type words ('integer', 'whole number', 'character') -- Magni's 'integer' failed while Avril's passed in round 6 -- and every criterion reads a function's parameters as its inputs and its return value as its output (Red Wildlings is a function problem).
   v15: The Outputs question asks what the program must print rather than "give back", which a student could read as `return` (2026-10-10).
 
