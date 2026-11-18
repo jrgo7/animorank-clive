@@ -6,8 +6,9 @@ describe('casePartFor', () => {
   it('maps each Cases requirement to the box it is about', () => {
     expect(casePartFor('case_is_concrete')).toBe('input');
     expect(casePartFor('outputs_are_correct')).toBe('output');
-    expect(casePartFor('output_format_matches_statement')).toBe('output');
     expect(casePartFor('work_is_shown')).toBe('working');
+    // Optional, so never a nudge's focus: it marks no box.
+    expect(casePartFor('worked_out_differently')).toBeNull();
   });
 
   it('marks nothing for a requirement it does not know, or no feedback', () => {

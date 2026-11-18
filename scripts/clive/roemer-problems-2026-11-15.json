@@ -1,0 +1,1790 @@
+{
+  "format": "animorank-problem-set-export/1",
+  "exported_at": "2026-11-15T12:01:33Z",
+  "last_migration": "20260929000000_repair_empty_practice_session_state",
+  "problem_set": {
+    "id": "cae83f14-4439-49fd-a88f-4c733a571040",
+    "title": "CLive Problems - Roemer",
+    "description": "Function problems for trying CLive: Icebreaker, Student ID and Food Truck.",
+    "auto_accept": false,
+    "is_global": false,
+    "difficulty_id": null,
+    "subject_id": null,
+    "created_at": "2026-11-15T12:00:00+00:00",
+    "updated_at": "2026-11-15T12:00:00+00:00",
+    "featured_rank": null
+  },
+  "problem_set_owners": ["roemergabrielcalib@gmail.com"],
+  "difficulty_tags": [
+    {
+      "id": "ed2c6bf0-7f00-49ee-8d75-ed2d68349d78",
+      "type": "difficulty",
+      "label": "Basic",
+      "order": 1
+    },
+    {
+      "id": "18894961-f69c-4f4b-8bdf-fb6b7f25c112",
+      "type": "difficulty",
+      "label": "Intermediate",
+      "order": 2
+    }
+  ],
+  "problems": [
+    {
+      "id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "name": "Icebreaker",
+      "visible": true,
+      "language": "C",
+      "created_at": "2026-11-15T12:01:00+00:00",
+      "subject_id": null,
+      "updated_at": "2026-11-15T12:01:00+00:00",
+      "uses_slots": true,
+      "description": "## Problem Description\n\nIn a rather boring icebreaker, participants play a game in which they count aloud from 1 to a specified number. For each number recited, the game's host will update an internal score that starts at 0.\n\nIf a number is a multiple of both 3 and 7, add ten points to the current score.\n\nIf it's JUST a multiple of 7, add seven points\n\nIf it's JUST a multiple of 3, add three points\n\nOtherwise, just add one point.\n\nWrite a C function `getScore` that accepts the upper bound of the counted number as an int and returns the calculated score as an int.\n\n## Function Specification\n\n```c\nint getScore(int n);\n```\n\n\n|Parameter|Description|\n|:---|:---|\n|`n`|The upper bound of the counted number.|\n\n**Returns:** the calculated score.",
+      "starter_code": "#include <stdio.h>\n\n%slot functions%\n// If you want to implement more functions to help\n// you solve this problem, feel free to do so here.\n\n%endslot functions%\n\nint getScore(int n)\n{\n    // Implement the function here.\n%slot studentCode%\n\n    return 0; // Edit this.\n%endslot studentCode%\n}",
+      "difficulty_id": "ed2c6bf0-7f00-49ee-8d75-ed2d68349d78",
+      "extension_data": {
+        "clive": {
+          "reference_solution": "#include <stdio.h>\n\nint getScore(int n)\n{\n    int i;\n    int score = 0;\n\n    for (i = 1; i <= n; i++)\n    {\n        if (i % 3 == 0 && i % 7 == 0)\n            score = score + 10;\n        else if (i % 7 == 0)\n            score = score + 7;\n        else if (i % 3 == 0)\n            score = score + 3;\n        else\n            score = score + 1;\n    }\n\n    return score;\n}\n"
+        },
+        "builtin_testCase_function": {
+          "functions": {
+            "56df6013-21ef-4bdb-b581-c8b53a17b2b5": {
+              "name": "getScore",
+              "parameters": [
+                {
+                  "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+                  "name": "n",
+                  "type": {
+                    "type": "int",
+                    "options": {
+                      "size": 32,
+                      "signed": null
+                    }
+                  }
+                }
+              ],
+              "returnType": [
+                {
+                  "type": "int",
+                  "options": {
+                    "size": 32,
+                    "signed": null
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "problem_set_id": "cae83f14-4439-49fd-a88f-4c733a571040"
+    },
+    {
+      "id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "name": "Student ID",
+      "visible": true,
+      "language": "C",
+      "created_at": "2026-11-15T12:02:00+00:00",
+      "subject_id": null,
+      "updated_at": "2026-11-15T12:02:00+00:00",
+      "uses_slots": true,
+      "description": "## Problem Description\n\nA school's student ID is numbered with 8 digits, and your job is to write a function to check if it's valid or invalid based on the following rules:\n\nFirst, the ID must contain at least 3 odd digits.\n\nTaking the digit as a string, note that the ones digit is position 1, the tens digit is position 2, the hundreds digit is position 3, and so on up to position 8. The sum of the digits in the odd positions (1, 3, 5, 7) must equal the sum of the digits in the even positions (2, 4, 6, 8).\n\nLastly, the first digit cannot be zero.\n\nWrite a C function `isValidID` that checks the student numbers. The function accepts the student ID as an int and returns 0, if the student ID is invalid, and 1 if the student ID is valid.\n\n## Function Specification\n\n```c\nint isValidID(int id);\n```\n\n\n|Parameter|Description|\n|:---|:---|\n|`id`|The student ID.|\n\n**Returns:** `1` if the student ID is valid, `0` if it is invalid.",
+      "starter_code": "#include <stdio.h>\n\n%slot functions%\n// If you want to implement more functions to help\n// you solve this problem, feel free to do so here.\n\n%endslot functions%\n\nint isValidID(int id)\n{\n    // Implement the function here.\n%slot studentCode%\n\n    return 0; // Edit this.\n%endslot studentCode%\n}",
+      "difficulty_id": "18894961-f69c-4f4b-8bdf-fb6b7f25c112",
+      "extension_data": {
+        "clive": {
+          "reference_solution": "int isValidID(int id)\n{\n    int temp, digit, pos;\n    int oddCount = 0, oddPosSum = 0, evenPosSum = 0;\n\n    /* must have exactly 8 digits, and the first digit cannot be 0 */\n    if (id < 10000000 || id > 99999999)\n        return 0;\n\n    temp = id;\n    for (pos = 1; pos <= 8; pos++)\n    {\n        digit = temp % 10;\n\n        if (digit % 2 == 1)\n            oddCount = oddCount + 1;\n\n        if (pos % 2 == 1)\n            oddPosSum = oddPosSum + digit;\n        else\n            evenPosSum = evenPosSum + digit;\n\n        temp = temp / 10;\n    }\n\n    if (oddCount >= 3 && oddPosSum == evenPosSum)\n        return 1;\n    else\n        return 0;\n}\n"
+        },
+        "builtin_testCase_function": {
+          "functions": {
+            "d130d5f8-14ec-44ff-a7a3-eecb13938dff": {
+              "name": "isValidID",
+              "parameters": [
+                {
+                  "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+                  "name": "id",
+                  "type": {
+                    "type": "int",
+                    "options": {
+                      "size": 32,
+                      "signed": null
+                    }
+                  }
+                }
+              ],
+              "returnType": [
+                {
+                  "type": "int",
+                  "options": {
+                    "size": 32,
+                    "signed": null
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "problem_set_id": "cae83f14-4439-49fd-a88f-4c733a571040"
+    },
+    {
+      "id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "name": "Food Truck",
+      "visible": true,
+      "language": "C",
+      "created_at": "2026-11-15T12:03:00+00:00",
+      "subject_id": null,
+      "updated_at": "2026-11-15T12:03:00+00:00",
+      "uses_slots": true,
+      "description": "## Problem Description\n\nA food truck sells rice meals in the busy streets of Taft Avenue. The food truck owner sells drinks at 20 pesos each and a hot meal at 30 Pesos each. A group of hungry students wants to buy a bunch of meals. They will buy at least one hot meal and one hot drink.\n\nFor example, if their budget is 100 Pesos, they can get either of the following:\n\n- 1 meal and 1 drink for 50 pesos\n- 1 meal and 2 drinks for 70 pesos\n- 1 meal and 3 drinks for 90 pesos\n- 2 meals and 1 drink for 80 pesos\n- 2 meals and 2 drinks for 100 pesos\n\nThis makes 5 different combinations in total.\n\nWrite a C function `countCombinations` that returns an int indicating how many combinations of drinks and meals are possible, given the group’s budget as an int.\n\n## Function Specification\n\n```c\nint countCombinations(int budget);\n```\n\n\n|Parameter|Description|\n|:---|:---|\n|`budget`|The group's budget.|\n\n**Returns:** how many combinations of drinks and meals are possible.",
+      "starter_code": "#include <stdio.h>\n\n%slot functions%\n// If you want to implement more functions to help\n// you solve this problem, feel free to do so here.\n\n%endslot functions%\n\nint countCombinations(int budget)\n{\n    // Implement the function here.\n%slot studentCode%\n\n    return 0; // Edit this.\n%endslot studentCode%\n}",
+      "difficulty_id": "18894961-f69c-4f4b-8bdf-fb6b7f25c112",
+      "extension_data": {
+        "clive": {
+          "reference_solution": "#include <stdio.h>\n\n#define MEAL_PRICE 30\n#define DRINK_PRICE 20\n\nint countCombinations(int budget)\n{\n    int meals, drinks;\n    int count = 0;\n\n    /* try every number of meals and drinks, starting at 1 each */\n    for (meals = 1; meals * MEAL_PRICE <= budget; meals++)\n    {\n        for (drinks = 1; drinks * DRINK_PRICE <= budget; drinks++)\n        {\n            if (meals * MEAL_PRICE + drinks * DRINK_PRICE <= budget)\n                count = count + 1;\n        }\n    }\n\n    return count;\n}\n"
+        },
+        "builtin_testCase_function": {
+          "functions": {
+            "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab": {
+              "name": "countCombinations",
+              "parameters": [
+                {
+                  "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+                  "name": "budget",
+                  "type": {
+                    "type": "int",
+                    "options": {
+                      "size": 32,
+                      "signed": null
+                    }
+                  }
+                }
+              ],
+              "returnType": [
+                {
+                  "type": "int",
+                  "options": {
+                    "size": 32,
+                    "signed": null
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "problem_set_id": "cae83f14-4439-49fd-a88f-4c733a571040"
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "5c9c0f0f-9a7f-4cea-aff7-ce9ba417a330",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "1"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "1"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:01+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:01+00:00"
+    },
+    {
+      "id": "ee3f0a2f-3a3b-4581-904b-d25215f58e1e",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "3"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "5"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:01:02+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:02+00:00"
+    },
+    {
+      "id": "dee4301a-f20e-4237-8a91-e62486182abd",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "7"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "17"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:01:03+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:03+00:00"
+    },
+    {
+      "id": "aa488328-283f-49a6-ba09-27e005ec9334",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "10"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "22"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:01:04+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:04+00:00"
+    },
+    {
+      "id": "bd7917e9-f930-4363-a31d-92a9b1abd106",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "20"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "44"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:05+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:05+00:00"
+    },
+    {
+      "id": "f80323fd-2d46-4873-b459-be3b4ea07e75",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "21"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "54"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:06+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:06+00:00"
+    },
+    {
+      "id": "76bef2d6-88d1-44e9-8696-729b917aceb7",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "22"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "55"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:07+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:07+00:00"
+    },
+    {
+      "id": "41d16671-4f45-435b-9810-a3cc85c5e688",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "42"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "108"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:08+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:08+00:00"
+    },
+    {
+      "id": "e5a48e88-5ced-4ef1-be45-67d42b762890",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "100"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "254"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:09+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:09+00:00"
+    },
+    {
+      "id": "d120d274-d557-442a-bf1a-c94252970d4c",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "1000"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "2565"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:10+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:10+00:00"
+    },
+    {
+      "id": "1746af8a-47d0-4d93-ada8-b9c80c7f4515",
+      "data": {
+        "function": "56df6013-21ef-4bdb-b581-c8b53a17b2b5",
+        "parameters": [
+          {
+            "id": "67223bbb-5868-4351-8524-bac5c835eb71",
+            "name": "n",
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:01:11+00:00",
+      "problem_id": "c94d32f5-9cb8-4425-a046-377e8cce09a4",
+      "updated_at": "2026-11-15T12:01:11+00:00"
+    },
+    {
+      "id": "a0c3be5a-4c3c-45a8-b733-cbe794bd5053",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "13702425"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "1"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:02:01+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:01+00:00"
+    },
+    {
+      "id": "a7db7669-71d4-42c0-bb1e-1cb2e03833e6",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "15413376"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "1"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:02+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:02+00:00"
+    },
+    {
+      "id": "3b50c1bd-396e-4a88-9adc-221cd25c891e",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "97393373"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "1"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:03+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:03+00:00"
+    },
+    {
+      "id": "aa5a50d8-d4d1-41c4-b206-4a0e45ee7d6b",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "59724841"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "1"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:04+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:04+00:00"
+    },
+    {
+      "id": "4fa64396-be4b-4004-958e-8a3a147afb22",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "82140300"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:02:05+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:05+00:00"
+    },
+    {
+      "id": "9ac60971-d797-422a-87ee-63a3e25b8b3e",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "20866604"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:06+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:06+00:00"
+    },
+    {
+      "id": "b2158fad-8a0e-4265-8a11-64ad487a735d",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "78325837"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:02:07+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:07+00:00"
+    },
+    {
+      "id": "e3c8035d-cb18-4f64-adf7-9fd1313f4358",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "45655886"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:08+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:08+00:00"
+    },
+    {
+      "id": "890dbbaa-0147-4c36-aaa1-21493261fed4",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "03116531"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:09+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:09+00:00"
+    },
+    {
+      "id": "e65bd20d-f1b3-4fb4-82c7-54ad0a12ee1d",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "38234622"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:10+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:10+00:00"
+    },
+    {
+      "id": "fd59d273-8f4f-4801-8046-60696d713e60",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "1234567"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:11+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:11+00:00"
+    },
+    {
+      "id": "d280d049-f1e4-46df-bfae-b36892305f8f",
+      "data": {
+        "function": "d130d5f8-14ec-44ff-a7a3-eecb13938dff",
+        "parameters": [
+          {
+            "id": "58098e8a-8473-447d-8a45-0d9d8239640b",
+            "name": "id",
+            "value": {
+              "data": {
+                "value": "123456789"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:02:12+00:00",
+      "problem_id": "8f04fbf5-8c53-4b10-a6d3-0fa145f1fa7a",
+      "updated_at": "2026-11-15T12:02:12+00:00"
+    },
+    {
+      "id": "b54cf654-df11-4e2c-8e78-4777f52e548e",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "100"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "5"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:03:01+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:01+00:00"
+    },
+    {
+      "id": "5e754625-b302-4231-a9cd-caf0f6d9c3e5",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "50"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "1"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:03:02+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:02+00:00"
+    },
+    {
+      "id": "54b4ebdf-c47f-4388-8ade-b7706406d98b",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "49"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:03+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:03+00:00"
+    },
+    {
+      "id": "c764baff-3f41-4c4b-9c49-de0183da5791",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:04+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:04+00:00"
+    },
+    {
+      "id": "8f25d7a8-3265-4278-a932-d9a1dc70d350",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "70"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "2"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": true,
+      "created_at": "2026-11-15T12:03:05+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:05+00:00"
+    },
+    {
+      "id": "759e604f-1bf7-4d72-b818-a5a64e5975ed",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "75"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "2"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:06+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:06+00:00"
+    },
+    {
+      "id": "9a446886-c0fa-476d-8916-bee4704f75c9",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "80"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "3"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:07+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:07+00:00"
+    },
+    {
+      "id": "ea47f2d6-97b3-4f92-b29e-0b7075a7b395",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "99"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "4"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:08+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:08+00:00"
+    },
+    {
+      "id": "fe90db68-49af-4db8-9807-2cea5eea7a70",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "110"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "7"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:09+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:09+00:00"
+    },
+    {
+      "id": "cfefec0b-25ce-4586-b4cb-1a2ae56a86d8",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "200"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "27"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:10+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:10+00:00"
+    },
+    {
+      "id": "29c2ec22-4736-4c1a-b1ce-8cdf2d8acbcd",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "1000"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "800"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:11+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:11+00:00"
+    },
+    {
+      "id": "2bad3d97-8ba2-4e0f-97ac-0ecde2db6ead",
+      "data": {
+        "function": "6a45bf0e-11a6-4f5d-8b2e-4347ed713fab",
+        "parameters": [
+          {
+            "id": "4381c6d8-687c-4c76-bfc0-657ec93ae1ad",
+            "name": "budget",
+            "value": {
+              "data": {
+                "value": "-10"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "value": {
+              "data": {
+                "value": "0"
+              },
+              "type": "int",
+              "options": {
+                "size": 32,
+                "signed": null
+              }
+            },
+            "symbol": "return",
+            "operator": {
+              "type": "equal",
+              "options": null
+            }
+          }
+        ]
+      },
+      "type": "function",
+      "public": false,
+      "created_at": "2026-11-15T12:03:12+00:00",
+      "problem_id": "d4eb192b-4454-461f-84ac-a777e4e70cec",
+      "updated_at": "2026-11-15T12:03:12+00:00"
+    }
+  ]
+}

@@ -415,7 +415,7 @@ describe('CLive windows', () => {
     expect(program['How I got it']).toContain('prints 24');
   });
 
-  it('shows a function problem a function example in every phase, and main only to a program problem', () => {
+  it('shows a function problem a function example in every phase, and the no-prompts rule only to a program problem', () => {
     stubBoot();
     const texts = (functionProblem: boolean): string[] =>
       PHASES.map((phase, index) => {
@@ -441,7 +441,8 @@ describe('CLive windows', () => {
     expect(problem).toContain('what is the function supposed to do?');
     expect(cases).toContain('4, 6');
     expect(design).toContain('Return the total.');
-    expect(implement).toContain("you don't write main");
+    expect(implement).toContain('Write the function the problem asks for.');
+    expect(implement).not.toContain('Enter a number:');
 
     const [programProblem, programCases, programDesign, programImplement] = texts(false);
     expect(programProblem).toContain('Print the area.');
@@ -449,6 +450,7 @@ describe('CLive windows', () => {
     expect(programCases).not.toContain('4, 6');
     expect(programDesign).toContain('Print the total.');
     expect(programImplement).not.toContain('main');
+    expect(programImplement).toContain('Enter a number:');
   });
 
   it('opens a phase whose saved work is missing its fields', () => {

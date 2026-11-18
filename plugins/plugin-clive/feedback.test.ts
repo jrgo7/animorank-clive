@@ -43,7 +43,9 @@ function failedProblem(): JudgeResult {
       verdict('constraints_noted', ['inputs']),
       verdict('input_types', ['inputs']),
       verdict('output_types', ['outputs']),
-      verdict('input_order_stated', ['inputs'], { gate: 'advisory' })
+      // Problem has no optional point since criteria v10, so Design's stands in for one here
+      // and below: the page reads a point's question and gate from the verdict, not its id.
+      verdict('values_are_tracked', ['inputs'], { gate: 'advisory' })
     ],
     {
       nudge: {
@@ -68,7 +70,7 @@ describe('each question’s failures', () => {
   it('groups the failing requirements by the question they are about, required and optional apart', () => {
     const states = fieldStates(failedProblem());
     expect(states.inputs.blocking.map((v) => v.criterion_id)).toEqual(['constraints_noted', 'input_types']);
-    expect(states.inputs.advisory.map((v) => v.criterion_id)).toEqual(['input_order_stated']);
+    expect(states.inputs.advisory.map((v) => v.criterion_id)).toEqual(['values_are_tracked']);
     expect(states.outputs.blocking.map((v) => v.criterion_id)).toEqual(['output_types']);
     // A question no failing verdict names has no entry, and reads as met.
     expect(states.summary).toBeUndefined();
@@ -143,13 +145,13 @@ describe('what one question shows', () => {
   });
 
   it('keeps optional points back until the submit passes, then offers them as worth a look', () => {
-    const optional = verdict('input_order_stated', ['inputs'], { gate: 'advisory' });
+    const optional = verdict('values_are_tracked', ['inputs'], { gate: 'advisory' });
     const failed = result([verdict('output_types', ['outputs']), optional]);
     expect(fieldFeedback(failed, 'inputs', false)).toBeNull();
 
     expect(fieldFeedback(result([optional]), 'inputs', false)).toEqual({
       kind: 'look',
-      points: [{ notMet: 'input_order_stated not met', explain: 'input_order_stated explain' }]
+      points: [{ notMet: 'values_are_tracked not met', explain: 'values_are_tracked explain' }]
     });
   });
 
@@ -169,7 +171,7 @@ describe('the question tabs', () => {
     const r = failedProblem();
     expect(fieldMark(r, 'inputs')).toBe('bad');
     expect(fieldMark(r, 'summary')).toBe('ok');
-    expect(fieldMark(result([verdict('input_order_stated', ['inputs'], { gate: 'advisory' })]), 'inputs')).toBe('look');
+    expect(fieldMark(result([verdict('values_are_tracked', ['inputs'], { gate: 'advisory' })]), 'inputs')).toBe('look');
     expect(fieldMark(null, 'inputs')).toBe('');
   });
 });

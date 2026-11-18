@@ -3,6 +3,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import Google from '@auth/sveltekit/providers/google';
 import { env } from '$env/dynamic/private';
 import { db } from './zenstack';
+import { DEV_ACCESS_BYPASS } from './devAccessBypass';
 
 declare module '@auth/sveltekit' {
   interface Session {

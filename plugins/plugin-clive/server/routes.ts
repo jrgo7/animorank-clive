@@ -44,7 +44,8 @@ import {
   type RequestKind,
   type SessionLogEntry
 } from './sessionLog';
-import { cut, isPerStep } from './steps';
+import { compareCase, cut, isPerStep } from './steps';
+import type { CaseRow } from './artifact';
 import { stuck } from './stuck';
 
 /** The longest statement the model is handed; the page caps its box at the same length. */
@@ -220,6 +221,7 @@ async function submit(
   let artifact: Record<string, unknown> = body.artifact;
   let phaseForJudge = phase;
   let referenceCheck: CheckResult | null = null;
+  let caseOne: CaseRow | undefined;
 
   if (phase.phase === 'implement') {
     // The compiler gate is AnimoRank's own Submit flow; by the time the client
@@ -230,6 +232,8 @@ async function submit(
     if (!body.step) {
       throw new JudgeError(`Phase '${phase.phase}' is judged one step at a time; a step is required.`);
     }
+    // Taken before `cut`, which keeps only the case being submitted.
+    caseOne = compareCase(artifact, body.step);
     const cutPhase = cut(phase, artifact, criteria, body.step);
     phaseForJudge = cutPhase.phase;
     artifact = cutPhase.artifact;
@@ -248,7 +252,10 @@ async function submit(
       artifact,
       criteria,
       body.attempt,
-      body.priorArtifacts
+      body.priorArtifacts,
+      undefined,
+      undefined,
+      caseOne
     );
     outcome = withChecks;
     applied = withChecks.criteria;

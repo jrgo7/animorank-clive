@@ -147,7 +147,6 @@ export function fieldMark(result: JudgeResult | null | undefined, fieldId: strin
 const CASE_PART: Record<string, 'input' | 'output' | 'working'> = {
   case_is_concrete: 'input',
   outputs_are_correct: 'output',
-  output_format_matches_statement: 'output',
   work_is_shown: 'working'
 };
 

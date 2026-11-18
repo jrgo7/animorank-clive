@@ -35,11 +35,15 @@ describe('CLive content loading', () => {
     const cases = rubricDoc('case_design');
     expect(cases.criteria).toHaveLength(4);
     expect(cases.criteria.find((c) => c.id === 'outputs_are_correct')?.check).toBe('reference');
-    expect(cases.criteria.every((c) => (c.fields ?? []).includes('normal_cases'))).toBe(true);
+    // Every Cases criterion is judged on Case 1 but `worked_out_differently`, which compares Case 2 with it.
+    const compared = cases.criteria.find((c) => c.id === 'worked_out_differently');
+    expect(compared).toMatchObject({ gate: 'advisory', fields: ['edge_cases'] });
+    const rest = cases.criteria.filter((c) => c !== compared);
+    expect(rest.every((c) => (c.fields ?? []).includes('normal_cases'))).toBe(true);
 
     const problem = rubricDoc('problem_definition');
-    expect(problem.criteria.filter((c) => c.gate === 'gating')).toHaveLength(4);
-    expect(problem.criteria.filter((c) => c.gate === 'advisory')).toHaveLength(2);
+    expect(problem.criteria.filter((c) => c.gate === 'gating')).toHaveLength(5);
+    expect(problem.criteria.filter((c) => c.gate === 'advisory')).toHaveLength(0);
   });
 
   it('reads the shared nudge and stuck documents', () => {
@@ -73,7 +77,7 @@ describe('rubric fixes from round 6', () => {
 
   it('never fails a correct expected output for its reasoning', () => {
     const outputs = rubricDoc('case_design').criteria.find((c) => c.id === 'outputs_are_correct');
-    expect(outputs?.guidance).toContain('A correct value with wrong reasoning PASSes');
+    expect(outputs?.guidance).toContain('a correct value with wrong reasoning should pass');
   });
 });
 

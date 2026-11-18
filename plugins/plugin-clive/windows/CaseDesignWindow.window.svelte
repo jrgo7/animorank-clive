@@ -40,9 +40,8 @@
   const PROGRAM_COPY = {
     exampleProblem:
       'Read the length and width of a rectangle, each a whole number of centimeters from 1 to\n100. Print the area.',
-    question:
-      'Pick some values and solve the problem by hand, the way your program will have to. What values would you type in, what should come out, and how did you get there?',
-    hint: 'Write the values you would type in, then work out by hand what should come out, and show how. Use values of your own, not the examples in the problem.',
+    question: 'Pick some values and solve the problem by hand.',
+    hint: 'Write the values you would type in, and work out by hand the output. Do not use values provided by the examples in the problem.',
     normalExample: [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }] as CaseRow[],
     edgeExample: [
       { input: '1 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
@@ -56,9 +55,8 @@
   const FUNCTION_COPY = {
     exampleProblem:
       'Write a function int getArea(int nLength, int nWidth) that returns the area of a rectangle whose\nlength and width are each a whole number of centimeters from 1 to 100.',
-    question:
-      'Pick some values and solve the problem by hand, the way your function will have to. What values would you pass to the function, what should it return, and how did you get there?',
-    hint: 'Write the values you would pass it, in the order of its parameters and separated by commas, then work out by hand what it should return, and show how. Use values of your own, not the examples in the problem.',
+    question: 'Pick some values and solve the problem by hand.',
+    hint: 'Write the values you would pass it, and work out by hand the output. Do not use values provided by the examples in the problem.',
     normalExample: [{ input: '4, 6', output: '24', working: '4 * 6 = 24.' }] as CaseRow[],
     edgeExample: [
       { input: '1, 1', output: '1', working: 'The smallest length and width allowed are 1 and 1. 1 * 1 = 1.' }
@@ -254,6 +252,7 @@
     if (!last?.added) return;
     phaseState.artifact[last.id] = [{ input: '', output: '', working: '' }];
     delete phaseState.stepResults[last.id];
+    delete phaseState.passedArtifact[last.id];
     phaseState.added -= 1;
     phaseState.step = session.inPlay(1).length - 1;
     context.telemetry.record(CLIVE_EVENT.caseRemoved, { phase: config.phase, cases: session.inPlay(1).length });
@@ -322,13 +321,12 @@
 
       {#if phaseState.passed}
         <Alert class="bg-base-200 text-sm text-base-content/70">
-          <span>You can keep improving this and submit again. It stays passed either way.</span>
+          <span>You can keep improving this and submit again.</span>
         </Alert>
       {/if}
 
       <p class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed text-base-content/70">
-        Before you plan anything, solve the problem yourself. If you can't work out an example by hand, you can't tell a
-        computer how to.
+        Before you plan anything, solve the problem yourself.
       </p>
 
       <div class="flex flex-col gap-1.5">

@@ -5,6 +5,7 @@ import { db } from '$lib/zenstack';
 import { ServerRegistryProvider } from '$lib/registry/server';
 import { ProblemSetService } from '$lib/problemSet/problemSetService';
 import { TestCaseService } from '$lib/testCase/testCaseService';
+import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
   const session = await locals.auth();
@@ -25,11 +26,14 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   const fullProblemSet = await db.problemSet.findUnique({
     where: {
       id: params.id,
-      OR: [
-        { is_global: true },
-        { subscriptions: { some: { student_id: session.user.id } } },
-        { collaborators: { some: { collaborator_id: session.user.id } } }
-      ]
+      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every set is readable.
+      ...unlessDevBypass({
+        OR: [
+          { is_global: true },
+          { subscriptions: { some: { student_id: session.user.id } } },
+          { collaborators: { some: { collaborator_id: session.user.id } } }
+        ]
+      })
     },
     include: {
       problems: true,

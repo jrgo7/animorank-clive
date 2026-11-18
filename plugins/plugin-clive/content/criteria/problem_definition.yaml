@@ -28,119 +28,85 @@
 #   v9  The student-facing lines of `input_order_stated` and `output_form_exact` no longer
 #       assume the program reads and prints: a function's parameters come in an order, and
 #       a returned value has no printed form (2026-10-26, walkthrough of Red Wildlings).
+#
+#   v10 (2026-11-17 criteria review; function problems that return a value only): new gating
+#       `summary_is_correct`: the summary says what the function returns and the rule that decides
+#       it (PCDIT's one-sentence statement checks understanding; Table 4.2 asks for a description
+#       that is relevant and generally correct). `input_order_stated` dropped (the signature fixes
+#       the parameter order) and `output_form_exact` dropped (a returned value has no printed form).
+#       Wording revised throughout; 'Judge the inputs only' replaces 'Judge STRICTLY'.
 
 id: criteria.problem_definition
 phase: problem_definition
-version: 9
+version: 10
 
 criteria:
-  - id: novel_wording
-    text: The summary is in your own words.
+  - id: summary_is_correct
+    text: The summary should correctly state what the program must work out from its inputs.
     gate: gating
     fields: [summary]
-    not_met: "You should retell the task in your own words instead of the problem's sentences."
+    not_met: "State in your summary what the program must work out, and the rule from the problem that decides it."
+    explain: >-
+      State generally what the program has to work out, and the rules from the problem
+      description that decide the answer.
+    guidance: |
+      PASS if the summary states what the function must return and the main rule or rules from the problem that decide it.
+      For a function problem, the function's parameters are its inputs and the return value is the output.
+      Naming a familiar operation is enough when that operation is the rule (converting a time, finding an age, averaging values). Groups of operations can be described generally. The summary does not need the steps of a solution.
+      Limits, special cases and the statement's clarifications may be left out, as these are handled in the later phases.
+      FAIL if the summary is about something other than this task. FAIL also if it lacks what the function must return or what decides it, or states a rule that clearly contradicts the problem statement in a way that is fundamentally wrong for the question.
+      Judge the MEANING only.
+      For feedback writing: never state the problem's rule for the student, as they must come up with it themselves.
+
+  - id: novel_wording
+    text: The summary must be in the student's own words.
+    gate: gating
+    fields: [summary]
+    not_met: "Restate the task in your own words instead of the problem's words/sentences."
     explain: >-
       Put the task in your own words instead of copying sentences from the problem.
     guidance: |
       PASS if the summary restates the task in the student's own phrasing.
       FAIL if it is largely copied spans from the problem statement, even when reordered.
-      Domain nouns that have no natural synonym (variable names, 'average')
-      do not count as copying.
+      Note that certain nouns may have no natural synonym (variable names, 'average') and therefore do not count as copying.
 
   - id: input_types
     text: Each input has a C type.
     gate: gating
     fields: [inputs]
-    not_met: "You should give each input a C type: int, float, double or char."
+    not_met: "Provide a specific C input type: int, float, double or char."
     explain: >-
-      Give each input a C type -- int, float, double or char -- not just "a number". Does your input contain decimal places? Is it supposed to be a single letter?
+      Give each input a C type such as int, float, double or char. Don't provide vague
+      examples such as "a number".
     guidance: |
-      PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double). FAIL only words that name no type.
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
-      PASS if each input names a definite type a C programmer could declare --
-      'int', 'float', 'double', 'char'.
-      FAIL for vague placeholders such as 'a number', 'some values', 'the data',
-      or an input given with no type at all.
+      PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double), or if each input names a definite type a C programmer could declare -- 'int', 'float', 'double', 'char'.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output.
+      FAIL for vague placeholders such as 'a number', 'some values', 'the data', or an input given with no type at all.
       Judge the inputs only. The type of the output is a separate criterion.
 
   - id: output_types
-    text: You say what kind of value the output is.
+    text: State what kind of value the output is.
     gate: gating
     fields: [outputs]
-    not_met: "You should say what kind of value the output is, or describe exactly how the printed text looks."
+    not_met: "Provide a specific C output type: int, float, double or char."
     explain: >-
-      If the program prints a single value, give its C type -- int, float, double or char.
-      If it prints text or a pattern of several values, describe exactly how it looks instead.
+      Provide the exact C type of the output such as int, float, double or char. Don't provide
+      vague examples such as "a number".
     guidance: |
-      PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double). FAIL only words that name no type.
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
-      PASS if each value the program prints on its own (a number or a single character)
-      names a definite type a C programmer could declare -- 'int', 'float', 'double', 'char'.
-      PASS if the output is formatted text -- words, or several values set inside a fixed
-      pattern of symbols -- and the student describes its form. Do not require a C type for
-      the parts, and accept 'text', 'words' or 'string' for printed words.
-      FAIL for vague placeholders such as 'a number', 'the answer', 'the result', a single
-      printed value with no type, or an output that is not described at all.
-      These rules are seen by the feedback writers too: never answer a student with the
-      problem's own output format; they must describe it themselves.
-      How exact the description is belongs to output_form_exact, not here: a form that is
-      recognisable but loose still passes this one.
-      Judge the outputs only. The types of the inputs are a separate criterion.
+      PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double), or if each output names a definite type a C programmer could declare -- 'int', 'float', 'double', 'char'.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output.
+      FAIL for vague placeholders such as 'a number', 'some values', 'the data', or an output given with no type at all.
+      Judge the outputs only. The type of the input is a separate criterion.
 
   - id: constraints_noted
-    text: The constraints on the inputs are stated, or you say there are none.
+    text: The constraints on the inputs should be stated or it should state explicitly that there are none.
     gate: gating
     fields: [inputs]
-    not_met: "You should write down every constraint the problem puts on the inputs, or say it gives none."
+    not_met: "Write down the constraints the problem puts on the inputs, or explicitly state that there are no constraints."
     explain: >-
-      Say what constraints the problem puts on the inputs, like "always between 1 and 100" or
-      "always never negative", or say plainly that it gives none.
+      State what constraints the problem puts on the inputs, such as "always between 1 and
+      100" or "never negative". If there are no explicit constraints, state that it provides
+      none.
     guidance: |
-      PASS if the artifact states at least one real constraint (value ranges, input size,
-      sign, precision, ordering) OR explicitly says the problem states no constraints.
-      FAIL if constraints are simply never mentioned -- silence is not the same as
-      declaring there are none.
-
-  # ---- Advisory: extra understanding, never blocking -------------------------
-
-  - id: input_order_stated
-    text: You say which input comes first, and what comes after it.
-    gate: advisory
-    fields: [inputs]
-    not_met: "You could also say which input comes first."
-    explain: >-
-      Say which input comes first and what comes after it -- the order the program reads
-      them, or the order of the function's parameters -- for example, "first height, then
-      weight". If there is only one input, say that.
-    guidance: |
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
-      PASS if the artifact makes the reading order recoverable -- numbering the inputs,
-      saying which is read first, or describing a count that is read before the values
-      it governs.
-      FAIL if the inputs are an unordered list and nothing indicates which arrives first.
-      A student who has noticed that a leading count controls how much is read afterwards
-      has understood the input shape, not just its types. Do not credit ordering that is
-      merely implied by the order of the lines; the artifact has to say it.
-      If the problem reads only one input (a single line, a single value), there is no
-      order to state: PASS any artifact that identifies what that one input is.
-
-  - id: output_form_exact
-    text: You say exactly what the output looks like.
-    gate: advisory
-    fields: [outputs]
-    not_met: "You could also say exactly what the output looks like."
-    explain: >-
-      Say exactly how the output looks -- decimal places, any words around it, spaces
-      or commas between values -- wherever the problem fixes it. A function that returns a
-      value has no printed form: say what the value is.
-    guidance: |
-      For a function that returns a value instead of printing, there is no printed form:
-      PASS if the artifact says what the returned value is (its type, or what each possible
-      value means).
-      PASS if the artifact fixes the printed form beyond naming a type -- decimal places,
-      rounding, units, surrounding wording, separators, casing -- for every part of the
-      output the problem statement constrains.
-      FAIL if the output is given only as a type or a quantity ('the average', 'a float')
-      where the statement fixes a format.
-      If the statement genuinely fixes no format, PASS an artifact that says so, and do
-      not require a student to invent one.
+      PASS if the artifact states at least one real constraint (such as value ranges, input size, sign, precision, ordering) OR explicitly says the problem states no constraints.
+      FAIL if constraints are simply never mentioned. Note that the students should explicitly state that there are no constraints.

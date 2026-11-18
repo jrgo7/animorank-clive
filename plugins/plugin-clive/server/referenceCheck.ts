@@ -18,7 +18,7 @@ import { caseRows } from './artifact';
 import type { CriterionDoc, PhaseDoc } from './content/load';
 import type { ProblemForPrompt } from './content/templates';
 import { judge, type JudgeOutcome, type Verdict } from './judge';
-import type { PriorArtifact } from './artifact';
+import type { CaseRow, PriorArtifact } from './artifact';
 import { defaultExecutor, normaliseOutput, runProgram, type ProgramRun } from './program';
 import type { Provider } from './providers';
 import type { FunctionDef } from './problem';
@@ -45,8 +45,9 @@ function quantize(token: string, places: number): string {
 
 function sameToken(a: string, b: string): boolean {
   if (NUMBER.test(a) && NUMBER.test(b)) {
-    // Precision is `output_format_matches_statement`'s to judge, so round both to the
-    // coarser of the two: 63.3 claims the same value as 63.33, 63.4 does not.
+    // Precision is not judged (`output_format_matches_statement`, which judged it, was
+    // dropped in criteria v11), so round both to the coarser of the two: 63.3 claims the
+    // same value as 63.33, 63.4 does not.
     const places = Math.min(decimals(a), decimals(b));
     return quantize(a, places) === quantize(b, places);
   }
@@ -55,8 +56,8 @@ function sameToken(a: string, b: string): boolean {
 
 /**
  * Whether a claimed output is the same value as the reference's. Format —
- * precision, leading zeros, casing — is left to the advisory format criterion,
- * so a different word is a different value: "Yes" is not "1".
+ * precision, leading zeros, casing — is not judged (criteria v11 dropped the
+ * format criterion), but a different word is a different value: "Yes" is not "1".
  */
 export function outputsMatch(claimed: string, actual: string): boolean {
   const a = normaliseOutput(claimed).split(/\s+/).filter(Boolean);
@@ -259,11 +260,13 @@ export async function judgeWithChecks(
   attempt = 1,
   priorArtifacts: PriorArtifact[] = [],
   provider?: Provider,
-  executor?: CodeExecutor
+  executor?: CodeExecutor,
+  /** The student's Case 1, when Case 2 is judged; passed through to {@link judge}. */
+  compareCase?: CaseRow
 ): Promise<JudgedWithChecks> {
   const checkedIds = criteria.filter((c) => c.check === 'reference').map((c) => c.id);
   if (checkedIds.length === 0) {
-    const result = await judge(phase, problem, artifact, criteria, attempt, priorArtifacts, provider);
+    const result = await judge(phase, problem, artifact, criteria, attempt, priorArtifacts, provider, compareCase);
     return { ...result, criteria, referenceCheck: null };
   }
 
@@ -282,7 +285,7 @@ export async function judgeWithChecks(
   );
   const toJudge = applied.filter((c) => !(computed && checkedIds.includes(c.id)));
 
-  const result = await judge(phase, problem, artifact, toJudge, attempt, priorArtifacts, provider);
+  const result = await judge(phase, problem, artifact, toJudge, attempt, priorArtifacts, provider, compareCase);
 
   if (computed) {
     // In rubric order, so the page reads the same whichever path ruled.

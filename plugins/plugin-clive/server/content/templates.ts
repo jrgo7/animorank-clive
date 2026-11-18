@@ -9,7 +9,7 @@
  * `clive-userflow/src/clive/prompts.py`.
  */
 import nunjucks from 'nunjucks';
-import { textArtifact, textPrior, type PriorArtifact } from '../artifact';
+import { textArtifact, textPrior, type CaseRow, type PriorArtifact } from '../artifact';
 import type { FailingCriterion } from '../criteria';
 import type { FunctionDef } from '../problem';
 import type { CriterionDoc, FieldDoc } from './load';
@@ -145,6 +145,8 @@ export function renderPhasePrompt(
     criteria: CriterionDoc[];
     attempt: number;
     priorArtifacts: PriorArtifact[];
+    /** The student's Case 1, shown as YOUR CASE 1 when Case 2 is judged (see `steps.compareCase`). */
+    compareCase?: CaseRow;
   }
 ): string {
   return render(phase.user_template, {
@@ -153,7 +155,9 @@ export function renderPhasePrompt(
     artifact_fields: phase.artifact_fields,
     criteria_to_judge: context.criteria,
     attempt: context.attempt,
-    prior_artifacts: priorForTemplate(context.priorArtifacts)
+    prior_artifacts: priorForTemplate(context.priorArtifacts),
+    // Absent, never empty, when there is no Case 1 to show: the block is guarded.
+    compare_case: context.compareCase
   });
 }
 

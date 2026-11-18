@@ -204,20 +204,17 @@
 
       {#if phaseState.passed}
         <Alert class="bg-base-200 text-sm text-base-content/70">
-          <span>You can keep improving this and submit again. It stays passed either way.</span>
+          <span>You can keep improving this and submit again.</span>
         </Alert>
       {/if}
 
       <p class="max-w-[68ch] border-l-2 border-primary py-0.5 pl-4 text-sm leading-relaxed text-base-content/70">
-        Now translate your plan into C, one step at a time. Your design is beside your code. Press Run to test it on the
-        examples. Press Submit when it works for a final check against test cases you haven't seen.
-        {#if functionProblem}
-          Write the function the problem asks for, and any helpers it needs; you don't write main. Return only what the
-          problem asks for, and print nothing it doesn't ask for.
-        {:else}
+        Now translate your plan into C, one step at a time. Refer to your design beside the code. Press Run to test it
+        on the examples. Press Submit when it works for a final check against hidden test cases.
+        {#if !functionProblem}
           Print only what the problem asks for, with no extra messages like "Enter a number:".
         {/if}
-        Don't use AI tools like ChatGPT.
+        Don't use AI tools like ChatGPT or external references.
       </p>
 
       <DesignPanel

@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { error, successObject } from '$lib/response';
 import { ServerRegistryProvider } from '$lib/registry/server';
 import { ProblemSetService } from '$lib/problemSet/problemSetService';
+import { DEV_ACCESS_BYPASS } from '$lib/devAccessBypass';
 
 const postValidator = z.object({
   title: z.string().min(1)
@@ -12,7 +13,8 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   const session = await locals.auth();
 
   if (!session || !session.user.id) return error(403, 'Unauthorized');
-  if (session.user.type != 'teacher') return error(403, 'Unauthorized');
+  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: students may create problem sets too.
+  if (session.user.type != 'teacher' && !DEV_ACCESS_BYPASS) return error(403, 'Unauthorized');
 
   const { success, data, error: zodError } = await postValidator.safeParseAsync(await request.json());
 

@@ -26,80 +26,77 @@
 #           adds on request; an added case is judged by exactly the same rules.
 #           v10: student-facing lines say "print or return", for function problems
 #           (2026-10-26, walkthrough of Red Wildlings).
+#
+#   v11 (2026-11-17 criteria review; function problems that return a value only): new advisory
+#       `worked_out_differently` on Case 2 only, judged against the student's Case 1, which the
+#       template shows as YOUR CASE 1. `output_format_matches_statement` dropped (a returned value
+#       has no format). `work_is_shown` asks for the main steps with the case's own values; a
+#       general method or a formula without them fails. Wording revised throughout.
 
 id: criteria.case_design
 phase: case_design
-version: 10
+version: 11
 
 criteria:
   - id: case_is_concrete
     text: The case has a real input and a real expected output.
     gate: gating
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: "You should give this case a real input and the exact output the program would print or return for it."
+    not_met: "Provide a real input and the exact output the program would return."
     explain: >-
-      Give actual input values and the output you expect -- not a description, and not
-      one of the examples you were given.
+      Give actual input values that follow the constraints of the problem, and the output you
+      expect -- not one of the examples you were given.
     guidance: |
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way. A case's input is then the arguments the function is given, in any clear form ('612, 123456789' or 'checkSecretCode(612, 123456789)').
-      PASS if the case's input and expected output are both literal values a program could
-      actually be run against.
-      FAIL if either is described only in the abstract ('a list of scores', 'the
-      average'), if the expected output is missing, or if the case is copied verbatim from
-      the PUBLIC TEST CASES -- restating a given example is not designing a case.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output.
+      A case's input is then the arguments the function is given, in any clear form ('612, 123456789' or 'checkSecretCode(612, 123456789)').
+      PASS if the case's input and expected output are both literal values a program could actually be run against.
+      FAIL if either is described only in the abstract ('a list of scores', 'the average'), if the expected output is missing, or if the case repeats an example from the problem statement or the PUBLIC TEST CASES.
 
   - id: work_is_shown
-    text: You show how you got the expected output.
+    text: The case must show the main steps, with its own values, that lead to the expected output.
     gate: gating
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: "You should show, step by step, how you got the expected output."
+    not_met: "Show, step by step, how you got the expected output, using this case's values."
     explain: >-
-      Under How I got it, show the steps -- the arithmetic, the running total -- not only
-      the answer.
+      Under How I got it, show the main steps using this case's values: the arithmetic, the
+      comparisons, and the values you keep track of. Don't just give the answer.
     guidance: |
-      FAIL working that misquotes a rule of the problem, even when the output is right.
-      PASS if How I got it shows the intermediate work that produces the output -- a
-      running total, a comparison, a per-step trace, an arithmetic expression with the
-      case's values in it.
-      FAIL if it only restates the answer, or gives a formula with no values substituted
-      into it.
+      PASS if "How I got it" shows the intermediate work that produces the output, using this case's values, such as a running total, a comparison, a per-step trace, or an arithmetic expression with the case's values in it. The main steps are enough; every small step is not needed.
+      FAIL if it only restates the answer, or gives the general method or a formula without this case's values in it.
+      FAIL working that misquotes a rule of the problem or misrepresents the problem statement in general, even when the output is right.
 
   - id: outputs_are_correct
     text: The expected output is right for the input.
     gate: gating
     check: reference
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: "You should work out the expected output for this input again."
+    not_met: "Work out the expected output for this input again."
     explain: >-
-      The expected output has to be the right value for the input. Work it out again
-      against the problem's rule.
+      The expected output has to be the right value for the input. Work it out again against
+      the problem's specifications.
     guidance: |
-      Judge only the claimed value. A correct value with wrong reasoning PASSes; the reasoning is judged under work_is_shown.
-      For a function problem, the function's parameters are its inputs and the value it returns is its output (a void function's output is what it prints); judge them the same way.
-      Compute the case yourself against the problem statement before judging. Judge the
-      value the student is claiming, not how they wrote it down.
+      Judge only the claimed value.
+      Note that a correct value with wrong reasoning should pass as the reasoning is judged under work_is_shown.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output; judge them the same way.
+      Compute the case yourself against the problem statement before judging. Judge the value the student is claiming, not how they wrote it down.
       PASS if the claimed value is the right one for its input.
-      FAIL only if the claimed value is actually wrong -- a different number, a sign
-      error -- or if the input is one the problem statement does not allow. Quote the
-      case as evidence.
-      Precision, rounding, units, and casing are judged separately by
-      `output_format_matches_statement` and must never fail this criterion.
+      FAIL only if the claimed value is actually wrong or if the input is not part of the problem constraints. Quote the specific case as evidence.
 
   # ---- Advisory: extra understanding, never blocking -------------------------
 
-  - id: output_format_matches_statement
-    text: The expected output is written exactly as the program prints or returns it.
+  - id: worked_out_differently
+    text: This case works out differently from your Case 1.
     gate: advisory
-    fields: [normal_cases, edge_cases, case_3, case_4, case_5]
-    not_met: "You could also write the expected output exactly as the program would print or return it."
+    fields: [edge_cases]
+    not_met: "You could also pick a Case 2 that works out differently from your Case 1."
     explain: >-
-      Write the expected value in the exact form the problem prints it -- 55.50 rather
-      than 55.5 if it asks for two decimal places.
+      Choose values where something different happens than in Case 1. The answer should
+      generally follow a different process or a different rule of the problem.
     guidance: |
-      PASS if, wherever the problem statement fixes a format -- decimal places, rounding,
-      units, casing -- the stated value matches it exactly: "63.33", not "63.3", if the
-      statement asks for two decimal places. If the statement fixes no format, PASS.
-      FAIL if the value is right but its precision, rounding, units, or casing drifts from
-      what the statement fixes.
-      Never fail a case for being written in prose; fail it only for the wrong number of
-      decimal places, wrong units, or wrong rounding.
+      This criterion compares this case with the student's Case 1, shown under "YOUR CASE 1". Case 1 is context only; quote evidence from this case.
+      For a function problem, the function's parameters are its inputs and the value it returns is its output.
+      Decide it from the problem statement and the two inputs, by working each through the problem's rule yourself, not from the student's working.
+      PASS if a different part of the problem's rule applies to this case compared to Case 1, such as a different condition holding. The two cases should generally work out differently from each other.
+      FAIL if both cases go through the problem's rule the same way and differ only in their values. These cases typically have the same conditions holding.
+      FAIL if this case's input is not allowed by the problem statement.
+      These rules are seen by the feedback writers too: never tell the student which other path to take, and never suggest an input; they must find it themselves.

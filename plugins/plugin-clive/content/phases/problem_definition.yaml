@@ -20,13 +20,15 @@
 #              Sandbox carry-forward toggle). With it absent the block vanishes
 #              and the prompt is byte-identical to v3.
 id: phase.problem_definition
-version: 16
+version: 18
 phase: problem_definition
 label: Problem
 order: 1
 layout: steps
 created: 2026-08-18
 changelog: |
+  v18: The intro says "Before we code, let us first make sure we understand the problem at a high level." and the Summary hint says "One or two sentences suffice. Write simply and generally as if you are explaining to someone else.", in the author's words (2026-11-17). ProblemWindow.window.svelte shows the same two lines and was changed with them.
+  v17: The judge's system prompt is rewritten (2026-11-17 criteria review): shared rules for all four phases; the evidence rule FAILs an empty artifact only for a criterion that requires something. criteria v10 (2026-11-17): summary_is_correct added; input_order_stated and output_form_exact dropped; function problems that return a value only.
   v16: The Outputs hint asks for exact printed form only of a printed output; a returned value needs its type and meaning. The Inputs hint says an int holds up to about two billion, so a nine-digit input does not send a student to `long`. criteria v9: input order and output form no longer assume reading and printing (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
   criteria v8 (2026-10-25): input_types/output_types accept plain type words ('integer', 'whole number', 'character') -- Magni's 'integer' failed while Avril's passed in round 6 -- and every criterion reads a function's parameters as its inputs and its return value as its output (Red Wildlings is a function problem).
   v15: The Outputs question asks what the program must print rather than "give back", which a student could read as `return` (2026-10-10).
@@ -53,7 +55,7 @@ model:
   response_format: json_schema
   schema: base/output_schema.json
 task_description: |
-  Every solution starts with understanding the problem. Before you think about code, make sure you know exactly what it asks.
+  Every solution starts with understanding the problem. Before we code, let us first make sure we understand the problem at a high level.
 example_problem: |
   Read the length and width of a rectangle, each a whole number of centimeters from 1 to
   100. Print the area.
@@ -61,7 +63,7 @@ artifact_fields:
 - id: summary
   label: Summary
   prompt: When solving a problem, the very first thing you should do is understand it. In your own words, what is the program supposed to do?
-  hint: One or two sentences is enough, as if explaining to a classmate who hasn't read the problem.
+  hint: One or two sentences suffice. Write simply and generally as if you are explaining to someone else.
   example: The program asks for a rectangle's length and width and prints its area.
   rows: 4
 - id: inputs
@@ -80,18 +82,19 @@ artifact_fields:
   example: "The area as an int, for example, 24."
   rows: 3
 system_prompt: |
-  You are evaluating one student artifact from one phase of a structured problem-solving process. You are not holding a conversation, and you are not teaching C.
+  You are evaluating one student artifact from one phase of a structured problem-solving process. This is not a chatbot, and you are not to teach C.
 
   You judge the artifact against a fixed list of criteria. For each criterion you return exactly one verdict.
 
   Rules:
-  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE. Never merge, skip, split, or invent a criterion id.
-  - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion; do not let a verdict on one criterion pull the others with it.
-  - Judge only what the artifact actually says. Do not credit the student for something a competent reader would infer but the artifact does not state.
-  - Quote evidence verbatim from the student artifact — copy the exact span, do not paraphrase, correct, or reformat it. If nothing in the artifact bears on the criterion, return an empty evidence string and FAIL.
-  - The problem statement and public test cases are context for judging. Never quote them as evidence; evidence must come from the student artifact.
-  - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases, which makes it tempting to quote — do not. Evidence must come from the STUDENT ARTIFACT section, and a criterion is failed if only the earlier work satisfies it.
-  - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous or the criterion is a borderline call.
+  - Return exactly one verdict per criterion id listed under CRITERIA TO JUDGE.
+  - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion. Judge each criterion independently of the others.
+  - Judge only what the artifact contains.
+  - Quote evidence verbatim from the student artifact. Copy the exact span, and do not paraphrase, correct, or reformat it. If nothing in the artifact bears on a criterion that requires something, return an empty evidence string and a FAIL verdict.
+  - The problem statement and public test cases are context for judging. Do not quote them as evidence. Evidence must come from the student artifact.
+  - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases. Evidence must come from the STUDENT ARTIFACT section.
+  - A criterion fails if only the earlier work satisfies it.
+  - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous.
 user_template: |
   PROBLEM STATEMENT
   {{ problem.statement }}
