@@ -43,6 +43,9 @@ export type CloseWindowsExcept = (_keep: readonly string[]) => void;
 /** Closes a window in the dockview by key; a key that is not open is a no-op. */
 export type CloseWindow = (_key: string) => void;
 
+/** Closes a window in the dockview by key; a key that is not open is a no-op. */
+export type CloseWindow = (_key: string) => void;
+
 export interface SolveWindowContextInitial {
   problem: Problem;
   practiceSession: ClientPracticeSession;
