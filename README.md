@@ -58,6 +58,8 @@ SHADOW_DATABASE_URL="postgresql://user:password@host:5432/animorank_shadow?schem
 AUTH_SECRET=your-auth-secret
 AUTH_GOOGLE_ID=your-google-oauth-client-id
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
+# Addresses allowed to sign in besides teachers, comma-separated
+WHITELISTED_EMAILS=student@example.com,another@example.com
 
 # Judge0 base URL (no trailing slash)
 JUDGE0_BASE_URL=http://your-judge0-host:2358
@@ -94,6 +96,8 @@ npx zen migrate deploy
 ### 5. Add teachers
 
 Insert email addresses into the `TeacherList` table (model `TeacherList { email }`). On first sign-in, a user whose email matches a row is assigned the **teacher** role; everyone else becomes a **student**.
+
+Sign-in is restricted to two groups: the addresses named in `WHITELISTED_EMAILS`, and teachers. Anyone else is refused at the Google callback, so no account is created for them — with the variable unset, only teachers can sign in. A whitelisted address that is not on `TeacherList` signs in as a **student**.
 
 ### 6. Optional: clangd, for live C diagnostics in the CLive plugin
 
