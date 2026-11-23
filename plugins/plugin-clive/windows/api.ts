@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ArtifactValue, JudgeResult } from './cliveSession.svelte';
+import type { ArtifactValue, JudgeResult, NudgeResult } from './cliveSession.svelte';
 import type { LiveTable } from './liveMarks';
 
 const BASE = '/plugin-api/clive';
@@ -46,38 +46,50 @@ export interface JudgeContext {
   step?: string;
   /** The current code, for the Implement phase's plan-vs-code judge. */
   code?: string;
-  /** Earlier nudges in this phase (or step), oldest first. */
+  /** Every earlier nudge in this phase (or step), oldest first: the server reads the level from them. */
   history?: NudgeTurn[];
 }
 
-/** One earlier nudge: what the student was told, and the situation it answered. */
+/** A rung of the hint ladder: a hint points to where to look, a prompt asks for the one missing piece. */
+export type NudgeLevel = 'hint' | 'prompt';
+
+/** One earlier nudge: what the student was told, about which requirement, at which level. */
 export interface NudgeTurn {
   attempt: number;
-  situation: string;
+  level: NudgeLevel;
   focus_id: string;
   nudge: string;
 }
 
-/** What a stuck ask sends: what the student says is hard, and where they are. */
-export interface StuckContext extends Omit<JudgeContext, 'step' | 'history'> {
-  statement: string;
-  /** The field the student is on, when the phase shows exactly one. */
-  fieldId: string | null;
-  /** Earlier asks in this phase and the replies, oldest first. */
-  history: { statement: string; feedback: string }[];
+/**
+ * What "I'm stuck" sends: where the student is and the nudges they have had. No
+ * work and no verdicts: the server builds the prompt from its own record of the
+ * last submit.
+ */
+export interface EscalateContext {
+  sessionId: string;
+  phase: string;
+  problemId: string;
+  /** The field id a per-step phase submitted. */
+  step?: string;
+  /** The failed submit being escalated. */
+  attempt: number;
+  priorArtifacts: JudgeContext['priorArtifacts'];
+  history: NudgeTurn[];
 }
 
 /**
- * These mirror CLive's own `/api/student/{stuck,submit}` one for one -- only
- * the transport changes, from the standalone Python app to this plugin's
- * Fastify routes under `/plugin-api/clive` (see `../server/routes.ts`). There is
- * no `run` here: compiling and running the Implement phase's code is
- * AnimoRank's own native Submit flow, not this plugin's -- `submitPhase` for the
- * `implement` phase is the plan-vs-code judge call that runs *after* AnimoRank's
- * own tests pass, not a replacement for them.
+ * `submitPhase` mirrors CLive's own `/api/student/submit` -- only the transport
+ * changes, from the standalone Python app to this plugin's Fastify routes under
+ * `/plugin-api/clive` (see `../server/routes.ts`). There is no `run` here:
+ * compiling and running the Implement phase's code is AnimoRank's own native
+ * Submit flow, not this plugin's -- `submitPhase` for the `implement` phase is the
+ * plan-vs-code judge call that runs *after* AnimoRank's own tests pass, not a
+ * replacement for them.
  *
- * The stuck reply is the feedback alone: the diagnosis the model made goes to the
- * server's log, never to the page.
+ * `escalate` is the hint ladder's "I'm stuck": a prompt on the requirement the
+ * last failed submit's hint was about. Neither reply carries the model's reason,
+ * which goes to the server's log, never to the page.
  */
 /** A failing Run or Submit, as the code-feedback call may see it (`./codeFeedback.ts`). */
 export interface CodeRun {
@@ -125,8 +137,8 @@ export async function setParticipant(ctx: {
   return call('/participant', ctx);
 }
 
-export async function askStuck(ctx: StuckContext): Promise<{ feedback: string }> {
-  return call('/stuck', ctx);
+export async function escalate(ctx: EscalateContext): Promise<NudgeResult> {
+  return call('/escalate', ctx);
 }
 
 export async function submitPhase(ctx: JudgeContext): Promise<JudgeResult> {

@@ -1,17 +1,21 @@
 /**
  * Feedback one thing at a time, on the question it is about. After a failed
- * submit the student sees only the requirement the nudge picked, on the question
- * that requirement is about, under "Start here"; another question with a
+ * submit the student sees only the requirement the nudge is about, on the
+ * question that requirement is about, under "Start here"; another question with a
  * required failure gets the team's line for each; optional points wait until the
  * submit passes. The full list of requirements is not put in front of a stepped
  * phase at all.
+ *
+ * The hint ladder's rules live here too: a requirement's level ({@link levelFor}),
+ * when "I'm stuck" is offered ({@link canEscalate}), and which earlier nudges are
+ * kept ({@link keptTurns}, {@link migrateTurns}).
  *
  * A port of the prototype's `fieldStates`, `startHere`, `renderFieldFeedback`
  * and question-tab marks (`clive-userflow/src/clive/studio/static/student.html`).
  * Plain TypeScript, so the windows and the tests share one copy of the rules; the
  * wording is the prototype's.
  */
-import type { NudgeTurn } from './api';
+import type { NudgeLevel, NudgeTurn } from './api';
 import type { JudgeResult, Verdict } from './cliveSession.svelte';
 
 /** Said under the one failure shown when there is more than one: the rest come on the next submit. */
@@ -34,8 +38,19 @@ export interface FieldVerdicts {
 
 /** What one question shows after a submit; `null` is nothing at all. */
 export type FieldFeedback =
-  /** The question the nudge is about: its line, a computed verdict's check, and the guiding questions. */
-  | { kind: 'start'; lead: string; check: string | null; nudge: string; more: boolean }
+  /**
+   * The question the nudge is about: its line, a computed verdict's check, the
+   * nudge at its level, and under it the prompt "I'm stuck" brought, if any.
+   */
+  | {
+      kind: 'start';
+      lead: string;
+      check: string | null;
+      level: NudgeLevel;
+      nudge: string;
+      prompt: string | null;
+      more: boolean;
+    }
   /** Another question with a required failure: one line per failing requirement. */
   | { kind: 'fix'; lines: string[] }
   /** A passed submit's optional points on this question. */
@@ -100,12 +115,16 @@ export function fieldFeedback(
   if (n && n.focus_fields?.[0] === fieldId) {
     const others = state.blocking.filter((v) => v.criterion_id !== n.focus_id);
     const focused = state.blocking.find((v) => v.criterion_id === n.focus_id);
+    const escalated = result.escalation?.focus_id === n.focus_id ? result.escalation : undefined;
     return {
       kind: 'start',
       // The team's direct line for this requirement when it has one.
       lead: n.focus_not_met || notYet(n.focus_text ?? ''),
       check: focused ? caseCheck(focused) : null,
+      // A result saved before the ladder has no level: its nudge was a hint.
+      level: n.level ?? 'hint',
       nudge: n.nudge,
+      prompt: escalated ? escalated.nudge : null,
       more: others.length > 0 || result.verdicts.filter(isBlocking).length > 1
     };
   }
@@ -159,17 +178,66 @@ export function casePartFor(focusId: string | undefined): 'input' | 'output' | '
   return (focusId && CASE_PART[focusId]) || null;
 }
 
-/** Said with the third failed submit in a row on one point, beside the way to ask for help. */
-export const HELP_OFFER =
-  "That's three tries on this one point. Say what's unclear about it in your own words, and the reply will be about that.";
+/**
+ * The rung a requirement is on: `prompt` once any earlier turn on it was a prompt
+ * (the student escalated it), `hint` otherwise. Levels never go down. The server
+ * reads the level the same way (`server/nudge.ts`), from the turns the page sends.
+ */
+export function levelFor(turns: readonly NudgeTurn[], focusId: string | undefined): NudgeLevel {
+  return turns.some((t) => t.focus_id === focusId && t.level === 'prompt') ? 'prompt' : 'hint';
+}
 
 /**
- * Whether to offer help: the last three nudges the student was shown on this
- * phase or step were all about the same point. Avril's session had seven in a
- * row on one Cases point and no ask for help after the first minutes; this is
- * where an offer would have landed.
+ * Whether "I'm stuck" is offered: the last submit here failed with a nudge, and its
+ * requirement is still at hint. There is no rung above prompt, so it is never
+ * offered there, and never before a failed submit.
  */
-export function helpOffered(turns: NudgeTurn[]): boolean {
-  const last = turns.slice(-3);
-  return last.length === 3 && last.every((t) => t.focus_id === last[0].focus_id);
+export function canEscalate(
+  lastSubmitFailed: boolean,
+  turns: readonly NudgeTurn[],
+  focusId: string | undefined
+): boolean {
+  return lastSubmitFailed && !!focusId && levelFor(turns, focusId) === 'hint';
+}
+
+/** How many of the latest turns a phase (or step) keeps. */
+const TURNS_KEPT = 20;
+
+/**
+ * The turns worth keeping: the last {@link TURNS_KEPT}, and before them the first
+ * prompt on any requirement that would otherwise lose it, so an escalation never
+ * falls off the end and a requirement never drops back to hint.
+ */
+export function keptTurns(turns: readonly NudgeTurn[]): NudgeTurn[] {
+  if (turns.length <= TURNS_KEPT) return [...turns];
+  const recent = turns.slice(-TURNS_KEPT);
+  const older = turns.slice(0, -TURNS_KEPT);
+  const escalations = older.filter(
+    (t, i) =>
+      t.level === 'prompt' &&
+      older.findIndex((u) => u.level === 'prompt' && u.focus_id === t.focus_id) === i &&
+      !recent.some((u) => u.level === 'prompt' && u.focus_id === t.focus_id)
+  );
+  return [...escalations, ...recent];
+}
+
+/**
+ * Saved turns as the ladder reads them. A session saved before the ladder keeps a
+ * `situation` and no `level` on each turn: the situation is dropped and the turn
+ * reads as a hint. Anything that is not a turn is left out.
+ */
+export function migrateTurns(saved: unknown): NudgeTurn[] {
+  if (!Array.isArray(saved)) return [];
+  return saved.flatMap((raw) => {
+    const t = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+    if (!t || typeof t.focus_id !== 'string') return [];
+    return [
+      {
+        attempt: Number(t.attempt) || 0,
+        level: t.level === 'prompt' ? 'prompt' : 'hint',
+        focus_id: t.focus_id,
+        nudge: typeof t.nudge === 'string' ? t.nudge : ''
+      }
+    ];
+  });
 }

@@ -22,6 +22,8 @@
 
   const counts = $derived.by(() => {
     let submits = 0;
+    let escalations = 0;
+    /** Stuck asks, from a session recorded before the hint ladder replaced them. */
     let stuck = 0;
     let runs = 0;
     let errors = 0;
@@ -29,6 +31,7 @@
     let failedCalls = 0;
     for (const event of events) {
       if (event.entry.type === 'CLIVE_SUBMIT') submits += 1;
+      if (event.entry.type === 'CLIVE_ESCALATE') escalations += 1;
       if (event.entry.type === 'CLIVE_STUCK') stuck += 1;
       if (event.entry.type === 'CLIVE_RUN') runs += 1;
       if (event.entry.type === 'CLIVE_ERROR') errors += 1;
@@ -37,8 +40,13 @@
         if (asRecord(call.data).error) failedCalls += 1;
       }
     }
-    return { submits, stuck, runs, errors, calls, failedCalls };
+    return { submits, escalations, stuck, runs, errors, calls, failedCalls };
   });
+
+  /** A nudge's level, as recorded; a submit recorded before the hint ladder has none. */
+  function levelOf(nudge: Record<string, unknown>): string {
+    return typeof nudge.level === 'string' ? nudge.level : '';
+  }
 
   /**
    * Events the page recorded that have no card of their own: a navigation line,
@@ -74,7 +82,7 @@
     if (type === 'CLIVE_SUBMIT') return asRecord(data.response).passed ? 'bg-success' : 'bg-error';
     if (type === 'CLIVE_RUN') return data.passed ? 'bg-success' : 'bg-error';
     if (type === 'CLIVE_ERROR') return 'bg-error';
-    if (type === 'CLIVE_STUCK') return 'bg-warning';
+    if (type === 'CLIVE_ESCALATE' || type === 'CLIVE_STUCK') return 'bg-warning';
     return 'bg-base-content/30';
   }
 
@@ -106,8 +114,12 @@
         >{/if}
     </h2>
     <span class="text-xs text-base-content/60">
-      {events.length} entries · {counts.calls} model calls · {counts.submits} submit{counts.submits === 1 ? '' : 's'} · {counts.stuck}
-      stuck ask{counts.stuck === 1 ? '' : 's'} · {counts.runs} run{counts.runs === 1 ? '' : 's'}{#if counts.errors > 0}
+      {events.length} entries · {counts.calls} model calls · {counts.submits} submit{counts.submits === 1 ? '' : 's'} · {counts.escalations}
+      escalation{counts.escalations === 1 ? '' : 's'}{#if counts.stuck > 0}
+        · {counts.stuck} stuck ask{counts.stuck === 1 ? '' : 's'} (before the hint ladder){/if} · {counts.runs} run{counts.runs ===
+      1
+        ? ''
+        : 's'}{#if counts.errors > 0}
         · {counts.errors} error{counts.errors === 1 ? '' : 's'}{/if}{#if counts.failedCalls > 0}
         · {counts.failedCalls} failed call{counts.failedCalls === 1 ? '' : 's'}{/if}
     </span>
@@ -162,6 +174,13 @@
               <Badge class={passed ? 'badge-success badge-sm' : 'badge-error badge-sm'}
                 >{passed ? 'passed' : 'blocked'}</Badge
               >
+            {:else if event.entry.type === 'CLIVE_ESCALATE'}
+              <span class="font-semibold">
+                Escalation · {data.phase_id ?? 'unknown phase'} · {data.problem_id ?? 'unknown problem'}{data.step
+                  ? ` · ${data.step}`
+                  : ''} · attempt {data.attempt ?? '?'}
+              </span>
+              <Badge class="badge-warning badge-sm">{data.level ?? 'prompt'}</Badge>
             {:else if event.entry.type === 'CLIVE_STUCK'}
               <span class="font-semibold">
                 Stuck · {data.phase_id ?? 'unknown phase'} · {data.problem_id ?? 'unknown problem'}{data.field_id
@@ -227,26 +246,19 @@
                 {/if}
 
                 {#if Object.keys(nudge).length > 0}
-                  <div class="mt-2">
-                    <h4 class="text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Nudge</h4>
-                    {#if nudge.summary}
-                      <p class="text-sm">{nudge.summary}</p>
-                    {/if}
-                    {#if nudge.focus_not_met}
-                      <p class="text-xs text-base-content/60">Focus: {nudge.focus_not_met}</p>
-                    {/if}
-                    {#if nudge.nudge}
-                      <pre
-                        class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-box bg-base-300 p-2 font-mono text-xs">{prettyValue(
-                          nudge.nudge
-                        )}</pre>
-                    {/if}
-                  </div>
+                  {@render nudgeBlock(nudge)}
                 {/if}
 
                 {#if typeof response.nudge_error === 'string' && response.nudge_error}
                   <p class="mt-2 rounded-box bg-error/10 p-2 text-xs text-error">
                     The nudge failed: {response.nudge_error}
+                  </p>
+                {/if}
+              {:else if event.entry.type === 'CLIVE_ESCALATE'}
+                {@render nudgeBlock(asRecord(data.response))}
+                {#if Array.isArray(data.history) && data.history.length > 0}
+                  <p class="mt-2 text-xs text-base-content/50">
+                    Asked with {data.history.length} earlier nudge{data.history.length === 1 ? '' : 's'} in the history.
                   </p>
                 {/if}
               {:else if event.entry.type === 'CLIVE_STUCK'}
@@ -281,6 +293,42 @@
     </div>
   {/if}
 </section>
+
+{#snippet nudgeBlock(nudge: Record<string, unknown>)}
+  <!-- A submit's nudge or an escalation's prompt: its level, what the student read, and
+       the model's reason, which the student never sees. A submit recorded before the
+       hint ladder has a situation and a summary instead of a level. -->
+  <div class="mt-2">
+    <h4 class="text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Nudge</h4>
+    {#if levelOf(nudge)}
+      <p class="text-xs text-base-content/60">Level: {levelOf(nudge)}</p>
+    {/if}
+    {#if nudge.situation}
+      <p class="text-xs text-base-content/60">Situation: {nudge.situation}</p>
+    {/if}
+    {#if nudge.summary}
+      <p class="text-sm">{nudge.summary}</p>
+    {/if}
+    {#if nudge.focus_not_met}
+      <p class="text-xs text-base-content/60">Focus: {nudge.focus_not_met}</p>
+    {/if}
+    {#if nudge.nudge}
+      <pre
+        class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-box bg-base-300 p-2 font-mono text-xs">{prettyValue(
+          nudge.nudge
+        )}</pre>
+    {/if}
+    {#if nudge.leak_blocked === true}
+      <p class="mt-1 rounded-box bg-warning/10 p-2 text-xs text-warning">
+        The leak check held this nudge back; the student saw only the requirement's line.
+      </p>
+    {/if}
+    {#if Array.isArray(nudge.leaks) && nudge.leaks.length > 0}
+      <p class="mt-1 text-xs text-base-content/60">Leak check found: {nudge.leaks.join('; ')}</p>
+    {/if}
+    {@render preField('Reason (not shown to the student)', nudge.reason)}
+  </div>
+{/snippet}
 
 {#snippet preField(label: string, value: unknown)}
   {#if value !== null && value !== undefined && value !== ''}

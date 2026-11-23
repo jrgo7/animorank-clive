@@ -1,14 +1,12 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import Textarea from '$lib/components/ui/textareas/Textarea.svelte';
   import Button from '$lib/components/ui/buttons/Button.svelte';
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
-  import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
   import ArrowRightIcon from '@iconify-svelte/fa6-solid/arrow-right';
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
   import FieldFeedback from './FieldFeedback.svelte';
   import { cliveSessionFor, type JudgeResult } from './cliveSession.svelte';
-  import { fieldFeedback, helpOffered } from './feedback';
+  import { canEscalate, fieldFeedback } from './feedback';
   import { isFunctionProblem } from './problemKind';
   import {
     PHASES,
@@ -20,7 +18,7 @@
     parseOutline,
     type OutlineRow
   } from './phase';
-  import { askStuck, submitPhase, type JudgeContext } from './api';
+  import { submitPhase, type JudgeContext } from './api';
   import { CLIVE_EVENT } from './telemetry';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
@@ -105,7 +103,7 @@
     elapsed >= THINK_LONG_AFTER
       ? 'Taking longer than usual, but still working. Your work is saved.'
       : elapsed >= THINK_NOTE_AFTER
-        ? `${session.busy === 'stuck' ? 'An answer' : 'Checking'} can take up to a minute. Your work is saved, so please don't reload.`
+        ? `${session.busy === 'escalate' ? 'An answer' : 'Checking'} can take up to a minute. Your work is saved, so please don't reload.`
         : ''
   );
 
@@ -116,45 +114,9 @@
   const nudgeError = $derived(current.result?.nudge_error);
   /** A requirement the judge never ruled on belongs to no question, so it is said once, above it. */
   const missingIds = $derived(current.result?.missing_ids ?? []);
-  const latestStuck = $derived(phaseState.stuck[0]);
-  const olderStuck = $derived(phaseState.stuck.slice(1));
 
   function save(): void {
     session.persist();
-  }
-
-  async function ask(): Promise<void> {
-    const statement = phaseState.stuckDraft.trim();
-    if (!statement) return;
-    session.busy = 'stuck';
-    session.busySince = Date.now();
-    session.error = null;
-    try {
-      // Oldest first, so the model reads them in the order the student did and does not repeat itself.
-      const history = phaseState.stuck
-        .slice()
-        .reverse()
-        .map((x) => ({ statement: x.statement, feedback: x.feedback }));
-      const got = await askStuck({
-        sessionId: context.practiceSession.id,
-        phase: config.phase,
-        problemId: context.problem.id,
-        artifact: phaseState.artifact,
-        attempt: current.attempt,
-        priorArtifacts: session.priorArtifacts(2),
-        statement,
-        // The phase shows exactly one field, so this is the field the student is on.
-        fieldId: 'steps',
-        history
-      });
-      phaseState.stuck.unshift({ statement, feedback: got.feedback, fieldId: 'steps', attempt: current.attempt });
-    } catch (e) {
-      session.error = e instanceof Error ? e.message : String(e);
-    } finally {
-      session.busy = null;
-      session.busySince = null;
-      save();
-    }
   }
 
   async function submit(): Promise<void> {
@@ -303,8 +265,8 @@
 </script>
 
 <div class="h-full min-w-0 overflow-y-auto">
-  <!-- A submit waits where its feedback will go, in place of the last one; a stuck ask
-       waits under its own box. -->
+  <!-- A submit waits where its feedback will go, in place of the last one; "I'm stuck"
+       waits on the card, under the hint its prompt will go beneath. -->
   {#snippet thinking()}
     <div
       class="flex items-start gap-2.5 rounded-box border border-base-content/10 bg-base-200 p-4 text-sm text-base-content/70"
@@ -437,52 +399,15 @@
       {:else if feedback}
         <FieldFeedback
           {feedback}
-          offerHelp={helpOffered(session.historyFor(2))}
-          onstuck={() => {
-            phaseState.stuckOpen = true;
-          }}
+          canEscalate={canEscalate(
+            !!current.result && !current.result.passed,
+            session.historyFor(2),
+            current.result?.nudge?.focus_id
+          )}
+          disabled={!!session.busy || !session.hasApiKey}
+          onescalate={() => session.escalate(2, 'phase', context.problem.id)}
+          waiting={session.busy === 'escalate' ? thinking : undefined}
         />
-      {/if}
-
-      <!-- "What are you stuck on?": the student says what they find hard, in their own
-           words, and gets a few lines back. The only help on the page since 2026-10-10. -->
-      {#if phaseState.stuckOpen || session.busy === 'stuck'}
-        <div class="flex flex-col gap-2 rounded-box border border-base-content/10 bg-base-200 p-4">
-          <label
-            class="text-sm font-semibold"
-            for="clive-stuck-ask">What are you having trouble with?</label
-          >
-          <p class="text-xs text-base-content/60">
-            Say it in your own words. CLive replies with a few lines to think about.
-          </p>
-          <Textarea
-            id="clive-stuck-ask"
-            rows={3}
-            maxlength={1000}
-            placeholder="e.g. I don't know what the program should print when …"
-            bind:value={phaseState.stuckDraft}
-            disabled={session.busy === 'stuck'}
-            oninput={save}
-          />
-          <div class="flex flex-wrap gap-2">
-            <Button
-              class="btn-primary"
-              type="button"
-              disabled={!!session.busy || !session.hasApiKey || !phaseState.stuckDraft.trim()}
-              onclick={ask}
-            >
-              {session.busy === 'stuck' ? 'Thinking…' : 'Ask'}
-            </Button>
-            <Button
-              class="btn-ghost"
-              type="button"
-              disabled={!!session.busy}
-              onclick={() => {
-                phaseState.stuckOpen = false;
-              }}>Cancel</Button
-            >
-          </div>
-        </div>
       {/if}
 
       <div class="flex flex-wrap items-center gap-2.5">
@@ -496,24 +421,7 @@
         >
           {session.busy === 'submit' ? 'Checking…' : phaseState.passed || current.attempt > 1 ? 'Resubmit' : 'Submit'}
         </Button>
-        {#if !(phaseState.stuckOpen || session.busy === 'stuck')}
-          <Button
-            class="btn-ghost gap-2"
-            type="button"
-            disabled={!!session.busy || !session.hasApiKey}
-            onclick={() => {
-              phaseState.stuckOpen = true;
-            }}
-          >
-            <LightbulbIcon class="h-3.5 w-3.5" />
-            I'm stuck
-          </Button>
-        {/if}
       </div>
-
-      {#if session.busy === 'stuck'}
-        {@render thinking()}
-      {/if}
 
       {#if phaseState.passed}
         {@const advisoryUnmet = current.result?.advisory_unmet.length ?? 0}
@@ -533,29 +441,6 @@
           <TriangleExclamationIcon class="h-4 w-4" />
           <span>Your work was checked, but we could not put together a next step: {nudgeError}</span>
         </Alert>
-      {/if}
-
-      {#if latestStuck}
-        <div class="flex flex-col gap-3 rounded-box border-l-[3px] border-warning bg-base-200 p-5">
-          <h3 class="font-display text-base font-bold text-warning">Something to think about</h3>
-          <p class="text-sm text-base-content/70 whitespace-pre-wrap">You said: “{latestStuck.statement}”</p>
-          <p class="max-w-[66ch] text-[15.5px] leading-relaxed whitespace-pre-wrap">{latestStuck.feedback}</p>
-          {#if olderStuck.length}
-            <details class="border-t border-base-content/10 pt-2.5">
-              <summary class="cursor-pointer text-sm text-base-content/70">
-                Earlier in this phase ({olderStuck.length})
-              </summary>
-              <div class="mt-2 flex flex-col gap-2.5">
-                {#each olderStuck as ask, i (i)}
-                  <div class="border-b border-base-content/10 pb-2.5 last:border-b-0">
-                    <div class="mb-1 text-xs text-base-content/60 whitespace-pre-wrap">You said: “{ask.statement}”</div>
-                    <p class="text-sm leading-relaxed whitespace-pre-wrap text-base-content/70">{ask.feedback}</p>
-                  </div>
-                {/each}
-              </div>
-            </details>
-          {/if}
-        </div>
       {/if}
 
       {#if phaseState.passed && session.phases[3]?.unlocked && !session.busy}

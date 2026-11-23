@@ -9,7 +9,7 @@
  * stays here is what the server contract and the shared state need: the phase id
  * and its fields' ids, labels, kinds and `added` flags, plus the layout and judge
  * shape. A label is prompt-visible -- the client sends it to the judge as
- * `prior_artifacts`, and the nudge and stuck prompts render it -- so it cannot
+ * `prior_artifacts`, and the nudge prompt renders it -- so it cannot
  * drift from the YAML.
  *
  * A hand-port of `plugins/plugin-clive/content/phases/*.yaml`'s metadata: the

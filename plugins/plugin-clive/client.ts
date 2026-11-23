@@ -50,7 +50,7 @@ export default class CLivePlugin extends ClientPlugin {
 
     // The session-logs page renders whatever each plugin registers; this one's
     // view is the prototype's Logs page: one timeline of a session's CLive
-    // events, with each model call folded into the submit or stuck ask it served.
+    // events, with each model call folded into the submit or escalation it served.
     const logRegistrar =
       await api.clientRegistryProviderRegistrar.getRegistrarById<SessionLogsWindowRegistry>('window.session_logs');
     this.logViewKey = `${logRegistrar.id}:${LOG_VIEW}`;
