@@ -269,9 +269,8 @@ describe('CLive windows', () => {
         missing_ids: [],
         advisory_unmet: [],
         nudge: {
-          summary: 's',
+          level: 'hint',
           nudge: 'Which numbers?',
-          reason: 'r',
           focus_id: 'work_is_shown',
           focus_text: 'You show how you got the expected output.',
           focus_not_met: 'Show the numbers.',
@@ -467,6 +466,70 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  it('opens a session saved before the hint ladder: old turns read as hints, old stuck asks are left behind', () => {
+    stubBoot();
+    const context = stubContext('mount-before-ladder');
+    // What a session saved under nudge v8 holds: turns with a situation and no level,
+    // a failed result whose nudge has a situation and a summary, and stuck asks.
+    const saved = missingFieldsState() as { clive: { phases: Record<string, unknown>[] } };
+    const oldNudge = {
+      situation: 'not_a_case',
+      summary: 's',
+      reason: 'r',
+      nudge: 'Real values?',
+      focus_id: 'constraints_noted',
+      focus_text: 'Constraints.',
+      focus_not_met: 'Write down the constraints.',
+      focus_fields: ['inputs'],
+      failing: [{ id: 'constraints_noted', text: 'Constraints.' }]
+    };
+    saved.clive.phases[0] = {
+      ...saved.clive.phases[0],
+      artifact: { summary: 's', inputs: 'i', outputs: 'o' },
+      attempt: 2,
+      step: 1,
+      result: {
+        passed: false,
+        verdicts: [
+          {
+            criterion_id: 'constraints_noted',
+            criterion_text: 'Constraints.',
+            not_met: 'Write down the constraints.',
+            verdict: 'FAIL',
+            gate: 'gating',
+            fields: ['inputs']
+          }
+        ],
+        missing_ids: [],
+        advisory_unmet: [],
+        nudge: oldNudge
+      },
+      stuck: [{ statement: 'help', feedback: 'an old reply', fieldId: null, attempt: 1 }],
+      stuckDraft: 'half an ask',
+      feedbackHistory: {
+        phase: [{ attempt: 1, situation: 'not_a_case', focus_id: 'constraints_noted', nudge: 'Real values?' }]
+      }
+    };
+    context.practiceSession.extension_data = saved as unknown as JsonValue;
+
+    const session = cliveSessionFor(context);
+    expect(session.restored).toBe(true);
+    expect(session.historyFor(0)).toEqual([
+      { attempt: 1, level: 'hint', focus_id: 'constraints_noted', nudge: 'Real values?' }
+    ]);
+    const app = mountPhase(context, 0);
+    flushSync();
+
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('Real values?');
+    expect(text).not.toContain('an old reply');
+    // The old result's nudge was a hint, so "I'm stuck" is offered on it.
+    expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent?.includes("I'm stuck"))).toBe(
+      true
+    );
+    unmount(app);
+  });
+
   it('opens a problem on a pointer to its statement, with Next to the first question', () => {
     stubBoot();
     const context = stubContext('mount-focus');
@@ -640,7 +703,7 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
-  it('sends the practice session with a submission and a stuck ask, and records the case changes', async () => {
+  it('sends the practice session with a submission and an escalation, and records the case changes', async () => {
     const calls: WindowCalls = { opened: [], closed: [], events: [] };
     const context = stubContext('mount-telemetry-phase', calls);
     const session = cliveSessionFor(context);
@@ -662,16 +725,39 @@ describe('CLive windows', () => {
                 verdict: 'FAIL',
                 gate: 'gating',
                 explain: 'e',
-                recheck: []
+                recheck: [],
+                fields: ['normal_cases']
               }
             ],
             missing_ids: [],
-            advisory_unmet: []
+            advisory_unmet: [],
+            nudge: {
+              level: 'hint',
+              nudge: 'What would you type in?',
+              focus_id: 'case_is_concrete',
+              focus_text: 't',
+              focus_not_met: 'n',
+              focus_fields: ['normal_cases'],
+              failing: [{ id: 'case_is_concrete', text: 't' }]
+            }
           }),
           { status: 200 }
         );
       }
-      if (path.endsWith('/stuck')) return new Response(JSON.stringify({ feedback: 'f' }), { status: 200 });
+      if (path.endsWith('/escalate')) {
+        return new Response(
+          JSON.stringify({
+            level: 'prompt',
+            nudge: 'Which two numbers?',
+            focus_id: 'case_is_concrete',
+            focus_text: 't',
+            focus_not_met: 'n',
+            focus_fields: ['normal_cases'],
+            failing: [{ id: 'case_is_concrete', text: 't' }]
+          }),
+          { status: 200 }
+        );
+      }
       throw new Error(`unexpected ${path}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -695,17 +781,18 @@ describe('CLive windows', () => {
     expect(sent('/submit')).toMatchObject({ sessionId: 'mount-telemetry-phase', phase: 'case_design' });
     expect(calls.events?.some((e) => e.type === 'CLIVE_SUBMIT')).toBe(false);
 
-    session.phases[1].stuckDraft = 'I do not get the leftover.';
     flushSync();
     clickButton("I'm stuck");
-    flushSync();
-    clickButton('Ask');
-    await vi.waitFor(() => expect(session.phases[1].stuck).toHaveLength(1));
-    expect(sent('/stuck')).toMatchObject({
+    await vi.waitFor(() => expect(session.historyFor(1, 'normal_cases').at(-1)?.level).toBe('prompt'));
+    // The step and the hint it escalates; the server records it, the page records nothing of its own.
+    expect(sent('/escalate')).toMatchObject({
       sessionId: 'mount-telemetry-phase',
-      statement: 'I do not get the leftover.'
+      phase: 'case_design',
+      step: 'normal_cases',
+      attempt: 1,
+      history: [{ attempt: 1, level: 'hint', focus_id: 'case_is_concrete', nudge: 'What would you type in?' }]
     });
-    expect(calls.events?.some((e) => e.type === 'CLIVE_STUCK')).toBe(false);
+    expect(calls.events?.some((e) => e.type === 'CLIVE_ESCALATE')).toBe(false);
 
     // Both required cases passing offers another; adding and removing one is recorded.
     session.phases[1].stepResults = {

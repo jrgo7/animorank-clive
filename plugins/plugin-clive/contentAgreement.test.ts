@@ -3,7 +3,7 @@
  * from. A field id the two disagree on means a submitted artifact key means
  * nothing to the judge; a divergent `judge`/`layout` changes when things are
  * judged; and a label is prompt-visible, since the client sends it to the judge
- * as `prior_artifacts` and the nudge and stuck prompts render it.
+ * as `prior_artifacts` and the nudge prompt renders it.
  *
  * Everything else the student reads -- questions, hints, examples, the task
  * description -- now lives in each phase's own window (`ProblemWindow.window.svelte`

@@ -46,6 +46,20 @@ describe('CLive log folding', () => {
     ]);
   });
 
+  it('attaches an escalation’s call to its record, and a failed one to its error', () => {
+    const call = entry('CLIVE_LLM_CALL', '2026-10-21T10:00:00.100Z', { during: 'escalate', seq: 1 });
+    const record = entry('CLIVE_ESCALATE', '2026-10-21T10:00:00.200Z', { level: 'prompt' });
+    const failedCall = entry('CLIVE_LLM_CALL', '2026-10-21T10:00:01.100Z', { during: 'escalate', seq: 1, error: 'x' });
+    const error = entry('CLIVE_ERROR', '2026-10-21T10:00:01.200Z', { call: 'escalate', error: 'model failed' });
+
+    const events = attachCalls(newestFirst([error, failedCall, record, call]));
+
+    expect(events.map((event) => [event.entry.type, event.calls])).toEqual([
+      ['CLIVE_ESCALATE', [call]],
+      ['CLIVE_ERROR', [failedCall]]
+    ]);
+  });
+
   it('attaches a failed request’s calls to the error they explain', () => {
     const judge = entry('CLIVE_LLM_CALL', '2026-10-21T10:00:00.100Z', { during: 'stuck', seq: 1, error: 'overloaded' });
     const error = entry('CLIVE_ERROR', '2026-10-21T10:00:00.200Z', { call: 'stuck', error: 'model failed' });

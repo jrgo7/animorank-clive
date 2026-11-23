@@ -70,7 +70,7 @@ export function levelFor(history: readonly Pick<HistoryTurn, 'focus_id' | 'level
 }
 
 /** What a reply gave away: `note` is said to the model when it is asked again, `found` is logged. */
-export interface Leak {
+interface Leak {
   note: string;
   found: string;
 }
@@ -137,7 +137,7 @@ function leakNote(leak: Leak): string {
   );
 }
 
-export interface NudgeRequest {
+interface NudgeRequest {
   phase: PhaseDoc;
   problem: ProblemForPrompt;
   artifact: Record<string, unknown>;

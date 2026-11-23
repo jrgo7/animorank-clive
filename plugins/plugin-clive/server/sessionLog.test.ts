@@ -3,12 +3,13 @@ import type { LlmCall } from './llmCalls';
 
 const db = vi.hoisted(() => ({
   practiceSession: { count: vi.fn() },
-  sessionHistoryEntry: { createMany: vi.fn(), create: vi.fn(), findUnique: vi.fn() }
+  sessionHistoryEntry: { createMany: vi.fn(), create: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() }
 }));
 vi.mock('$lib/zenstack', () => ({ db }));
 
 import {
   checkSessionLog,
+  latestSubmitRecord,
   llmCallEntries,
   ownsPracticeSession,
   requestEntries,
@@ -47,6 +48,28 @@ describe('session log', () => {
     db.sessionHistoryEntry.createMany.mockReset();
     db.sessionHistoryEntry.create.mockReset();
     db.sessionHistoryEntry.findUnique.mockReset();
+    db.sessionHistoryEntry.findMany.mockReset();
+  });
+
+  it('finds the newest submit record for a phase and step, and none for a phase never submitted', async () => {
+    // Newest first, as the history is read.
+    db.sessionHistoryEntry.findMany.mockResolvedValue([
+      { data: { phase_id: 'case_design', step: 'edge_cases', attempt: 3 } },
+      { data: { phase_id: 'case_design', step: 'normal_cases', attempt: 2 } },
+      { data: { phase_id: 'case_design', step: 'normal_cases', attempt: 1 } },
+      { data: { phase_id: 'problem_definition', step: null, attempt: 4 } },
+      { data: null }
+    ]);
+
+    await expect(latestSubmitRecord(SESSION, 'case_design', 'normal_cases')).resolves.toMatchObject({ attempt: 2 });
+    await expect(latestSubmitRecord(SESSION, 'problem_definition', null)).resolves.toMatchObject({ attempt: 4 });
+    await expect(latestSubmitRecord(SESSION, 'algorithm_design', null)).resolves.toBeNull();
+    expect(db.sessionHistoryEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { practice_session_id: SESSION, type: 'CLIVE_SUBMIT' },
+        orderBy: [{ timestamp: 'desc' }, { id: 'desc' }]
+      })
+    );
   });
 
   it('owns a practice session only when it is this user’s, for this problem', async () => {
@@ -145,12 +168,12 @@ describe('session log', () => {
     it('stamps the record after its last model call, even when both land in the same millisecond', () => {
       // The call's latency was rounded up, so it "finished" a millisecond after the clock now reads.
       vi.useFakeTimers({ now: new Date('2026-10-20T08:00:03.276Z') });
-      const entries = requestEntries('stuck', [call('stuck', '2026-10-20T08:00:00.000Z', 3277)], {
-        type: SESSION_LOG_TYPES.stuck,
-        data: { statement: 's' }
+      const entries = requestEntries('escalate', [call('nudge', '2026-10-20T08:00:00.000Z', 3277)], {
+        type: SESSION_LOG_TYPES.escalate,
+        data: { level: 'prompt' }
       });
 
-      expect(entries.map((e) => e.type)).toEqual(['CLIVE_LLM_CALL', 'CLIVE_STUCK']);
+      expect(entries.map((e) => e.type)).toEqual(['CLIVE_LLM_CALL', 'CLIVE_ESCALATE']);
       expect(entries[0].timestamp.toISOString()).toBe('2026-10-20T08:00:03.277Z');
       expect(entries[1].timestamp.toISOString()).toBe('2026-10-20T08:00:03.278Z');
     });

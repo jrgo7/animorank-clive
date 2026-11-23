@@ -3,18 +3,23 @@
  * provider, and writes what CLive would say now beside what it said then.
  *
  * Not a unit test: it costs a few cents and reads local, gitignored research logs. It is
- * the regression gate for the situation feedback: each replayed submission has the
- * situations it may be read as, and a full run fails when more than `allowed_misses`
- * of them come out otherwise. Raise `allowed_misses` only for a disagreement you have
- * read and accept; the model is not deterministic, so run it twice before trusting a
- * new baseline.
+ * the regression gate for two things:
+ *
+ * - The hint ladder (Problem, Cases, Design): every replayed submission that blocks is
+ *   nudged at both levels, `hint` and `prompt`, and the requirement it is about must be
+ *   the first failing required criterion in rubric order. Any other focus fails the run.
+ * - Implement's code feedback, which still decides a situation first: each replayed run
+ *   or submit has the situations it may be read as, and a full run fails when more than
+ *   `allowed_misses` of them come out otherwise. Raise `allowed_misses` only for a
+ *   disagreement you have read and accept; the model is not deterministic, so run it
+ *   twice before trusting a new baseline.
  *
  *   npx vitest run --config vitest.replay.config.ts
  *   REPLAY_ONLY=avril-cases REPLAY_DRY=1 REPLAY_OUT=/tmp/replay.md npx vitest run --config vitest.replay.config.ts
  *   (REPLAY_EVIDENCE=1 adds the judged work and every verdict to the output; a partial
- *   or dry run never fails on misses)
+ *   or dry run never fails)
  *
- * Sources (selection and expected situations in `cliveReplay.cases.json`):
+ * Sources (selection, and expected code-feedback situations, in `cliveReplay.cases.json`):
  * - `port`: Avril's Red Wildlings session from this app (problem read from the database).
  * - `proto`: the clive-userflow prototype's human sessions (problem from its YAML).
  */
@@ -27,8 +32,10 @@ import { expect, it } from 'vitest';
 import type { CodeExecutor } from '$lib/executor';
 import { phaseDoc, rubricDoc } from '../plugins/plugin-clive/server/content/load';
 import type { ProblemForPrompt } from '../plugins/plugin-clive/server/content/templates';
+import type { HistoryTurn, NudgeLevel } from '../plugins/plugin-clive/server/content/templates';
+import { failingGates } from '../plugins/plugin-clive/server/criteria';
 import { judgeWithChecks } from '../plugins/plugin-clive/server/referenceCheck';
-import { nudge } from '../plugins/plugin-clive/server/nudge';
+import { nudge, pickFocus } from '../plugins/plugin-clive/server/nudge';
 import { codeNudge, type CodeRun } from '../plugins/plugin-clive/server/codeNudge';
 import { compareCase, cut, isPerStep } from '../plugins/plugin-clive/server/steps';
 import { loadCLiveProblem } from '../plugins/plugin-clive/server/problem';
@@ -53,7 +60,23 @@ interface CaseSpec {
   attempts?: number[];
   /** Replay passing submits too (a gate that should have failed). */
   includePassed?: boolean;
+  /** Expected code-feedback situations (Implement and runs only); null for none. */
   expect: Record<string, string[]> | null;
+}
+
+const LEVELS: NudgeLevel[] = ['hint', 'prompt'];
+
+/**
+ * The requirement a blocked submit must be nudged about, worked out here without
+ * `pickFocus`: the first criterion, in the rubric's own order, that is required as
+ * applied and failed.
+ */
+function firstFailingRequired(
+  criteria: { id: string; gate: string }[],
+  verdicts: { criterion_id: string; verdict: string }[]
+): string | null {
+  const failed = new Set(verdicts.filter((v) => v.verdict === 'FAIL').map((v) => v.criterion_id));
+  return criteria.find((c) => c.gate !== 'advisory' && failed.has(c.id))?.id ?? null;
 }
 
 /** One event either log format holds, in one shape. */
@@ -276,6 +299,8 @@ it('replays past submissions through the current prompts', async () => {
   const lines: string[] = [`# CLive replay — ${new Date().toISOString()}`, ''];
   let hits = 0;
   let misses = 0;
+  /** Nudges whose focus was not the first failing required criterion: always a failure. */
+  const wrongFocus: string[] = [];
 
   for (const spec of specs) {
     if (only && !spec.tag.startsWith(only)) continue;
@@ -294,7 +319,8 @@ it('replays past submissions through the current prompts', async () => {
           (!spec.attempts || spec.attempts.includes(e.attempt))
     );
     lines.push(`## ${spec.tag} (${selected.length} items)`, '');
-    const judgedHistory: { attempt: number; situation: string; focus_id: string; nudge: string }[] = [];
+    /** Earlier nudges in this case, one history per level, as a student kept at that level would have them. */
+    const judgedHistory: Record<NudgeLevel, HistoryTurn[]> = { hint: [], prompt: [] };
     const codeHistory: { situation: string; focus: string; nudge: string }[] = [];
 
     for (const [index, e] of selected.entries()) {
@@ -312,14 +338,16 @@ it('replays past submissions through the current prompts', async () => {
         );
         continue;
       }
-      let situation: string;
-      let reply = '';
+      // Code feedback answers with a situation; a judged phase answers with a focus and two levels.
+      let situation: string | null = null;
+      let outcome = '';
+      const replies: { label: string; text: string }[] = [];
       const t0 = performance.now();
       try {
         if (e.kind === 'run' || e.phase === 'implement') {
           const r = await codeNudge(problem, e.code, e.run as CodeRun, prior, codeHistory.slice(-5), index + 1);
           situation = r.situation;
-          reply = r.nudge;
+          replies.push({ label: 'code feedback', text: r.nudge });
           codeHistory.push({ situation: r.situation, focus: r.focus, nudge: r.nudge });
         } else {
           const whole = phaseDoc(e.phase);
@@ -335,7 +363,7 @@ it('replays past submissions through the current prompts', async () => {
                   const value = (e.artifact as Record<string, unknown>)[id];
                   return typeof value === 'string' && value.trim() !== '';
                 });
-          situation = '(passes now: no nudge)';
+          outcome = '(passes now: no nudge)';
           for (const step of steps) {
             const scoped = step
               ? cut(whole, e.artifact, rubric, step)
@@ -370,43 +398,78 @@ it('replays past submissions through the current prompts', async () => {
               (v) => v.verdict === 'FAIL' && judged.criteria.find((c) => c.id === v.criterion_id)?.gate !== 'advisory'
             );
             if (!blocking) continue;
-            const n = await nudge(
-              phase,
-              problem,
-              artifact,
-              judged.criteria,
-              judged.verdicts,
-              e.attempt,
-              prior,
-              judgedHistory.slice(-5)
-            );
-            situation = n.situation;
-            reply = n.nudge;
-            judgedHistory.push({ attempt: e.attempt, situation: n.situation, focus_id: n.focus_id, nudge: n.nudge });
+            // The submit route's choice, checked against the rubric read independently.
+            const focus = pickFocus(judged.criteria, judged.verdicts);
+            const rubricFirst = firstFailingRequired(judged.criteria, judged.verdicts);
+            const item = `${spec.tag} ${e.phase}${step ? `/${step}` : ''} attempt ${e.attempt}`;
+            if (!focus || focus.id !== rubricFirst) {
+              wrongFocus.push(`${item}: focus ${focus?.id ?? 'none'}, expected ${rubricFirst}`);
+            }
+            if (!focus) break;
+            outcome = `focus ${focus.id}${focus.id === rubricFirst ? ' ✓' : ` ✗ (expected ${rubricFirst})`}`;
+            const blockingGates = failingGates(judged.criteria, judged.verdicts);
+            for (const level of LEVELS) {
+              const turns = judgedHistory[level].filter((t) => t.focus_id === focus.id).slice(-5);
+              const n = await nudge({
+                phase,
+                problem,
+                artifact,
+                focus,
+                failing: blockingGates,
+                level,
+                attempt: e.attempt,
+                priorArtifacts: prior,
+                history: turns,
+                referenceCheck: judged.referenceCheck
+              });
+              const leak = n.leak_blocked
+                ? ' — held back by the leak check'
+                : n.leaks.length
+                  ? ' — asked again after a leak'
+                  : '';
+              replies.push({ label: `${level}${leak}`, text: n.nudge });
+              judgedHistory[level].push({ attempt: e.attempt, level, focus_id: n.focus_id, nudge: n.nudge });
+            }
             break;
           }
         }
       } catch (error) {
-        situation = `ERROR: ${error instanceof Error ? error.message : String(error)}`;
+        outcome = `ERROR: ${error instanceof Error ? error.message : String(error)}`;
+        situation = situation ?? outcome;
       }
-      const ok = want ? want.includes(situation) : null;
+      const ok = want && situation !== null ? want.includes(situation) : null;
       if (ok === true) hits += 1;
       if (ok === false) misses += 1;
+      const ms = Math.round(performance.now() - t0);
       lines.push(
         `- old: ${e.oldFeedback.replace(/\n/g, ' / ') || '(none)'}`,
-        `- **new situation: ${situation}**${want ? ` (expected ${want.join(' | ')}) ${ok ? '✓' : '✗'}` : ''} — ${Math.round(performance.now() - t0)} ms`,
-        ...reply
-          .split('\n')
-          .filter((l) => l.trim())
-          .map((l) => `  > ${l}`),
+        situation !== null
+          ? `- **new situation: ${situation}**${want ? ` (expected ${want.join(' | ')}) ${ok ? '✓' : '✗'}` : ''} — ${ms} ms`
+          : `- **${outcome}** — ${ms} ms`,
+        ...replies.flatMap(({ label, text }) => [
+          `  - ${label}:`,
+          ...(text.trim() ? text : '(empty)')
+            .split('\n')
+            .filter((l) => l.trim())
+            .map((l) => `    > ${l}`)
+        ]),
         ''
       );
     }
   }
-  lines.splice(1, 0, `Expected situations: ${hits} ✓, ${misses} ✗`, '');
+  lines.splice(
+    1,
+    0,
+    `Code-feedback situations: ${hits} ✓, ${misses} ✗. Nudges on the wrong requirement: ${wrongFocus.length}.`,
+    ...wrongFocus.map((w) => `- ${w}`),
+    ''
+  );
   fs.writeFileSync(outFile, lines.join('\n'));
-  console.log(`replay written to ${outFile} — ${hits} ✓, ${misses} ✗`);
+  console.log(`replay written to ${outFile} — ${hits} ✓, ${misses} ✗, ${wrongFocus.length} on the wrong requirement`);
   if (!only && !dry) {
-    expect(misses, `situations that came out unexpected; see ${outFile}`).toBeLessThanOrEqual(allowedMisses);
+    expect(wrongFocus, `nudges on the wrong requirement; see ${outFile}`).toEqual([]);
+    expect(misses, `code-feedback situations that came out unexpected; see ${outFile}`).toBeLessThanOrEqual(
+      allowedMisses
+    );
   }
 });

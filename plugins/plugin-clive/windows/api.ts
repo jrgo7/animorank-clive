@@ -66,7 +66,7 @@ export interface NudgeTurn {
  * work and no verdicts: the server builds the prompt from its own record of the
  * last submit.
  */
-export interface EscalateContext {
+interface EscalateContext {
   sessionId: string;
   phase: string;
   problemId: string;

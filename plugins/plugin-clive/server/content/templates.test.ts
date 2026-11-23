@@ -10,20 +10,16 @@
  *
  * Except: the 2026-11-17 criteria review regenerated `phase_user`, `phase_user_empty`,
  * `phase_system` and `nudge_user` from this renderer, and the same day's shorter
- * phase wording regenerated `nudge_user` and the three `stuck_user*` entries, so those
- * entries match the prototype only once clive-userflow carries the same content.
+ * phase wording regenerated `nudge_user`, so those entries match the prototype only
+ * once clive-userflow carries the same content. The hint ladder (nudge v9) regenerated
+ * `nudge_user` and `nudge_system` from this renderer again, and dropped the stuck
+ * entries with `stuck.yaml`.
  */
 import { describe, expect, it } from 'vitest';
 import { failingGates } from '../criteria';
 import { compareCase, cut, isPerStep } from '../steps';
 import { phaseDoc, rubricDoc } from './load';
-import {
-  renderNudgePrompt,
-  renderPhasePrompt,
-  renderStuckPrompt,
-  type ProblemForPrompt,
-  type PublicTestRun
-} from './templates';
+import { NUDGE_SYSTEM, renderNudgePrompt, renderPhasePrompt, type ProblemForPrompt } from './templates';
 import golden from './prompts.golden.json';
 
 const PHASE_IDS = ['problem_definition', 'case_design', 'algorithm_design', 'implement'] as const;
@@ -83,30 +79,10 @@ const VERDICTS = [
   }
 ];
 
-const STUCK_STATEMENT = "I don't know what the program should print when the list is empty.";
-const STUCK_HISTORY = [
-  {
-    statement: 'Is my input right?',
-    feedback: 'Which value does the program read first?\nWhat type holds a score like 87.5?'
-  }
-];
-/** Longer than 305 characters, so Jinja's `truncate(300, true, "…")` fires. */
-const LONG_ACTUAL = `printed: ${'x'.repeat(400)}`;
-
-const STUCK_TESTS_SOME_FAIL: PublicTestRun = {
-  compiled: true,
-  cases: [
-    { input: '3', expected: '6', actual: '6', passed: true, status: 'ok' },
-    { input: '1', expected: '1', actual: LONG_ACTUAL, passed: false, status: 'ok' },
-    { input: '2', expected: '3', actual: '4', passed: true, status: 'timeout' }
-  ],
-  all_public_passed: false
-};
-const STUCK_TESTS_ALL_PASS: PublicTestRun = {
-  compiled: true,
-  cases: [{ input: '3', expected: '6', actual: '6', passed: true, status: 'ok' }],
-  all_public_passed: true
-};
+/** The nudge's requirement, as the submit route picks it: the first failing gate in rubric order. */
+function focusOf(verdicts: Parameters<typeof failingGates>[1]) {
+  return failingGates(rubricDoc('case_design').criteria, verdicts)[0];
+}
 
 describe('prompt parity with the Jinja2 originals', () => {
   it('renders every phase user_template byte-for-byte', () => {
@@ -153,86 +129,76 @@ describe('prompt parity with the Jinja2 originals', () => {
     expect(rubricDoc('implement').criteria.every((c) => c.gate === 'advisory')).toBe(true);
   });
 
-  it('renders the nudge template byte-for-byte, evidence and no-evidence alike', () => {
-    const phase = phaseDoc('case_design');
-    const criteria = rubricDoc('case_design').criteria;
-    const failures = failingGates(criteria, VERDICTS);
-    expect(failures.map((f) => f.id)).toEqual(['work_is_shown', 'outputs_are_correct']);
+  it('renders the nudge template byte-for-byte', () => {
     const rendered = renderNudgePrompt({
-      phase,
+      phase: phaseDoc('case_design'),
       problem: PROBLEM,
       artifact: ARTIFACTS.case_design,
-      failures,
+      focus: focusOf(VERDICTS),
+      level: 'hint',
       attempt: 2,
       priorArtifacts: PRIOR,
-      history: [
-        { attempt: 1, situation: 'rule_not_worked', focus_id: 'work_is_shown', nudge: 'Look at the input shape.' }
-      ]
+      history: [{ attempt: 1, level: 'hint', focus_id: 'work_is_shown', nudge: 'Look at the input shape.' }]
     });
     expect(rendered).toBe(golden.nudge_user);
   });
 
-  it('shows the nudge its earlier turns with their situation and requirement, and the phase id', () => {
-    const phase = phaseDoc('case_design');
-    const failures = failingGates(rubricDoc('case_design').criteria, VERDICTS);
-    const base = { phase, problem: PROBLEM, artifact: ARTIFACTS.case_design, failures, attempt: 2, priorArtifacts: [] };
-    const withHistory = renderNudgePrompt({
-      ...base,
-      history: [{ attempt: 1, situation: 'rule_not_worked', focus_id: 'work_is_shown', nudge: 'Which numbers?' }]
-    });
-    expect(withHistory).toContain('situation rule_not_worked, about [work_is_shown]: Which numbers?');
-    expect(withHistory).toContain('(`case_design`)');
-    expect(renderNudgePrompt({ ...base, history: [] })).not.toContain('CONVERSATION SO FAR');
+  it('exposes the nudge system prompt unchanged', () => {
+    expect(NUDGE_SYSTEM).toBe(golden.nudge_system);
   });
 
-  it('renders the stuck template byte-for-byte with nothing else to go on', () => {
-    const rendered = renderStuckPrompt({
+  it('shows the nudge one requirement, the level, and only that requirement’s earlier feedback', () => {
+    const rendered = renderNudgePrompt({
       phase: phaseDoc('case_design'),
       problem: PROBLEM,
       artifact: ARTIFACTS.case_design,
-      statement: STUCK_STATEMENT,
+      focus: focusOf(VERDICTS),
+      level: 'prompt',
+      attempt: 3,
+      priorArtifacts: [],
+      history: [{ attempt: 2, level: 'hint', focus_id: 'work_is_shown', nudge: 'Which numbers?' }]
+    });
+    expect(rendered).toContain('REQUIREMENT TO WORK ON\n- [work_is_shown] ');
+    expect(rendered).toContain('The judge quoted from the artifact: "4 * 6 = 24."');
+    expect(rendered).toContain('LEVEL\nprompt\n');
+    expect(rendered).toContain(
+      'EARLIER FEEDBACK ON THIS REQUIREMENT\nOldest first.\n- attempt 2, hint: Which numbers?'
+    );
+    expect(rendered).toContain('(`case_design`)');
+    // The other failing requirement, the old failure list and the old situations are gone.
+    expect(rendered).not.toContain('[outputs_are_correct]');
+    expect(rendered).not.toMatch(/WHAT DID NOT PASS|CONVERSATION SO FAR|situation /);
+  });
+
+  it('says when the judge quoted nothing, and leaves out the earlier-feedback block when there is none', () => {
+    const noQuote = VERDICTS.map((v) => (v.criterion_id === 'work_is_shown' ? { ...v, verdict: 'PASS' as const } : v));
+    const rendered = renderNudgePrompt({
+      phase: phaseDoc('case_design'),
+      problem: PROBLEM,
+      artifact: ARTIFACTS.case_design,
+      focus: focusOf(noQuote),
+      level: 'hint',
+      attempt: 2,
       priorArtifacts: [],
       history: []
     });
-    expect(rendered).toBe(golden.stuck_user);
-  });
-
-  it('renders the stuck template with earlier work, earlier asks and the public test results', () => {
-    const rendered = renderStuckPrompt({
-      phase: phaseDoc('case_design'),
-      problem: PROBLEM,
-      artifact: ARTIFACTS.case_design,
-      field: phaseDoc('case_design').artifact_fields.find((f) => f.id === 'normal_cases'),
-      statement: STUCK_STATEMENT,
-      priorArtifacts: PRIOR,
-      history: STUCK_HISTORY,
-      tests: STUCK_TESTS_SOME_FAIL
-    });
-    expect(rendered).toBe(golden.stuck_user_full);
-    // The long printed output is truncated to Jinja's length, and `tojson` escapes the
-    // ellipsis it ends with, as Python's `json.dumps` does.
-    expect(rendered).toContain(`${LONG_ACTUAL.slice(0, 299)}\\u2026`);
-  });
-
-  it('says so when every public case passes', () => {
-    const rendered = renderStuckPrompt({
-      phase: phaseDoc('case_design'),
-      problem: PROBLEM,
-      artifact: ARTIFACTS.case_design,
-      statement: STUCK_STATEMENT,
-      priorArtifacts: [],
-      history: [],
-      tests: STUCK_TESTS_ALL_PASS
-    });
-    expect(rendered).toBe(golden.stuck_user_all_pass);
+    expect(rendered).toContain('- [outputs_are_correct] ');
+    expect(rendered).toContain('The judge quoted nothing from the artifact for this one.');
+    expect(rendered).toContain(
+      'The student sees this line just above your feedback: Work out the expected output for this input again.'
+    );
+    expect(rendered).toContain('LEVEL\nhint\n\nATTEMPT\nThis was submission 2 for this phase.');
+    expect(rendered).not.toContain('EARLIER FEEDBACK ON THIS REQUIREMENT');
   });
 
   it('escapes non-ASCII the way Python’s json.dumps does', () => {
-    const rendered = renderStuckPrompt({
+    const rendered = renderNudgePrompt({
       phase: phaseDoc('case_design'),
       problem: { ...PROBLEM, public_test_cases: [{ input: 'salamat, Juán', output: 'salamat, Juán' }] },
       artifact: ARTIFACTS.case_design,
-      statement: 'Paano po ito?',
+      focus: focusOf(VERDICTS),
+      level: 'hint',
+      attempt: 1,
       priorArtifacts: [],
       history: []
     });

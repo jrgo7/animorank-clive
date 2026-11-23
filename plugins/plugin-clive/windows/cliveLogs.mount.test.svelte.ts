@@ -26,10 +26,11 @@ function stubContext(logs: SessionLogEntry[]): SessionLogsViewContext {
   } as unknown as SessionLogsViewContext;
 }
 
+/** The view's text as the browser shows it: a line wrapped in the markup is one line on screen. */
 function render(logs: SessionLogEntry[]): string {
   const app = mount(CLiveLogs, { target: document.body, props: { context: stubContext(logs) } });
   flushSync();
-  const text = document.body.textContent ?? '';
+  const text = (document.body.textContent ?? '').replace(/\s+/g, ' ');
   unmount(app);
   return text;
 }
@@ -143,6 +144,98 @@ describe('CLive logs view', () => {
     expect(text).toContain('Model calls (1)');
     expect(text).toContain('judge this');
     expect(text).toContain('+0:20');
+  });
+
+  it('shows each nudge’s level, and each escalation with its prompt, reason and call, counting escalations', () => {
+    const text = render([
+      entry('CLIVE_ESCALATE', '2026-10-21T10:01:00.000Z', {
+        phase_id: 'case_design',
+        problem_id: 'problem-1',
+        step: 'normal_cases',
+        attempt: 1,
+        level: 'prompt',
+        focus_id: 'case_is_concrete',
+        response: {
+          level: 'prompt',
+          nudge: 'Which two numbers would you give it?',
+          reason: 'Still describes the input.',
+          focus_not_met: 'Give a real input',
+          leak_blocked: false
+        }
+      }),
+      entry('CLIVE_LLM_CALL', '2026-10-21T10:00:59.000Z', {
+        during: 'escalate',
+        seq: 1,
+        purpose: 'nudge',
+        latency_ms: 900
+      }),
+      entry('CLIVE_SUBMIT', '2026-10-21T10:00:20.000Z', {
+        phase_id: 'case_design',
+        problem_id: 'problem-1',
+        attempt: 1,
+        step: 'normal_cases',
+        response: {
+          passed: false,
+          missing_ids: [],
+          verdicts: [],
+          nudge: {
+            level: 'hint',
+            focus_not_met: 'Give a real input',
+            nudge: 'What would you actually type in?',
+            reason: 'Describes the input.'
+          }
+        }
+      })
+    ]);
+
+    expect(text).toContain('Escalation · case_design · problem-1 · normal_cases · attempt 1');
+    expect(text).toContain('Level: hint');
+    expect(text).toContain('Level: prompt');
+    expect(text).toContain('Which two numbers would you give it?');
+    expect(text).toContain('Still describes the input.');
+    expect(text).toContain('Describes the input.');
+    expect(text).toContain('1 escalation');
+    expect(text).not.toContain('stuck ask');
+    expect(text).toContain('Model calls (1)');
+  });
+
+  it('says when the leak check held a nudge back', () => {
+    const text = render([
+      entry('CLIVE_ESCALATE', '2026-10-21T10:01:00.000Z', {
+        phase_id: 'case_design',
+        level: 'prompt',
+        response: { level: 'prompt', nudge: '', leak_blocked: true, leaks: ['Case 1 expected output "24"'] }
+      })
+    ]);
+    expect(text).toContain('The leak check held this nudge back');
+    expect(text).toContain('Case 1 expected output "24"');
+  });
+
+  it('still renders a session recorded before the ladder: stuck asks, situations and summaries', () => {
+    const text = render([
+      entry('CLIVE_SUBMIT', '2026-10-21T10:00:20.000Z', {
+        phase_id: 'problem_definition',
+        attempt: 1,
+        response: {
+          passed: false,
+          verdicts: [],
+          nudge: { situation: 'meaning_not_type', summary: 'Types first', nudge: 'Which type?', focus_not_met: 'n' }
+        }
+      }),
+      entry('CLIVE_STUCK', '2026-10-21T10:00:10.000Z', {
+        phase_id: 'problem_definition',
+        attempt: 1,
+        statement: 'I do not understand',
+        diagnosis: 'No constraints recorded',
+        response: { feedback: 'Start with the input.' }
+      })
+    ]);
+
+    expect(text).toContain('Situation: meaning_not_type');
+    expect(text).toContain('Types first');
+    expect(text).toContain('Stuck · problem_definition');
+    expect(text).toContain('1 stuck ask (before the hint ladder)');
+    expect(text).toContain('0 escalations');
   });
 
   it('shows an error with the calls that led to it', () => {

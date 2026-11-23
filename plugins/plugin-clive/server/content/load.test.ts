@@ -2,7 +2,8 @@
  * The YAML content loads and normalises as the prototype's readers do.
  */
 import { describe, expect, it } from 'vitest';
-import { NUDGE_CODE_DOC, NUDGE_DOC, STUCK_DOC, JUDGE_JSON_SCHEMA, phaseDoc, rubricDoc } from './load';
+import * as load from './load';
+import { NUDGE_CODE_DOC, NUDGE_DOC, JUDGE_JSON_SCHEMA, phaseDoc, rubricDoc } from './load';
 
 describe('CLive content loading', () => {
   it('reads the four phase documents with their authored shape', () => {
@@ -46,11 +47,17 @@ describe('CLive content loading', () => {
     expect(problem.criteria.filter((c) => c.gate === 'advisory')).toHaveLength(0);
   });
 
-  it('reads the shared nudge and stuck documents', () => {
-    expect(STUCK_DOC.system_prompt.length).toBeGreaterThan(0);
-    expect(STUCK_DOC.user_template).toContain('STUDENT SAYS');
-    expect(STUCK_DOC.user_template).toContain('PUBLIC TEST RESULTS');
-    expect(NUDGE_DOC.user_template).toContain('WHAT DID NOT PASS');
+  it('reads the shared nudge document at v9: one requirement, a level, no situations', () => {
+    expect(NUDGE_DOC.version).toBe(9);
+    expect(NUDGE_DOC.user_template).toContain('REQUIREMENT TO WORK ON');
+    expect(NUDGE_DOC.user_template).toContain('LEVEL');
+    expect(NUDGE_DOC.user_template).not.toContain('WHAT DID NOT PASS');
+    expect(NUDGE_DOC.system_prompt).toContain('## Levels');
+    expect(NUDGE_DOC.system_prompt).not.toContain('Decide the situation first');
+  });
+
+  it('has no stuck document: the hint ladder replaced it', () => {
+    expect('STUCK_DOC' in load).toBe(false);
   });
 
   it('reads the shipped output schema', () => {
