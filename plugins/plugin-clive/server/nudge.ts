@@ -1,108 +1,223 @@
 /**
- * The nudge call: every failing gate acknowledged, one to fix first.
+ * The nudge call: one requirement, one rung of the hint ladder.
  *
- * Ported from `clive-userflow/src/clive/nudge.py` — the judged nudge only. Its
- * sibling `nudge_code` is not ported: a failing test in the Implement phase is
- * AnimoRank's own Submit flow to nudge on, not this plugin's.
+ * Ported from `clive-userflow/src/clive/nudge.py` (the judged nudge) and reworked
+ * for the hint ladder: the caller picks the requirement ({@link pickFocus}, the
+ * first failing gate in rubric order) and the level ({@link levelFor}), and the
+ * model writes a `hint` or a `prompt` for that requirement alone. Its sibling for
+ * Implement's code, `nudge_code`, lives in `codeNudge.ts`.
+ *
+ * Before a reply goes back it is checked for what it must never hold
+ * ({@link findLeak}): a Cases case's expected output, or C code in Problem or
+ * Design. A reply that leaks is asked for once more with a note naming the leak;
+ * if that one leaks too, the nudge comes back empty and the page shows only the
+ * requirement's own line.
  */
 import { type PriorArtifact } from './artifact';
-import { failingGates } from './criteria';
+import { failingGates, type FailingCriterion } from './criteria';
 import { JudgeError } from './content/errors';
 import { NUDGE_DOC, type CriterionDoc, type PhaseDoc } from './content/load';
 import { jsonSchemaText, NudgeSchema } from './content/schema';
-import { renderNudgePrompt, NUDGE_SYSTEM, type HistoryTurn, type ProblemForPrompt } from './content/templates';
+import {
+  renderNudgePrompt,
+  NUDGE_SYSTEM,
+  type HistoryTurn,
+  type NudgeLevel,
+  type ProblemForPrompt
+} from './content/templates';
 import type { Verdict } from './judge';
 import { callModel } from './llmCalls';
+import { normaliseOutput } from './program';
 import { getProvider, type Provider } from './providers';
-import { situationOr } from './situations';
+import type { CheckResult } from './referenceCheck';
+
+export type { NudgeLevel };
 
 export interface NudgeOutcome {
-  /** Which situation the model decided the student is in; `other` when it named none the phase lists. */
-  situation: string;
-  summary: string;
+  level: NudgeLevel;
   focus_id: string;
   focus_text: string;
   /** The focused criterion's `not_met` line — the one the student sees just above the nudge. */
   focus_not_met: string;
+  /** For the research log only: what the model thinks is behind the failure. */
   reason: string;
+  /** What the student reads; empty when the leak check blocked both replies. */
   nudge: string;
   /** Every failing gating criterion, in rubric order — computed here, never taken from the model. */
   failing: { id: string; text: string }[];
+  /** What the leak check found, one entry per reply that leaked; empty when none did. */
+  leaks: string[];
+  /** Whether both replies leaked, so the student got no nudge. */
+  leak_blocked: boolean;
 }
 
-export async function nudge(
-  phase: PhaseDoc,
-  problem: ProblemForPrompt,
-  artifact: Record<string, unknown>,
-  criteria: CriterionDoc[],
-  verdicts: Verdict[],
-  attempt = 1,
-  priorArtifacts: PriorArtifact[] = [],
-  history: HistoryTurn[] = [],
-  provider?: Provider
-): Promise<NudgeOutcome> {
-  const failures = failingGates(criteria, verdicts);
-  if (failures.length === 0) {
-    throw new JudgeError(
-      'Nothing is blocking this submission, so there is nothing to nudge about. A nudge names a ' +
-        'gating criterion the student failed; advisory criteria are reported with the verdicts and ' +
-        'never hold anyone in a phase.'
-    );
+/**
+ * The requirement a failed submit is about: the first failing gating criterion in
+ * rubric order (`criteria` as applied, so a reference fallback's downgrade counts),
+ * or null when nothing gating failed. Advisory criteria are never nudged.
+ */
+export function pickFocus(criteria: CriterionDoc[], verdicts: Verdict[]): FailingCriterion | null {
+  return failingGates(criteria, verdicts)[0] ?? null;
+}
+
+/**
+ * The rung a requirement is on: `prompt` once any earlier turn on it was a prompt
+ * (the student escalated it), `hint` otherwise. Read from the whole history, so an
+ * escalation never falls out of the few turns the model is shown; levels never go down.
+ */
+export function levelFor(history: readonly Pick<HistoryTurn, 'focus_id' | 'level'>[], focusId: string): NudgeLevel {
+  return history.some((turn) => turn.focus_id === focusId && turn.level === 'prompt') ? 'prompt' : 'hint';
+}
+
+/** What a reply gave away: `note` is said to the model when it is asked again, `found` is logged. */
+export interface Leak {
+  note: string;
+  found: string;
+}
+
+/** C, as opposed to plain words: each with what the note calls it. */
+const CODE_PATTERNS: { pattern: RegExp; name: string }[] = [
+  { pattern: /;[ \t]*$/m, name: 'a line ending in a semicolon' },
+  { pattern: /\b(?:printf|scanf)\s*\(/, name: 'a printf or scanf call' },
+  { pattern: /\b(?:for|while|if)\s*\(/, name: 'a C for, while or if' },
+  {
+    pattern: /\b(?:int|float|double|char|long|short|unsigned|signed)\s+\**[A-Za-z_]\w*\s*=/,
+    name: 'a C declaration'
+  },
+  { pattern: /[{}]/, name: 'braces' }
+];
+
+/** The phases whose nudges are checked for C code: Cases' working is arithmetic, and Implement has its own feedback. */
+const CODE_CHECKED = new Set(['problem_definition', 'algorithm_design']);
+
+/** The shortest expected output worth looking for: a single character turns up in too much ordinary text. */
+const SHORTEST_OUTPUT = 2;
+
+/**
+ * Whether `text` holds `value` as a whole token: not inside a longer word or
+ * number (24 is not in 240, 1.24 or 24.5), with any run of whitespace in the value
+ * matching any run in the text, and letters matched in either case.
+ */
+function holdsToken(text: string, value: string): boolean {
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return new RegExp(`(?<![\\w]|\\d\\.)${escaped}(?![\\w]|\\.\\d)`, 'i').test(text);
+}
+
+/**
+ * What `text` gives away, or null. In Cases, the reference's output for the case
+ * being judged, when it is at least {@link SHORTEST_OUTPUT} characters and the
+ * student has not already written it (a value they wrote and got right is theirs
+ * to be asked about). In Problem and Design, anything that looks like C.
+ */
+export function findLeak(phaseId: string, text: string, referenceCheck: CheckResult | null | undefined): Leak | null {
+  if (phaseId === 'case_design' && referenceCheck?.status === 'checked') {
+    for (const row of referenceCheck.rows) {
+      if (row.outcome !== 'wrong' && row.outcome !== 'missing_output') continue;
+      const expected = normaliseOutput(row.actual ?? '').trim();
+      if (expected.length < SHORTEST_OUTPUT) continue;
+      if (holdsToken(text, expected)) {
+        return { note: `the expected output for ${row.label}`, found: `${row.label} expected output "${expected}"` };
+      }
+    }
   }
+  if (CODE_CHECKED.has(phaseId)) {
+    for (const { pattern, name } of CODE_PATTERNS) {
+      const match = text.match(pattern);
+      if (match) return { note: `C code (${name}: "${match[0].trim()}")`, found: `C code: ${name}` };
+    }
+  }
+  return null;
+}
+
+/** Added to the user message when a reply is asked for again, naming what the last one gave away. */
+function leakNote(leak: Leak): string {
+  return (
+    `\n\nYOUR LAST REPLY GAVE SOMETHING AWAY\nIt contained ${leak.note}, which the student must work out ` +
+    'themselves. Write the reply again at the same level without it.'
+  );
+}
+
+export interface NudgeRequest {
+  phase: PhaseDoc;
+  problem: ProblemForPrompt;
+  artifact: Record<string, unknown>;
+  /** The requirement to write about, with its verdict's evidence: {@link pickFocus}'s choice. */
+  focus: FailingCriterion;
+  /** Every failing gating criterion, in rubric order, for the page's count. */
+  failing: FailingCriterion[];
+  level: NudgeLevel;
+  attempt?: number;
+  priorArtifacts?: PriorArtifact[];
+  /** Earlier turns on `focus` only, oldest first. */
+  history?: HistoryTurn[];
+  /** The submit's reference check: the leak check's source for a case's expected output. */
+  referenceCheck?: CheckResult | null;
+  provider?: Provider;
+  /** What the live reasoning window calls this call; `nudge · <level>` by default. */
+  liveLabel?: string;
+}
+
+export async function nudge(request: NudgeRequest): Promise<NudgeOutcome> {
+  const { phase, focus, level } = request;
 
   // The nudge document pins no model, so the provider is chosen from the phase's own
   // model id -- that is the provider the judge just used, and it keeps the two halves of
   // one phase on one provider even when CLIVE_PROVIDER is unset.
-  const chosen = provider ?? getProvider({ model: phase.model.id });
+  const chosen = request.provider ?? getProvider({ model: phase.model.id });
   if (!chosen.hasApiKey()) {
     throw new JudgeError(
       `No API key for provider '${chosen.name}'. Set ${chosen.apiKeyEnv} in the environment, ` +
         'then restart the server.'
     );
   }
-  const user = renderNudgePrompt({ phase, problem, artifact, failures, attempt, priorArtifacts, history });
-
-  const result = await callModel(chosen, 'nudge', {
-    system: NUDGE_SYSTEM,
-    user,
-    model: chosen.defaultModel,
-    maxOutputTokens: NUDGE_DOC.model?.max_output_tokens ?? 2000,
-    effort: NUDGE_DOC.model?.effort ?? 'medium',
-    schema: NudgeSchema,
-    schemaText: jsonSchemaText(NudgeSchema)
+  const user = renderNudgePrompt({
+    phase,
+    problem: request.problem,
+    artifact: request.artifact,
+    focus,
+    level,
+    attempt: request.attempt ?? 1,
+    priorArtifacts: request.priorArtifacts ?? [],
+    history: request.history ?? []
   });
-  const parsed = NudgeSchema.parse(result.parsed);
 
-  const offered = failures.map((c) => c.id);
-  if (!offered.includes(parsed.focus_id)) {
-    throw new JudgeError(
-      `The nudge names criterion '${parsed.focus_id}', which is not among the failing gating ` +
-        `criteria. Expected one of: ${offered.join(', ')}.`
+  const ask = async (message: string) => {
+    const result = await callModel(
+      chosen,
+      'nudge',
+      {
+        system: NUDGE_SYSTEM,
+        user: message,
+        model: chosen.defaultModel,
+        maxOutputTokens: NUDGE_DOC.model?.max_output_tokens ?? 2000,
+        effort: NUDGE_DOC.model?.effort ?? 'medium',
+        schema: NudgeSchema,
+        schemaText: jsonSchemaText(NudgeSchema)
+      },
+      request.liveLabel ?? `nudge · ${level}`
     );
+    return NudgeSchema.parse(result.parsed);
+  };
+
+  const leaks: string[] = [];
+  let reply = await ask(user);
+  let leak = findLeak(phase.phase, reply.nudge, request.referenceCheck);
+  if (leak) {
+    leaks.push(leak.found);
+    reply = await ask(user + leakNote(leak));
+    leak = findLeak(phase.phase, reply.nudge, request.referenceCheck);
+    if (leak) leaks.push(leak.found);
   }
 
-  const focus = failures.find((c) => c.id === parsed.focus_id);
   return {
-    situation: situationOr(phase.phase, correctedSituation(parsed.situation, verdicts)),
-    summary: parsed.summary,
-    focus_id: parsed.focus_id,
-    focus_text: focus?.text ?? '',
-    focus_not_met: focus?.not_met ?? '',
-    reason: parsed.reason,
-    nudge: parsed.nudge,
-    failing: failures.map((c) => ({ id: c.id, text: c.text }))
+    level,
+    focus_id: focus.id,
+    focus_text: focus.text,
+    focus_not_met: focus.not_met ?? '',
+    reason: reply.reason,
+    nudge: leak ? '' : reply.nudge,
+    failing: request.failing.map((c) => ({ id: c.id, text: c.text })),
+    leaks,
+    leak_blocked: leak !== null
   };
-}
-
-/**
- * The one situation the verdicts can refute: a reply that calls the answer right when
- * the reference solution has already found the expected output wrong. A replay of
- * 126-Chr's first case ("12 00" called midnight) had the model say
- * right_answer_wrong_reason over a reference FAIL; that reading is wrong_answer.
- */
-function correctedSituation(situation: string, verdicts: Verdict[]): string {
-  const refuted = verdicts.some(
-    (v) => v.criterion_id === 'outputs_are_correct' && v.verdict === 'FAIL' && v.source === 'reference'
-  );
-  return situation === 'right_answer_wrong_reason' && refuted ? 'wrong_answer' : situation;
 }

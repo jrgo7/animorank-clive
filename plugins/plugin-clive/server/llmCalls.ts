@@ -4,13 +4,13 @@
  * Ported from the prototype's `clive.llm_log`: a route runs its work inside
  * {@link captureLlmCalls}, every model call made inside goes through
  * {@link callModel}, and the route gets back one {@link LlmCall} per call, in the
- * order they were made, to write beside the submission or stuck ask they served.
+ * order they were made, to write beside the submission or escalation they served.
  * A call that fails is recorded too, with whatever the model sent before it
  * failed, so a failed request can still be explained afterwards.
  *
- * The capture follows the async work (`AsyncLocalStorage`), so the judge, nudge
- * and stuck modules need no collector passed through them, and two requests
- * served at once never see each other's calls.
+ * The capture follows the async work (`AsyncLocalStorage`), so the judge and nudge
+ * modules need no collector passed through them, and two requests served at once
+ * never see each other's calls.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { JudgeError } from './content/errors';
@@ -18,7 +18,7 @@ import type { JudgeJsonOptions, Provider, ProviderResult } from './providers';
 import { callEnded, callStarted, reasoning } from './liveFeed';
 
 /** What a call was for: one per model call a CLive route makes. */
-export type LlmPurpose = 'judge' | 'nudge' | 'nudge_code' | 'stuck';
+export type LlmPurpose = 'judge' | 'nudge' | 'nudge_code';
 
 /** One model call, named the way the prototype's `llm_call` lines are, so an analysis reads the same fields. */
 export interface LlmCall {
@@ -72,17 +72,24 @@ export async function captureLlmCalls<T>(
 export async function callModel(
   provider: Provider,
   purpose: LlmPurpose,
-  options: JudgeJsonOptions
+  options: JudgeJsonOptions,
+  /** What the live reasoning window heads the call with (a nudge's level, say); the purpose when absent. */
+  liveLabel?: string
 ): Promise<ProviderResult> {
   try {
-    return await callOnce(provider, purpose, options);
+    return await callOnce(provider, purpose, options, liveLabel);
   } catch (error) {
     if (!(error instanceof JudgeError) || !error.unreadable) throw error;
-    return callOnce(provider, purpose, options);
+    return callOnce(provider, purpose, options, liveLabel);
   }
 }
 
-async function callOnce(provider: Provider, purpose: LlmPurpose, options: JudgeJsonOptions): Promise<ProviderResult> {
+async function callOnce(
+  provider: Provider,
+  purpose: LlmPurpose,
+  options: JudgeJsonOptions,
+  liveLabel?: string
+): Promise<ProviderResult> {
   const started = new Date();
   const t0 = performance.now();
   const base = {
@@ -95,7 +102,7 @@ async function callOnce(provider: Provider, purpose: LlmPurpose, options: JudgeJ
     system: options.system,
     user: options.user
   };
-  const live = callStarted(purpose);
+  const live = callStarted(liveLabel ?? purpose);
   try {
     const result = await provider.judgeJson({ ...options, onReasoning: (chunk) => reasoning(live, chunk) });
     callEnded(live, {
