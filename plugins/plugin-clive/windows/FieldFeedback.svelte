@@ -1,8 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
-  import Button from '$lib/components/ui/buttons/Button.svelte';
-  import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
+  import StuckButton from './StuckButton.svelte';
   import { MORE_TO_FIX, type FieldFeedback } from './feedback';
 
   /**
@@ -60,17 +59,10 @@
       <div class="border-t border-base-content/10 pt-2.5 text-xs text-base-content/60">{MORE_TO_FIX}</div>
     {/if}
     {#if canEscalate && !waiting}
-      <div class="flex flex-wrap items-center gap-2.5 border-t border-base-content/10 pt-2.5">
-        <Button
-          class="btn-sm gap-2"
-          type="button"
-          {disabled}
-          onclick={() => onescalate?.()}
-        >
-          <LightbulbIcon class="h-3.5 w-3.5" />
-          I'm stuck
-        </Button>
-      </div>
+      <StuckButton
+        {disabled}
+        onclick={() => onescalate?.()}
+      />
     {/if}
   </div>
 {:else if feedback.kind === 'fix'}

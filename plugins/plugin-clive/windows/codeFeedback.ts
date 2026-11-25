@@ -5,7 +5,7 @@
  * and nothing more; it is only ever counted here, so no request can carry its
  * contents.
  */
-import type { CodeRun } from './api';
+import type { CodeRun, CodeTurn, NudgeLevel } from './api';
 
 interface Value {
   data?: { value?: unknown };
@@ -99,6 +99,50 @@ export function wantsCodeFeedback(
 /** Whether a Run or Submit is worth answering: anything at all failed. */
 export function shouldAsk(results: readonly { success: boolean }[]): boolean {
   return results.some((r) => !r.success);
+}
+
+/** One reply about the code as the page keeps it, with the prompt "I'm stuck" brought for it. */
+interface KeptReply {
+  /** A reply saved before Implement joined the hint ladder has none, and reads as a hint. */
+  level?: NudgeLevel;
+  situation: string;
+  focus: string;
+  nudge: string;
+  escalation?: { level?: NudgeLevel; situation: string; focus: string; nudge: string };
+  /** Set when a later Run or Submit passed every test: the reply is no longer about the code. */
+  passedSince?: boolean;
+}
+
+/**
+ * Whether "I'm stuck" is offered under the latest reply: it is a hint, it has not
+ * been pressed for that run yet, and no Run or Submit has passed since. An older
+ * reply never has it; a new failed run brings its own.
+ */
+export function canEscalateCode(latest: KeptReply | undefined): boolean {
+  return !!latest && (latest.level ?? 'hint') === 'hint' && !latest.escalation && !latest.passedSince;
+}
+
+/** How many earlier replies the model is shown: enough to notice a repeat. */
+const TURNS_SHOWN = 5;
+
+/**
+ * The earlier replies the model is shown, from the replies as the page keeps them
+ * (newest first): oldest first, each prompt right after its hint, the last
+ * {@link TURNS_SHOWN}.
+ */
+export function codeHistory(replies: readonly KeptReply[]): CodeTurn[] {
+  const turns = [...replies].reverse().flatMap((reply) => {
+    const hint: CodeTurn = {
+      level: reply.level ?? 'hint',
+      situation: reply.situation,
+      focus: reply.focus,
+      nudge: reply.nudge
+    };
+    const prompt = reply.escalation;
+    if (!prompt) return [hint];
+    return [hint, { level: 'prompt' as const, situation: prompt.situation, focus: prompt.focus, nudge: prompt.nudge }];
+  });
+  return turns.slice(-TURNS_SHOWN);
 }
 
 /**

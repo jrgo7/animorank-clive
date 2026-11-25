@@ -4,12 +4,28 @@ import type { JsonValue } from '@zenstackhq/orm';
 import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
-import { codeFeedback, escalate, fetchBoot, setParticipant, type NudgeLevel, type NudgeTurn } from './api';
+import {
+  codeFeedback,
+  escalate,
+  escalateCode,
+  fetchBoot,
+  setParticipant,
+  type NudgeLevel,
+  type NudgeTurn
+} from './api';
 import { keptTurns, migrateTurns } from './feedback';
-import { implementReached, LatestOnly, toCodeRun, wantsCodeFeedback } from './codeFeedback';
+import {
+  canEscalateCode,
+  codeHistory,
+  implementReached,
+  LatestOnly,
+  toCodeRun,
+  wantsCodeFeedback
+} from './codeFeedback';
 import { CLIVE_EVENT } from './telemetry';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 import {
+  IMPLEMENT_PHASE,
   PHASES,
   blankValueFor,
   inPlay,
@@ -19,6 +35,9 @@ import {
   type ArtifactValue,
   type PhaseConfig
 } from './phase';
+
+/** Where Implement sits among the phases: the last one, which AnimoRank's tests decide. */
+const IMPLEMENT = PHASES.findIndex((p) => p.phase === IMPLEMENT_PHASE);
 
 export type { ArtifactValue };
 
@@ -131,13 +150,33 @@ function completeArtifact(config: PhaseConfig, saved: unknown, startingCode: str
   );
 }
 
-/** One reply about the student's code after a Run or Submit that did not pass. */
-export interface CodeFeedbackEntry {
-  attempt: number;
-  runType: 'run' | 'submit';
+/** The prompt "I'm stuck" brought for a reply about the code, shown under its hint. */
+export interface CodeEscalation {
+  level: NudgeLevel;
   situation: string;
   focus: string;
   nudge: string;
+  summary?: string;
+}
+
+/**
+ * One reply about the student's code after a Run or Submit that did not pass. A
+ * reply saved before Implement joined the hint ladder has no `level` (it reads as a
+ * hint) and no `summary`.
+ */
+export interface CodeFeedbackEntry {
+  attempt: number;
+  runType: 'run' | 'submit';
+  level?: NudgeLevel;
+  situation: string;
+  /** What happened, in one line: shown on its own when the reply was held back. */
+  summary?: string;
+  focus: string;
+  /** What the student reads; empty when the server held back a reply that wrote their code. */
+  nudge: string;
+  escalation?: CodeEscalation;
+  /** Set when a later Run or Submit passed every test: the reply is no longer about the code. */
+  passedSince?: boolean;
 }
 
 /** One phase's working state: what the student has written, and what came back for it. */
@@ -494,22 +533,36 @@ export class CliveSession {
   /**
    * A Run or Submit finished. Once the student has reached Implement, each one is
    * an attempt (Implement's `attempt` counts them, passing or not), and one that
-   * failed is answered. A passing one drops any reply still coming about older code.
+   * failed is answered with a hint. One that passed every test drops any reply still
+   * coming about older code, and takes "I'm stuck" off the latest reply; a passing
+   * Submit passes Implement, which AnimoRank's tests alone decide. A passing Run does not.
    */
   async codeRan(
     context: SolveWindowContext,
     execution: { runType: 'run' | 'submit'; publicTestResults: readonly unknown[]; submittedCode: string }
   ): Promise<void> {
     if (!implementReached(this.phases)) return;
-    const state = this.phases[PHASES.findIndex((p) => p.phase === 'implement')];
+    const state = this.phases[IMPLEMENT];
     const attempt = state.attempt;
     state.attempt += 1;
-    if (wantsCodeFeedback(this.phases, this.hasApiKey, execution.publicTestResults as { success: boolean }[])) {
+    const results = execution.publicTestResults as { success: boolean }[];
+    if (wantsCodeFeedback(this.phases, this.hasApiKey, results)) {
       await this.requestCodeFeedback(context, execution, attempt);
-    } else {
-      this.dropPendingCodeFeedback();
-      this.persist();
+      return;
     }
+    if (results.length > 0 && results.every((r) => r.success)) {
+      this.dropPendingCodeFeedback();
+      if (state.codeFeedback[0]) state.codeFeedback[0].passedSince = true;
+      if (execution.runType === 'submit') {
+        this.pass(IMPLEMENT);
+        this.telemetry.record(CLIVE_EVENT.phasePassed, {
+          phase: IMPLEMENT_PHASE,
+          attempt,
+          run_type: execution.runType
+        });
+      }
+    }
+    this.persist();
   }
 
   /**
@@ -522,12 +575,7 @@ export class CliveSession {
     execution: { runType: 'run' | 'submit'; publicTestResults: readonly unknown[]; submittedCode: string },
     attempt: number
   ): Promise<void> {
-    const index = PHASES.findIndex((p) => p.phase === 'implement');
-    const state = this.phases[index];
-    const history = state.codeFeedback
-      .slice(0, 5)
-      .reverse()
-      .map(({ situation, focus, nudge }) => ({ situation, focus, nudge }));
+    const state = this.phases[IMPLEMENT];
     this.codeFeedbackPending += 1;
     try {
       const { current, value } = await this.codeFeedbackRequests.run(() =>
@@ -537,8 +585,8 @@ export class CliveSession {
           code: execution.submittedCode,
           runType: execution.runType,
           attempt,
-          priorArtifacts: this.priorArtifacts(index),
-          history,
+          priorArtifacts: this.priorArtifacts(IMPLEMENT),
+          history: codeHistory(state.codeFeedback),
           run: toCodeRun(execution.publicTestResults)
         })
       );
@@ -546,7 +594,9 @@ export class CliveSession {
       state.codeFeedback.unshift({
         attempt,
         runType: execution.runType,
+        level: value.level ?? 'hint',
         situation: value.situation,
+        summary: value.summary,
         focus: value.focus,
         nudge: value.nudge
       });
@@ -561,6 +611,43 @@ export class CliveSession {
   /** A Run or Submit that passed: any reply still coming about older code is no longer about this code. */
   private dropPendingCodeFeedback(): void {
     this.codeFeedbackRequests.cancel();
+  }
+
+  /**
+   * "I'm stuck" under the latest reply about the code: a prompt for that run, on the
+   * same situation and place, shown under its hint. Once per run; a later failed run
+   * brings its own hint and button. The server builds the prompt from its own record
+   * of the run; only the earlier replies go along.
+   */
+  async escalateCode(problemId: string): Promise<void> {
+    const state = this.phases[IMPLEMENT];
+    const latest = state.codeFeedback[0];
+    if (!canEscalateCode(latest) || this.busy) return;
+    this.busy = 'escalate';
+    this.busySince = Date.now();
+    this.error = null;
+    try {
+      const got = await escalateCode({
+        sessionId: this.sessionId,
+        problemId,
+        attempt: latest.attempt,
+        priorArtifacts: this.priorArtifacts(IMPLEMENT),
+        history: codeHistory(state.codeFeedback)
+      });
+      latest.escalation = {
+        level: got.level ?? 'prompt',
+        situation: got.situation,
+        focus: got.focus,
+        nudge: got.nudge,
+        summary: got.summary
+      };
+    } catch (cause) {
+      this.error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      this.busy = null;
+      this.busySince = null;
+      this.persist();
+    }
   }
 
   /**

@@ -199,6 +199,70 @@ describe('CLive logs view', () => {
     expect(text).toContain('Model calls (1)');
   });
 
+  it('shows each code-feedback reply with its level, and an Implement escalation with its prompt', () => {
+    const text = render([
+      entry('CLIVE_PHASE_PASSED', '2026-10-21T10:03:00.000Z', { phase: 'implement', attempt: 3, run_type: 'submit' }),
+      entry('CLIVE_ESCALATE', '2026-10-21T10:02:00.000Z', {
+        phase_id: 'implement',
+        problem_id: 'problem-1',
+        step: null,
+        attempt: 2,
+        run_type: 'run',
+        level: 'prompt',
+        situation: 'departs_from_plan',
+        focus: 'step 2',
+        response: {
+          level: 'prompt',
+          situation: 'departs_from_plan',
+          summary: '2 of 4 examples fail.',
+          focus: 'step 2',
+          nudge: 'Where does nSum get its starting value?',
+          leaks: ['C code: a line ending in a semicolon'],
+          leak_blocked: false
+        }
+      }),
+      entry('CLIVE_CODE_FEEDBACK', '2026-10-21T10:01:00.000Z', {
+        problem_id: 'problem-1',
+        run_type: 'run',
+        attempt: 2,
+        level: 'hint',
+        code: 'int main(void) { return 1; }',
+        run: { compiled: true, cases: [{ input: '4', expected: '10', actual: '4', passed: false }], hiddenFailed: 1 },
+        response: {
+          level: 'hint',
+          situation: 'departs_from_plan',
+          summary: '2 of 4 examples fail.',
+          focus: 'step 2',
+          nudge: 'Follow section two through your plan.',
+          leaks: [],
+          leak_blocked: false
+        }
+      }),
+      // Recorded before the ladder: no level.
+      entry('CLIVE_CODE_FEEDBACK', '2026-10-21T10:00:00.000Z', {
+        run_type: 'submit',
+        attempt: 1,
+        response: { situation: 'other', summary: 'It ran.', focus: 'the loop', nudge: 'Look at the loop.' }
+      })
+    ]);
+
+    expect(text).toContain('Code feedback · run · attempt 2');
+    expect(text).toContain('Code feedback · submit · attempt 1');
+    expect(text).toContain('Level: hint');
+    expect(text).toContain('Situation: departs_from_plan');
+    expect(text).toContain('Focus: step 2');
+    expect(text).toContain('Follow section two through your plan.');
+    expect(text).toContain('Look at the loop.');
+    expect(text).toContain('int main(void) { return 1; }');
+    expect(text).toContain('Escalation · implement · problem-1 · attempt 2');
+    expect(text).toContain('Level: prompt');
+    expect(text).toContain('Where does nSum get its starting value?');
+    expect(text).toContain('Leak check found: C code: a line ending in a semicolon');
+    expect(text).toContain('2 code feedback replies');
+    expect(text).toContain('1 escalation');
+    expect(text).toContain('Phase passed');
+  });
+
   it('says when the leak check held a nudge back', () => {
     const text = render([
       entry('CLIVE_ESCALATE', '2026-10-21T10:01:00.000Z', {

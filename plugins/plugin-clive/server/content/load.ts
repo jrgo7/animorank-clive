@@ -11,11 +11,9 @@ import { parse } from 'yaml';
 import problemDefinitionYaml from '../../content/phases/problem_definition.yaml?raw';
 import caseDesignYaml from '../../content/phases/case_design.yaml?raw';
 import algorithmDesignYaml from '../../content/phases/algorithm_design.yaml?raw';
-import implementYaml from '../../content/phases/implement.yaml?raw';
 import problemDefinitionCriteriaYaml from '../../content/criteria/problem_definition.yaml?raw';
 import caseDesignCriteriaYaml from '../../content/criteria/case_design.yaml?raw';
 import algorithmDesignCriteriaYaml from '../../content/criteria/algorithm_design.yaml?raw';
-import implementCriteriaYaml from '../../content/criteria/implement.yaml?raw';
 import nudgeYaml from '../../content/base/nudge.yaml?raw';
 import nudgeCodeYaml from '../../content/base/nudge_code.yaml?raw';
 import diagnosticsYaml from '../../content/base/diagnostics.yaml?raw';
@@ -147,8 +145,8 @@ const PHASES: Record<string, PhaseDoc> = {
   algorithm_design: normalisePhase(
     parseFile(algorithmDesignYaml, 'phases/algorithm_design.yaml'),
     'phases/algorithm_design.yaml'
-  ),
-  implement: normalisePhase(parseFile(implementYaml, 'phases/implement.yaml'), 'phases/implement.yaml')
+  )
+  // No Implement: AnimoRank's own tests decide it, and its code feedback is `base/nudge_code.yaml`.
 };
 
 const RUBRICS: Record<string, RubricDoc> = {
@@ -163,8 +161,7 @@ const RUBRICS: Record<string, RubricDoc> = {
   algorithm_design: normaliseRubric(
     parseFile(algorithmDesignCriteriaYaml, 'criteria/algorithm_design.yaml'),
     'criteria/algorithm_design.yaml'
-  ),
-  implement: normaliseRubric(parseFile(implementCriteriaYaml, 'criteria/implement.yaml'), 'criteria/implement.yaml')
+  )
 };
 
 /** The phase document for `phase`; an unknown phase is a programming error. */

@@ -476,7 +476,7 @@ describe('feedback one thing at a time', () => {
     unmount(app);
   });
 
-  it('folds Implement’s full list away under "See every requirement"', () => {
+  it('shows no Implement requirements, even for a result the old plan check left behind', () => {
     stubSubmit(FAILED_PROBLEM);
     const context = stubContext('feedback-implement');
     const session = cliveSessionFor(context);
@@ -494,17 +494,10 @@ describe('feedback one thing at a time', () => {
     const app = mount(ImplementWindow, { target: document.body, props: { context } });
     flushSync();
 
-    const ledger = Array.from(document.querySelectorAll('details')).find((el) =>
-      el.querySelector('summary')?.textContent?.includes('See every requirement')
-    );
-    expect(ledger).toBeDefined();
-    expect(ledger?.open).toBe(false);
-    const text = ledger?.textContent ?? '';
-    expect(text).toContain('Optional');
-    expect(text).toContain('Met');
-    expect(text).toContain('The follows_own_design requirement.');
-    expect(text).toContain('Not met. This one is optional: you can move on without it.');
-    expect(document.body.textContent).not.toContain('Every requirement, checked');
+    const text = document.body.textContent ?? '';
+    expect(text).not.toContain('See every requirement');
+    expect(text).not.toContain('The follows_own_design requirement.');
+    expect(text).not.toContain('Check against your plan');
     unmount(app);
   });
 });

@@ -44,9 +44,7 @@ export interface JudgeContext {
   priorArtifacts: { label: string; fields: { label: string; value: ArtifactValue }[] }[];
   /** The field id a per-step phase is submitting. */
   step?: string;
-  /** The current code, for the Implement phase's plan-vs-code judge. */
-  code?: string;
-  /** Every earlier nudge in this phase (or step), oldest first: the server reads the level from them. */
+  /** Every earlier nudge in this phase (or step), oldest first: the model sees the last few on its requirement. */
   history?: NudgeTurn[];
 }
 
@@ -81,15 +79,14 @@ interface EscalateContext {
 /**
  * `submitPhase` mirrors CLive's own `/api/student/submit` -- only the transport
  * changes, from the standalone Python app to this plugin's Fastify routes under
- * `/plugin-api/clive` (see `../server/routes.ts`). There is no `run` here:
- * compiling and running the Implement phase's code is AnimoRank's own native
- * Submit flow, not this plugin's -- `submitPhase` for the `implement` phase is the
- * plan-vs-code judge call that runs *after* AnimoRank's own tests pass, not a
- * replacement for them.
+ * `/plugin-api/clive` (see `../server/routes.ts`). It judges Problem, Cases and
+ * Design. Implement has none: compiling and running its code is AnimoRank's own
+ * Run and Submit, and its tests alone decide the phase.
  *
  * `escalate` is the hint ladder's "I'm stuck": a prompt on the requirement the
- * last failed submit's hint was about. Neither reply carries the model's reason,
- * which goes to the server's log, never to the page.
+ * last failed submit's hint was about. `codeFeedback` answers a failed Run or Submit
+ * with a hint, and `escalateCode` is "I'm stuck" under it. No reply carries the
+ * model's reason or the leak check's findings, which go to the server's log.
  */
 /** A failing Run or Submit, as the code-feedback call may see it (`./codeFeedback.ts`). */
 export interface CodeRun {
@@ -99,10 +96,20 @@ export interface CodeRun {
   hiddenFailed: number;
 }
 
-/** One reply about the student's code. */
+/** One reply about the student's code: a run's hint, or the prompt "I'm stuck" brought. */
 export interface CodeFeedbackReply {
+  level: NudgeLevel;
   situation: string;
   summary: string;
+  focus: string;
+  /** What the student reads; empty when the server held back a reply that wrote their code. */
+  nudge: string;
+}
+
+/** One earlier reply about the code, as the model is shown it. */
+export interface CodeTurn {
+  level: NudgeLevel;
+  situation: string;
   focus: string;
   nudge: string;
 }
@@ -114,14 +121,29 @@ export interface CodeFeedbackContext {
   runType: 'run' | 'submit';
   attempt: number;
   priorArtifacts: JudgeContext['priorArtifacts'];
-  /** Earlier replies about this code, oldest first. */
-  history: { situation: string; focus: string; nudge: string }[];
+  /** Earlier replies about this code, oldest first, hints and prompts. */
+  history: CodeTurn[];
   run: CodeRun;
 }
 
-/** After a Run or Submit that did not pass: which situation the student is in, and one thing to do. */
+/** After a Run or Submit that did not pass: which situation the student is in, and where to look. */
 export async function codeFeedback(ctx: CodeFeedbackContext): Promise<CodeFeedbackReply> {
   return call('/code-feedback', ctx);
+}
+
+/**
+ * "I'm stuck" under the latest run's hint. No code and no results: the server
+ * builds the prompt from its own record of that run.
+ */
+export async function escalateCode(ctx: {
+  sessionId: string;
+  problemId: string;
+  /** The run whose reply is escalated. */
+  attempt: number;
+  priorArtifacts: JudgeContext['priorArtifacts'];
+  history: CodeTurn[];
+}): Promise<CodeFeedbackReply> {
+  return call('/code-feedback/escalate', ctx);
 }
 
 /**

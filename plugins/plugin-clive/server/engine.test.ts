@@ -13,7 +13,7 @@ import { failingGates } from './criteria';
 import { judge } from './judge';
 import * as nudgeModule from './nudge';
 import { findLeak, nudge, pickFocus } from './nudge';
-import { codeNudge, type CodeRun } from './codeNudge';
+import { codeNudge, findCodeLeak, type CodeNudgeRequest, type CodeRun } from './codeNudge';
 import type { Provider } from './providers';
 import {
   caseStdin,
@@ -605,26 +605,76 @@ describe('code nudge', () => {
     };
   }
 
-  it('returns the situation and feedback the model chose', async () => {
-    const { provider } = capturing(REPLY);
-    expect(await codeNudge(PROBLEM, 'int main(void){}', RUN_FAILING, [], [], 1, provider)).toEqual(REPLY);
+  /** A code nudge at `hint` on the failing run, with whatever the test changes. */
+  const ask = (provider: Provider, overrides: Partial<CodeNudgeRequest> = {}) =>
+    codeNudge({
+      problem: PROBLEM,
+      code: '',
+      run: RUN_FAILING,
+      priorArtifacts: [],
+      history: [],
+      attempt: 1,
+      level: 'hint',
+      provider,
+      ...overrides
+    });
+
+  it('returns the situation and feedback the model chose, at the level asked, with nothing leaked', async () => {
+    const { provider, users } = capturing(REPLY);
+    expect(await ask(provider, { code: 'int main(void){}' })).toEqual({
+      ...REPLY,
+      level: 'hint',
+      leaks: [],
+      leak_blocked: false
+    });
+    expect(users[0]).toContain('LEVEL\nhint');
+    expect(users[0]).not.toContain('SITUATION\n');
+  });
+
+  it('writes a prompt to the situation and place the hint settled on, whatever the model says', async () => {
+    const { provider, users } = capturing({ ...REPLY, situation: 'other', focus: 'somewhere else' });
+    const result = await ask(provider, {
+      level: 'prompt',
+      fixed: { situation: 'departs_from_plan', focus: 'the loop that adds each digit' }
+    });
+
+    expect(result).toMatchObject({
+      level: 'prompt',
+      situation: 'departs_from_plan',
+      focus: 'the loop that adds each digit'
+    });
+    expect(users[0]).toContain('LEVEL\nprompt');
+    expect(users[0]).toContain('SITUATION\ndeparts_from_plan');
+    expect(users[0]).toContain('FOCUS\nthe loop that adds each digit');
+  });
+
+  it('shows the model each earlier reply with its level', async () => {
+    const { provider, users } = capturing(REPLY);
+    await ask(provider, {
+      history: [
+        { level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: 'Follow section two.' },
+        { level: 'prompt', situation: 'departs_from_plan', focus: 'step 2', nudge: 'Where does nSum start?' }
+      ]
+    });
+    expect(users[0]).toContain('- hint, [departs_from_plan] at step 2: Follow section two.');
+    expect(users[0]).toContain('- prompt, [departs_from_plan] at step 2: Where does nSum start?');
   });
 
   it('reads a reply with no situation as other', async () => {
     const noSituation: Partial<typeof REPLY> = { ...REPLY };
     delete noSituation.situation;
     const { provider } = capturing(noSituation);
-    expect((await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider)).situation).toBe('other');
+    expect((await ask(provider)).situation).toBe('other');
   });
 
   it('turns a situation the Implement phase does not list into other', async () => {
     const { provider } = capturing({ ...REPLY, situation: 'banana' });
-    expect((await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider)).situation).toBe('other');
+    expect((await ask(provider)).situation).toBe('other');
   });
 
   it('calls a failing case’s result what the program gave, not what it printed', async () => {
     const { provider, users } = capturing(REPLY);
-    await codeNudge(PROBLEM, '', RUN_FAILING, [], [], 1, provider);
+    await ask(provider);
     expect(users[0]).toContain('expected "1", got "0"');
   });
 
@@ -636,7 +686,7 @@ describe('code nudge', () => {
       cases: [],
       hiddenFailed: 0
     };
-    await codeNudge(PROBLEM, '', run, [], [], 1, provider);
+    await ask(provider, { run });
     expect(users[0]).toContain('COMPILER ERRORS');
     expect(users[0]).toContain("expected ';' before 'if'");
   });
@@ -644,13 +694,13 @@ describe('code nudge', () => {
   it('a program that did not compile is the syntax situation, whatever the model says', async () => {
     const { provider, users } = capturing({ ...REPLY, situation: 'far_from_plan' });
     const run: CodeRun = { compiled: false, compilerOutput: 'error: expected expression', cases: [], hiddenFailed: 0 };
-    expect((await codeNudge(PROBLEM, 'int x = ;', run, [], [], 1, provider)).situation).toBe('syntax_following_plan');
+    expect((await ask(provider, { code: 'int x = ;', run })).situation).toBe('syntax_following_plan');
     expect(users[0]).toContain('the situation is syntax_following_plan');
   });
 
   it('tells the model only how many hidden cases failed', async () => {
     const { provider, users } = capturing(REPLY);
-    await codeNudge(PROBLEM, '', { ...RUN_FAILING, hiddenFailed: 1 }, [], [], 1, provider);
+    await ask(provider, { run: { ...RUN_FAILING, hiddenFailed: 1 } });
     expect(users[0]).toContain('1 case the student has not seen');
   });
 
@@ -670,7 +720,81 @@ describe('code nudge', () => {
         }
       ]
     };
-    await codeNudge(problem, '', RUN_FAILING, [], [], 1, provider);
+    await ask(provider, { problem });
     expect(users[0]).toContain('int checkSecretCode(int nAlice, int nGuest)');
+  });
+
+  describe('leak check', () => {
+    const CODE =
+      'int sum(int n)\n{\n    int nSum = 0;\n    for (int i = 0; i < n; i++)\n        nSum = nSum + i;\n    return nSum;\n}';
+
+    /** Code feedback replies with these lines, in turn. */
+    const scriptedCode = (...nudges: string[]) =>
+      scripted(...nudges.map((nudge) => ({ ...REPLY, situation: 'departs_from_plan', nudge })));
+
+    it('catches C the student did not write, and lets plain words through', () => {
+      for (const text of [
+        'Add total = 0;',
+        'Try for (i = 0; i < 3; i++) instead.',
+        'What about while (n > 0)?',
+        'Is it if (digit > 5)?',
+        'Use printf("%d", total) at the end.',
+        'Read it with scanf(" %c", &c).',
+        'Print it with %.2f.'
+      ]) {
+        expect(findCodeLeak(text, CODE), text).not.toBeNull();
+      }
+      for (const text of [
+        'Which step of your plan starts the sum?',
+        'If you follow section two through your plan, what should it start at?',
+        'For each digit, what does your loop add?',
+        'About 50% of the examples pass.',
+        'Look at `nSum` inside your loop.'
+      ]) {
+        expect(findCodeLeak(text, CODE), text).toBeNull();
+      }
+    });
+
+    it('lets a reply quote one of the student’s own lines exactly', () => {
+      expect(findCodeLeak('Look at `nSum = nSum + i;` inside your loop.', CODE)).toBeNull();
+      expect(findCodeLeak('Your loop starts with `for (int i = 0; i < n; i++)`.', CODE)).toBeNull();
+      expect(findCodeLeak('This line runs every time:\nnSum = nSum + i;', CODE)).toBeNull();
+      // Quoted, but not what they wrote.
+      expect(findCodeLeak('Change it to `nSum = nSum + 2 * i;`.', CODE)).not.toBeNull();
+    });
+
+    it('asks again when a reply writes C, naming it, at either level', async () => {
+      for (const level of ['hint', 'prompt'] as const) {
+        const { provider, users } = scriptedCode('Write nSum = 0;', 'Where does nSum get its first value?');
+        const result = await ask(provider, {
+          code: CODE,
+          level,
+          fixed: level === 'prompt' ? { situation: 'departs_from_plan', focus: 'the loop' } : undefined
+        });
+
+        expect(users, level).toHaveLength(2);
+        expect(users[1].slice(users[0].length), level).toContain('C code');
+        expect(result, level).toMatchObject({
+          nudge: 'Where does nSum get its first value?',
+          leaks: ['C code: a line ending in a semicolon'],
+          leak_blocked: false
+        });
+      }
+    });
+
+    it('gives no reply text when both replies write C, keeping the summary and the focus', async () => {
+      const { provider } = scriptedCode('Write nSum = 0;', 'Use printf("%d", nSum).');
+      const result = await ask(provider, { code: CODE });
+
+      expect(result).toMatchObject({ nudge: '', leak_blocked: true, summary: REPLY.summary, focus: REPLY.focus });
+      expect(result.leaks).toHaveLength(2);
+    });
+
+    it('does not ask again for a reply that quotes the student’s own line', async () => {
+      const { provider, users } = scriptedCode('Look at `nSum = nSum + i;`: which value does it add?');
+      const result = await ask(provider, { code: CODE });
+      expect(users).toHaveLength(1);
+      expect(result.leaks).toEqual([]);
+    });
   });
 });

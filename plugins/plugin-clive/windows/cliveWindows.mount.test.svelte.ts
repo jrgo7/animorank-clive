@@ -138,6 +138,177 @@ describe('CLive windows', () => {
     unmount(app);
   });
 
+  describe('Implement', () => {
+    const HINT = {
+      level: 'hint',
+      situation: 'departs_from_plan',
+      summary: '2 of 4 examples fail.',
+      focus: 'step 2',
+      nudge: 'Your loop matches your plan for section one.\nFollow section two: what should its sum start at?'
+    };
+    const PROMPT = {
+      level: 'prompt',
+      situation: 'departs_from_plan',
+      summary: '2 of 4 examples fail.',
+      focus: 'step 2',
+      nudge: 'Where in your loop does nSum get its starting value?'
+    };
+    const failingRun = {
+      runType: 'run' as const,
+      publicTestResults: [{ success: false, testCaseInfo: { public: true, type: 'stdio', data: {} }, runInfo: {} }],
+      submittedCode: 'int main(void) { return 1; }'
+    };
+    const passing = (runType: 'run' | 'submit') => ({
+      runType,
+      publicTestResults: [
+        { success: true, testCaseInfo: { public: true, type: 'stdio', data: {} }, runInfo: {} },
+        { success: true, testCaseInfo: { public: false } }
+      ],
+      submittedCode: 'int main(void) { return 0; }'
+    });
+    const stuckButtons = () =>
+      Array.from(document.querySelectorAll('button')).filter((el) => el.textContent?.includes("I'm stuck"));
+
+    /** A server answering each code-feedback call with a hint, and each escalation with a prompt. */
+    function stubCodeServer() {
+      const sent: { path: string; body: Record<string, unknown> }[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init?: RequestInit) => {
+          const path = String(url);
+          const body = init?.body ? JSON.parse(String(init.body)) : {};
+          if (path.endsWith('/code-feedback/escalate')) {
+            sent.push({ path: '/code-feedback/escalate', body });
+            return new Response(JSON.stringify(PROMPT), { status: 200 });
+          }
+          if (path.endsWith('/code-feedback')) {
+            sent.push({ path: '/code-feedback', body });
+            return new Response(JSON.stringify({ ...HINT, nudge: `${HINT.nudge} (${body.attempt})` }), { status: 200 });
+          }
+          return new Response(JSON.stringify({ hasApiKey: true }), { status: 200 });
+        })
+      );
+      return { sent: (path: string) => sent.filter((s) => s.path === path).map((s) => s.body) };
+    }
+
+    function reachImplement(id: string, calls?: WindowCalls) {
+      const context = stubContext(id, calls);
+      const session = cliveSessionFor(context);
+      session.phases.forEach((phase) => (phase.unlocked = true));
+      session.current = 3;
+      return { context, session };
+    }
+
+    it('has no "Check against your plan", and passes on a passing Submit, never on a Run', async () => {
+      stubCodeServer();
+      const calls: WindowCalls = { opened: [], closed: [], events: [] };
+      const { context, session } = reachImplement('implement-pass', calls);
+      const app = mountPhase(context, 3);
+      flushSync();
+      const text = () => document.body.textContent ?? '';
+      expect(text()).not.toContain('Check against your plan');
+      expect(text()).not.toContain('Pass Submit in the Code Editor window first');
+      expect(text()).not.toContain('"Check against your plan"');
+
+      await session.codeRan(context, passing('run'));
+      expect(session.phases[3].passed).toBe(false);
+      expect(calls.events?.some((e) => e.type === 'CLIVE_PHASE_PASSED')).toBe(false);
+
+      await session.codeRan(context, passing('submit'));
+      flushSync();
+      expect(session.phases[3].passed).toBe(true);
+      expect(calls.events?.filter((e) => e.type === 'CLIVE_PHASE_PASSED')).toEqual([
+        { type: 'CLIVE_PHASE_PASSED', data: { phase: 'implement', attempt: 2, run_type: 'submit' } }
+      ]);
+      expect(text()).toContain('Phase passed. That was the last one.');
+      expect(text()).not.toContain('optional point');
+      unmount(app);
+    });
+
+    it('offers "I\'m stuck" under the latest hint, brings a prompt under it, and goes', async () => {
+      const server = stubCodeServer();
+      const { context, session } = reachImplement('implement-stuck');
+      const app = mountPhase(context, 3);
+      await session.codeRan(context, failingRun);
+      flushSync();
+      expect(session.phases[3].codeFeedback[0]).toMatchObject({ level: 'hint', summary: HINT.summary });
+      expect(stuckButtons()).toHaveLength(1);
+
+      stuckButtons()[0].click();
+      await vi.waitFor(() => expect(session.phases[3].codeFeedback[0].escalation).toBeDefined());
+      flushSync();
+
+      // Where the student is and what they were told: no code and no results.
+      const [asked] = server.sent('/code-feedback/escalate');
+      expect(asked).toMatchObject({ sessionId: 'implement-stuck', problemId: 'problem-1', attempt: 1 });
+      expect(asked.history).toEqual([
+        { level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: `${HINT.nudge} (1)` }
+      ]);
+      expect(asked).not.toHaveProperty('code');
+      expect(asked).not.toHaveProperty('run');
+
+      const text = document.body.textContent ?? '';
+      expect(text).toContain(PROMPT.nudge);
+      expect(text.indexOf('Follow section two')).toBeLessThan(text.indexOf(PROMPT.nudge));
+      expect(stuckButtons()).toHaveLength(0);
+
+      // A later failing run is the latest reply, with its own button; the older one has none.
+      await session.codeRan(context, failingRun);
+      flushSync();
+      expect(stuckButtons()).toHaveLength(1);
+      expect(server.sent('/code-feedback')[1].history).toEqual([
+        { level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: `${HINT.nudge} (1)` },
+        { level: 'prompt', situation: 'departs_from_plan', focus: 'step 2', nudge: PROMPT.nudge }
+      ]);
+      unmount(app);
+    });
+
+    it('takes the button away once a later Run passes', async () => {
+      stubCodeServer();
+      const { context, session } = reachImplement('implement-stuck-passed');
+      const app = mountPhase(context, 3);
+      await session.codeRan(context, failingRun);
+      flushSync();
+      expect(stuckButtons()).toHaveLength(1);
+      await session.codeRan(context, passing('run'));
+      flushSync();
+      expect(stuckButtons()).toHaveLength(0);
+      unmount(app);
+    });
+
+    it('still opens a session saved with the Implement check and level-less replies', () => {
+      stubBoot();
+      const context = stubContext('implement-old-session');
+      const saved = missingFieldsState() as { clive: { phases: Record<string, unknown>[] } };
+      saved.clive.phases[3] = {
+        ...saved.clive.phases[3],
+        passed: true,
+        result: {
+          passed: true,
+          verdicts: [{ criterion_id: 'readable', verdict: 'FAIL', gate: 'advisory', criterion_text: 'Readable.' }],
+          missing_ids: [],
+          advisory_unmet: ['readable']
+        },
+        codeFeedback: [
+          { attempt: 1, runType: 'run', situation: 'other', focus: 'the loop', nudge: 'Look at the loop.' }
+        ]
+      };
+      (context.practiceSession as { extension_data: unknown }).extension_data = saved;
+      const session = cliveSessionFor(context);
+      session.current = 3;
+      const app = mountPhase(context, 3);
+      flushSync();
+
+      const text = document.body.textContent ?? '';
+      expect(text).toContain('Look at the loop.');
+      expect(text).toContain('Phase passed. That was the last one.');
+      expect(text).not.toContain('See every requirement');
+      expect(text).not.toContain('optional point');
+      expect(stuckButtons()).toHaveLength(1);
+      unmount(app);
+    });
+  });
+
   it('opens the researcher override with the strip closed, and reopens the strip to show it', () => {
     stubBoot();
     const calls: WindowCalls = { opened: [], closed: [] };

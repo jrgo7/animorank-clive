@@ -90,6 +90,23 @@ vi.mock('./sessionLog', async (importOriginal) => {
       }
       return false;
     },
+    // The newest CLIVE_CODE_FEEDBACK this fake history holds, with whether an Implement
+    // escalation of it, or a Run or Submit that passed every test, came after it.
+    latestCodeFeedbackRecord: async () => {
+      const at = log.written.findLastIndex((e) => e.type === 'CLIVE_CODE_FEEDBACK');
+      if (at < 0) return null;
+      const record = log.written[at].data;
+      const after = log.written.slice(at + 1);
+      return {
+        record,
+        escalated: after.some(
+          (e) => e.type === 'CLIVE_ESCALATE' && e.data.phase_id === 'implement' && e.data.attempt === record.attempt
+        ),
+        passedSince: after.some(
+          (e) => e.type === 'RUN_ATTEMPT' && (e.data.generalTestResults as boolean[]).every(Boolean)
+        )
+      };
+    },
     tagParticipant: async (sessionId: string, participant: string) => {
       log.tagged.push({ sessionId, participant });
     },
@@ -117,13 +134,6 @@ const CASE_VERDICTS = [
 const CASE_2_VERDICTS = [
   ...CASE_VERDICTS,
   { criterion_id: 'worked_out_differently', verdict: 'PASS', evidence: '', confidence: 'high' }
-];
-
-const IMPLEMENT_VERDICTS = [
-  { criterion_id: 'follows_own_design', verdict: 'FAIL', evidence: '', confidence: 'low' },
-  { criterion_id: 'state_matches_design', verdict: 'PASS', evidence: '', confidence: 'high' },
-  { criterion_id: 'handles_own_edge_cases', verdict: 'PASS', evidence: '', confidence: 'high' },
-  { criterion_id: 'readable', verdict: 'PASS', evidence: '', confidence: 'high' }
 ];
 
 const PROBLEM_VERDICTS = [
@@ -472,25 +482,22 @@ describe('CLive plugin routes', () => {
     expect(response.json().error).toMatch(/step is required/);
   });
 
-  it('judges Implement from the submitted code, all advisory', async () => {
-    state.queue = [{ verdicts: IMPLEMENT_VERDICTS }];
+  it('refuses an Implement submit: the tests alone decide Implement', async () => {
     const response = await post('/submit', {
       sessionId: SESSION,
       phase: 'implement',
       problemId: 'p',
-      artifact: { code: 'stale' },
-      code: 'int main(void) { return 0; }',
+      artifact: { code: 'int main(void) { return 0; }' },
       attempt: 1,
       priorArtifacts: []
     });
-    expect(response.statusCode).toBe(200);
-    const body = response.json();
-    expect(body.passed).toBe(true);
-    expect(body.verdicts).toHaveLength(4);
-    expect(body.nudge).toBeUndefined();
-    expect(body.advisory_unmet).toEqual(['follows_own_design']);
-    // The record keeps the code that was judged, not the stale copy in the artifact.
-    expect(entry('CLIVE_SUBMIT').data.artifact).toEqual({ code: 'int main(void) { return 0; }' });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe(
+      'Implement is not checked here: Run and Submit in the Code Editor window decide it.'
+    );
+    expect(state.calls).toBe(0);
+    expect(log.written).toEqual([]);
   });
 
   /** A failed Case 1 submit on case_is_concrete, answered with a hint: what an escalation follows. */
@@ -735,14 +742,15 @@ describe('CLive plugin routes', () => {
     nudge: 'Look at step 2.'
   };
 
-  it('answers failing Implement code with its situation and feedback', async () => {
+  it('answers failing Implement code with a hint: its situation and feedback', async () => {
     state.queue = [CODE_REPLY];
     const response = await post('/code-feedback', codeBody());
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual(CODE_REPLY);
+    expect(response.json()).toEqual({ ...CODE_REPLY, level: 'hint' });
+    expect(state.users[0]).toContain('LEVEL\nhint');
   });
 
-  it('writes the code-feedback call, then its record', async () => {
+  it('writes the code-feedback call, then its record with the level and the leak check', async () => {
     state.queue = [CODE_REPLY];
     await post('/code-feedback', codeBody());
     expect(types()).toEqual(['CLIVE_LLM_CALL', 'CLIVE_CODE_FEEDBACK']);
@@ -751,8 +759,143 @@ describe('CLive plugin routes', () => {
       problem_id: 'p',
       run_type: 'run',
       attempt: 1,
+      level: 'hint',
       code: 'int main(void) { return 0; }',
-      response: CODE_REPLY
+      response: { ...CODE_REPLY, level: 'hint', leaks: [], leak_blocked: false }
+    });
+  });
+
+  it('reads earlier replies saved without a level as hints', async () => {
+    state.queue = [CODE_REPLY];
+    const history = [{ situation: 'other', focus: 'the loop', nudge: 'Look at the loop.' }];
+    expect((await post('/code-feedback', codeBody({ history }))).statusCode).toBe(200);
+    expect(state.users[0]).toContain('- hint, [other] at the loop: Look at the loop.');
+  });
+
+  describe('"I\'m stuck" on code feedback', () => {
+    /** What the page sends: no code and no results, which the server reads from its own record. */
+    const codeEscalateBody = (overrides: Record<string, unknown> = {}) => ({
+      sessionId: SESSION,
+      problemId: 'p',
+      priorArtifacts: [],
+      history: [{ level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: 'Look at step 2.' }],
+      ...overrides
+    });
+    const CODE_PROMPT = {
+      situation: 'other',
+      summary: 'Still one fails.',
+      focus: 'somewhere else',
+      nudge: 'Where does nSum get its first value?'
+    };
+
+    /** A failing run answered with a hint, as the server records it. */
+    async function failedRun(attempt = 1): Promise<void> {
+      state.queue = [CODE_REPLY];
+      expect((await post('/code-feedback', codeBody({ attempt }))).statusCode).toBe(200);
+    }
+
+    it('answers with a prompt on the same situation and place, from the server’s own record', async () => {
+      await failedRun();
+      state.queue = [CODE_PROMPT];
+      const response = await post(
+        '/code-feedback/escalate',
+        codeEscalateBody({
+          code: 'CLIENT_CODE',
+          run: { compiled: true, cases: [{ input: 'CLIENT_INPUT', expected: '1', actual: '0', passed: false }] }
+        })
+      );
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        level: 'prompt',
+        situation: 'departs_from_plan',
+        summary: CODE_PROMPT.summary,
+        focus: 'step 2',
+        nudge: CODE_PROMPT.nudge
+      });
+      const user = state.users[1];
+      expect(user).toContain('LEVEL\nprompt');
+      expect(user).toContain('SITUATION\ndeparts_from_plan');
+      expect(user).toContain('FOCUS\nstep 2');
+      expect(user).toContain('int main(void) { return 0; }');
+      expect(user).toContain('input "4 6"');
+      expect(user).not.toContain('CLIENT_CODE');
+      expect(user).not.toContain('CLIENT_INPUT');
+      // The hint it goes further from is in its history, once.
+      expect(user.split('- hint, [departs_from_plan] at step 2: Look at step 2.')).toHaveLength(2);
+    });
+
+    it('logs the escalation: its model call, then its record', async () => {
+      await failedRun();
+      state.queue = [CODE_PROMPT];
+      await post('/code-feedback/escalate', codeEscalateBody());
+
+      expect(types()).toEqual(['CLIVE_LLM_CALL', 'CLIVE_CODE_FEEDBACK', 'CLIVE_LLM_CALL', 'CLIVE_ESCALATE']);
+      expect(log.written[2].data).toMatchObject({ during: 'escalate', seq: 1, purpose: 'nudge_code' });
+      expect(entry('CLIVE_ESCALATE').data).toMatchObject({
+        phase_id: 'implement',
+        problem_id: 'p',
+        step: null,
+        attempt: 1,
+        run_type: 'run',
+        level: 'prompt',
+        situation: 'departs_from_plan',
+        focus: 'step 2',
+        response: { level: 'prompt', nudge: CODE_PROMPT.nudge, leaks: [], leak_blocked: false }
+      });
+    });
+
+    it('refuses when no code feedback was recorded', async () => {
+      const response = await post('/code-feedback/escalate', codeEscalateBody());
+      expect(response.statusCode).toBe(409);
+      expect(state.calls).toBe(0);
+    });
+
+    it('refuses a second escalation of the same run, and allows the next failing run’s', async () => {
+      await failedRun();
+      state.queue = [CODE_PROMPT];
+      expect((await post('/code-feedback/escalate', codeEscalateBody())).statusCode).toBe(200);
+
+      const again = await post('/code-feedback/escalate', codeEscalateBody());
+      expect(again.statusCode).toBe(409);
+      expect(again.json().error).toBe(
+        'You already have the more specific help for this run. Change your code and run it again for a new hint.'
+      );
+      expect(state.calls).toBe(2);
+
+      await failedRun(2);
+      state.queue = [CODE_PROMPT];
+      const next = await post('/code-feedback/escalate', codeEscalateBody());
+      expect(next.statusCode).toBe(200);
+      expect(entry('CLIVE_ESCALATE').data.attempt).toBe(1);
+      expect(log.written.filter((e) => e.type === 'CLIVE_ESCALATE').map((e) => e.data.attempt)).toEqual([1, 2]);
+    });
+
+    it('refuses once a newer Run or Submit has passed every test', async () => {
+      await failedRun();
+      log.written.push({
+        type: 'RUN_ATTEMPT',
+        data: { runType: 'submit', generalTestResults: [true, true, true], submittedCode: 'fixed' },
+        timestamp: new Date()
+      });
+      const response = await post('/code-feedback/escalate', codeEscalateBody());
+
+      expect(response.statusCode).toBe(409);
+      expect(state.calls).toBe(1);
+    });
+
+    it('records a failed escalation as an error', async () => {
+      await failedRun();
+      state.queue = [new JudgeError('The model gave up.')];
+      const response = await post('/code-feedback/escalate', codeEscalateBody());
+
+      expect(response.statusCode).toBe(400);
+      expect(entry('CLIVE_ERROR').data).toMatchObject({ call: 'escalate', phase_id: 'implement', attempt: 1 });
+    });
+
+    it('refuses an escalation into a practice session that is not yours', async () => {
+      log.owns = false;
+      expect((await post('/code-feedback/escalate', codeEscalateBody())).statusCode).toBe(403);
     });
   });
 
@@ -827,7 +970,7 @@ describe('CLive plugin routes', () => {
     expect(bodies).toContain('Which two numbers?');
     expect(bodies).not.toContain('EVIDENCE_MARKER');
     expect(bodies).not.toContain('REASON_MARKER');
-    for (const phase of ['problem_definition', 'case_design', 'algorithm_design', 'implement']) {
+    for (const phase of ['problem_definition', 'case_design', 'algorithm_design']) {
       for (const criterion of rubricDoc(phase).criteria) {
         for (const line of (criterion.guidance ?? '').split('\n').map((l) => l.trim())) {
           if (line.length > 30) expect(bodies, `${criterion.id} guidance`).not.toContain(line);

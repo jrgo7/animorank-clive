@@ -73,15 +73,15 @@ export default class CLivePlugin extends ClientPlugin {
     this.shortcutTarget = { context, session };
 
     // A Run or Submit that did not pass, once the student has reached Implement: CLive
-    // answers on its own with the situation it sees and one thing to do.
+    // answers on its own with a hint about the situation it sees. A Submit that passes
+    // every test passes Implement (`CLIVE_PHASE_PASSED`).
     context.executionObservable.subscribe('tests', (execution) => {
       void session.codeRan(context, execution);
     });
 
     // A Run is AnimoRank's own flow -- the plugin has none of its own -- so its
-    // outcome is recorded from the execution event. The code itself is already
-    // in the telemetry hook's `RUN_ATTEMPT` entry; Submit is recorded
-    // server-side as `CLIVE_SUBMIT`.
+    // outcome is recorded from the execution event. The code itself, and a Submit's
+    // results, are already in the telemetry hook's `RUN_ATTEMPT` entry.
     context.executionObservable.subscribe('tests', (execution) => {
       if (execution.runType !== 'run') return;
       const passed = execution.generalTestResults.filter(Boolean).length;
