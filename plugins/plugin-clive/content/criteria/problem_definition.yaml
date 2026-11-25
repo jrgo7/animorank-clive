@@ -49,10 +49,15 @@
 #   v13 (2026-11-24, after the v12 rerun of the single-fault items): `input_types` and
 #       `output_types` judge only their own field (Inputs, Outputs); a type stated elsewhere, such
 #       as in the Summary, does not count (P1-input_types was still missed under v12).
+#
+#   v14 (2026-11-25, team review after the one-failure set and the real-data comparison):
+#       `output_types` loses a stray last line about constraints (a paste slip from v12/v13).
+#       `novel_wording`'s not_met and explain now match the v11 guidance: copying the problem's
+#       sentences fails, using its terms does not. The judge never sees either line.
 
 id: criteria.problem_definition
 phase: problem_definition
-version: 13
+version: 14
 
 criteria:
   - id: summary_is_correct
@@ -76,9 +81,10 @@ criteria:
     text: The summary must be in the student's own words.
     gate: gating
     fields: [summary]
-    not_met: "Restate the task in your own words instead of the problem's words/sentences."
+    not_met: "Describe what the function should do in your own words, instead of copying the problem's sentences verbatim or wholesale."
     explain: >-
-      Put the task in your own words instead of copying sentences from the problem.
+      Put what the function should do in your own words. Using the problem's terms is fine;
+      copying its sentences is not.
     guidance: |
       PASS if the summary frames the task in the student's own words — what the function takes and what it works out — even if it then restates the problem's rules.
       Words that name the problem's rules, quantities or operations do not count as copying: terms like "multiple", "points", "add", "score", "average", numbers, and variable or function names. Restating a rule with these terms is expected.
@@ -113,7 +119,7 @@ criteria:
       For a function problem, the function's parameters are its inputs and the value it returns is its output.
       FAIL for vague placeholders such as 'a number', 'some values', 'the data', or an output given with no type at all.
       Judge the Outputs field only. A type stated elsewhere, such as in the Summary, does not count. The type of the input is a separate criterion.
-      FAIL if a constraint contradicts the problem statement."
+
   - id: constraints_noted
     text: The constraints on the inputs should be stated or it should state explicitly that there are none.
     gate: gating

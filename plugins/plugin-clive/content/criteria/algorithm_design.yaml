@@ -30,10 +30,15 @@
 #       that returns the value; a conclusion ("the ID is valid") is not enough.
 #       `traceable_on_own_case` (revisiting decision I1): a step that only restates its goal cannot
 #       be carried out as written, even when variable names or earlier phases hint at the rule.
+#
+#   v11 (2026-11-25, team review of the real-data comparison): `values_are_tracked` fails a value
+#       that one step works out and a later step uses only vaguely ("their sums", "the result"),
+#       including a value worked out once; such a value still needs no starting value, but it
+#       needs a name (real data R101).
 
 id: criteria.algorithm_design
 phase: algorithm_design
-version: 10
+version: 11
 
 criteria:
   - id: not_c_code
@@ -82,10 +87,11 @@ criteria:
     explain: >-
       Name each value the plan keeps track of, such as a running total or a counter, and give
       it a starting value before any step changes it. A value worked out once and never
-      changed needs no starting value.
+      changed needs no starting value, but give it a name so later steps can refer to it.
     guidance: |
-      PASS if every value carried across steps, such as a total, a running counter or a flag, is defined and given a starting value before any step updates it. PASS a plan that carries no value across steps. A value set once (worked out from the inputs) and never updated is not carried: it needs no starting value.
+      PASS if every value carried across steps, such as a total, a running counter or a flag, is defined and given a starting value before any step updates it. PASS a plan that carries no value across steps. A value worked out once and never updated needs no starting value, but it still needs a name.
       FAIL if a step updates or uses a value ('add it to the total') that no earlier step introduced or started.
+      FAIL if a step uses a value an earlier step worked out but refers to it only vaguely ("their sums", "it", "the result", "to a value") instead of by a name. Values that are used in one computation or step count as values that should be tracked and specifically named by the plan.
 
   - id: covers_own_edge_cases
     text: The steps handle each case you worked out in Cases.
