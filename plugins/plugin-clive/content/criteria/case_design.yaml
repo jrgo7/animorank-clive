@@ -42,10 +42,15 @@
 #       in the Input line itself; values that appear only in the working do not count (CLive read
 #       a case with an abstract input as concrete because its working named a value; the reference
 #       check cannot run such a case either).
+#
+#   v14 (2026-11-25, team review of the real-data comparison): `work_is_shown` judges whether the
+#       working reaches the student's own expected output; whether that output is right is
+#       outputs_are_correct's job (the mirror of outputs_are_correct's note). Working that
+#       misquotes the problem's rule still fails (real data R086).
 
 id: criteria.case_design
 phase: case_design
-version: 13
+version: 14
 
 criteria:
   - id: case_is_concrete
@@ -72,6 +77,7 @@ criteria:
       comparisons, and the values you keep track of. Don't just give the answer.
     guidance: |
       PASS if "How I got it" shows the intermediate work that produces the output, using this case's values, such as a running total, a comparison, a per-step trace, or an arithmetic expression with the case's values in it. The main steps are enough; every small step is not needed.
+      Judge whether the working, followed as written, arrives at the Expected output the student wrote, not whether that output is right; a wrong output is judged under outputs_are_correct.
       FAIL if it only restates the answer, or gives the general method or a formula without this case's values in it.
       FAIL working that misquotes a rule of the problem or misrepresents the problem statement in general, even when the output is right.
 
