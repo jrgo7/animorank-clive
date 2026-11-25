@@ -379,6 +379,12 @@ describe('reference check', () => {
     expect(outputsMatch('Yes', '1')).toBe(false);
   });
 
+  it('ignores a label written before the output, as students write them', () => {
+    expect(outputsMatch('Output: 1', '1\n')).toBe(true);
+    expect(outputsMatch('Expected output: 602002110', '602002110')).toBe(true);
+    expect(outputsMatch('Output: 2', '1')).toBe(false);
+  });
+
   it('checks each row, reporting the wrong ones by label', async () => {
     const phase = phaseDoc('case_design');
     const pass = await check(
@@ -468,6 +474,12 @@ describe('reference check', () => {
     expect(functionArgs('checkSecretCode(612, 123456002)', SUM)).toBe('612 123456002\n');
     expect(functionArgs('nAlice = 612, nGuest = 123456002', SUM)).toBe('612 123456002\n');
     expect(functionArgs('612', SUM)).toBeNull();
+  });
+
+  it('drops input labels, whose digits are not arguments', () => {
+    expect(functionArgs('Input: 812\nInput: 602002110', SUM)).toBe('812 602002110\n');
+    expect(functionArgs('Input1: 812\nInput2: 602002110', SUM)).toBe('812 602002110\n');
+    expect(functionArgs('Input1: 812', SUM)).toBeNull();
   });
 
   it('cannot compute a function case whose values it cannot read, rather than calling it out of rules', async () => {

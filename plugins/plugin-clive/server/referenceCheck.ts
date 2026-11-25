@@ -27,6 +27,11 @@ import type { FunctionDef } from './problem';
 export const OUT_OF_RULES_EXIT = 3;
 
 const NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
+/**
+ * A label a student writes before a value: "Input:", "Input2:", "Output:", "Expected output:".
+ * Not part of the value, and its digits are not arguments (a real Cases row: "Input1: 812").
+ */
+const LABEL = /\b(?:expected\s+)?(?:input|output|in|out)\s*\d*\s*:/gi;
 
 function decimals(token: string): number {
   return token.includes('.') ? token.split('.', 2)[1].length : 0;
@@ -58,10 +63,11 @@ function sameToken(a: string, b: string): boolean {
  * Whether a claimed output is the same value as the reference's. Format —
  * precision, leading zeros, casing — is not judged (criteria v11 dropped the
  * format criterion), but a different word is a different value: "Yes" is not "1".
+ * A label the student put before the value ("Output: 1") is not part of it.
  */
 export function outputsMatch(claimed: string, actual: string): boolean {
-  const a = normaliseOutput(claimed).split(/\s+/).filter(Boolean);
-  const b = normaliseOutput(actual).split(/\s+/).filter(Boolean);
+  const a = normaliseOutput(claimed.replace(LABEL, ' ')).split(/\s+/).filter(Boolean);
+  const b = normaliseOutput(actual.replace(LABEL, ' ')).split(/\s+/).filter(Boolean);
   return a.length === b.length && a.every((token, i) => sameToken(token, b[i]));
 }
 
@@ -137,15 +143,16 @@ const NUMBER_TOKEN = /[-+]?\d+(?:\.\d+)?/g;
 /**
  * A function case row as stdin for the generated `main`, or `null` when its
  * values cannot be read. Students write the arguments in several forms --
- * `612, 123456789`, `checkSecretCode(612, 123456789)`, `nAlice = 612, ...`, a
- * nine-digit number grouped as `123,456,789` -- so the numbers are pulled out
+ * `612, 123456789`, `checkSecretCode(612, 123456789)`, `nAlice = 612, ...`,
+ * `Input1: 612` on its own line, a nine-digit number grouped as `123,456,789` --
+ * so labels are dropped and the numbers are pulled out
  * rather than split on commas. A row with the wrong number of values is not
  * computable: the criterion falls back to the judge, rather than calling the
  * student's case out of the rules.
  */
 export function functionArgs(input: string, fn: FunctionDef): string | null {
   if (fn.parameters.some((p) => p.type === 'char')) return caseStdin(input);
-  const ungrouped = input.replace(/\d{1,3}(?:,\d{3})+(?!\d)/g, (m) => m.replace(/,/g, ''));
+  const ungrouped = input.replace(LABEL, ' ').replace(/\d{1,3}(?:,\d{3})+(?!\d)/g, (m) => m.replace(/,/g, ''));
   const numbers = ungrouped.match(NUMBER_TOKEN) ?? [];
   return numbers.length === fn.parameters.length ? `${numbers.join(' ')}\n` : null;
 }
