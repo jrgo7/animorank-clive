@@ -4,7 +4,8 @@ import type { JsonValue } from '@zenstackhq/orm';
 import type { TelemetryService } from '$lib/telemetry/telemetryService';
 import { toJsonValue, type IntoJsonValue } from '$lib/types/utils';
 import { savePracticeSession } from '$lib/practiceSession/api';
-import { codeFeedback, fetchBoot, setParticipant, type NudgeTurn } from './api';
+import { codeFeedback, escalate, fetchBoot, setParticipant, type NudgeLevel, type NudgeTurn } from './api';
+import { keptTurns, migrateTurns } from './feedback';
 import { implementReached, LatestOnly, toCodeRun, wantsCodeFeedback } from './codeFeedback';
 import { CLIVE_EVENT } from './telemetry';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
@@ -21,15 +22,6 @@ import {
 
 export type { ArtifactValue };
 
-/** One ask in a phase: what the student said was hard, and the reply they read. */
-export interface StuckEntry {
-  statement: string;
-  feedback: string;
-  /** The field the student was on, when the phase showed exactly one. */
-  fieldId: string | null;
-  attempt: number;
-}
-
 export interface Verdict {
   criterion_id: string;
   criterion_text?: string;
@@ -45,12 +37,15 @@ export interface Verdict {
   fields?: string[];
 }
 
+/**
+ * A nudge as the page receives it, from a failed submit or from "I'm stuck". A
+ * result saved before the hint ladder has no `level` (it reads as a hint) and may
+ * still carry the `situation`, `summary` and `reason` the server used to send.
+ */
 export interface NudgeResult {
-  /** Which situation the model decided the student is in. */
-  situation?: string;
-  summary: string;
+  level?: NudgeLevel;
+  /** What the student reads; empty when the server held back a reply that gave the answer away. */
   nudge: string;
-  reason: string;
   focus_id: string;
   /** The focused requirement's own text, for a requirement with no `not_met` line. */
   focus_text?: string;
@@ -68,6 +63,8 @@ export interface JudgeResult {
   advisory_unmet: string[];
   nudge?: NudgeResult;
   nudge_error?: string;
+  /** The prompt "I'm stuck" brought for this result's nudge, shown under the hint on the same card. */
+  escalation?: NudgeResult;
 }
 
 /** One step's own outcome in a per-step phase. */
@@ -95,14 +92,16 @@ interface PersistedState {
     /** Each field as it was when it last passed; absent from a session saved before it was kept. */
     passedArtifact?: Record<string, ArtifactValue>;
     result: JudgeResult | null;
-    stuck: StuckEntry[];
-    /** The ask the student was part-way through typing. */
-    stuckDraft: string;
     /** Whether the phase's opening was left behind (a problem opens on its statement alone). */
     read: boolean;
     /** Replies about the code after failing Runs and Submits, newest first (Implement). */
     codeFeedback?: CodeFeedbackEntry[];
-    /** Earlier nudges, oldest first, by step field id (or `phase` for an all-at-once phase). */
+    /**
+     * Earlier nudges, oldest first, by step field id (or `phase` for an all-at-once
+     * phase). A session saved before the hint ladder holds turns with a `situation`
+     * and no `level`, and `stuck`/`stuckDraft` beside them; restore migrates the
+     * turns and leaves the stuck asks behind (the session log still has them).
+     */
     feedbackHistory?: Record<string, NudgeTurn[]>;
   }[];
 }
@@ -163,12 +162,6 @@ export class PhaseState {
    * erased or broken; this copy changes only when the field passes again.
    */
   passedArtifact: Record<string, ArtifactValue> = $state({});
-  /** Every stuck ask in this phase and its reply, newest first. */
-  stuck: StuckEntry[] = $state([]);
-  /** The ask the student is typing, kept across a reload. */
-  stuckDraft: string = $state('');
-  /** Whether the ask box is open; not persisted, it is a moment in the page. */
-  stuckOpen: boolean = $state(false);
   /**
    * Whether the phase's opening has been left behind. A problem opens on its
    * statement alone, with Next to the first question.
@@ -176,7 +169,7 @@ export class PhaseState {
   read: boolean = $state(false);
   /** Replies about the code after failing Runs and Submits, newest first (Implement only). */
   codeFeedback: CodeFeedbackEntry[] = $state([]);
-  /** Earlier nudges, oldest first, by step field id (or `phase` for an all-at-once phase). */
+  /** Earlier nudges, oldest first, by step field id (or `phase` for an all-at-once phase): the hint ladder's memory. */
   feedbackHistory: Record<string, NudgeTurn[]> = $state({});
 
   constructor(config: PhaseConfig, startingCode: string, unlocked: boolean) {
@@ -201,8 +194,9 @@ export class CliveSession {
    * What the plugin is waiting on. `'run'` never appears here: the Implement
    * phase's compiling and running is AnimoRank's own submit flow (see
    * `ImplementWindow.window.svelte`), not something this plugin's UI does itself.
+   * `'escalate'` is "I'm stuck" waiting on its prompt.
    */
-  busy: 'stuck' | 'submit' | null = $state(null);
+  busy: 'escalate' | 'submit' | null = $state(null);
   /** How many replies about the code are on their way; separate from `busy`, they never block the page. */
   codeFeedbackPending: number = $state(0);
   /** Whether a reply about the code is on its way. */
@@ -270,12 +264,13 @@ export class CliveSession {
         stepResults: saved.stepResults ?? {},
         passedArtifact: saved.passedArtifact ?? {},
         result: saved.result,
-        stuck: saved.stuck ?? [],
-        stuckDraft: typeof saved.stuckDraft === 'string' ? saved.stuckDraft : '',
         // A session saved before a problem opened on its statement alone has already started.
         read: typeof saved.read === 'boolean' ? saved.read : true,
         codeFeedback: Array.isArray(saved.codeFeedback) ? saved.codeFeedback : [],
-        feedbackHistory: saved.feedbackHistory ?? {}
+        // Turns saved before the hint ladder lose their situation and read as hints.
+        feedbackHistory: Object.fromEntries(
+          Object.entries(saved.feedbackHistory ?? {}).map(([key, turns]) => [key, migrateTurns(turns)])
+        )
       });
     });
     return true;
@@ -297,8 +292,6 @@ export class CliveSession {
         stepResults: $state.snapshot(phase.stepResults) as Record<string, StepResult>,
         passedArtifact: $state.snapshot(phase.passedArtifact) as Record<string, ArtifactValue>,
         result: $state.snapshot(phase.result) as JudgeResult | null,
-        stuck: $state.snapshot(phase.stuck) as StuckEntry[],
-        stuckDraft: phase.stuckDraft,
         read: phase.read,
         codeFeedback: $state.snapshot(phase.codeFeedback) as CodeFeedbackEntry[],
         feedbackHistory: $state.snapshot(phase.feedbackHistory) as Record<string, NudgeTurn[]>
@@ -358,19 +351,112 @@ export class CliveSession {
       .every((field) => this.stateFor(index, field.id).passed);
   }
 
-  /** Earlier nudges for a phase (or one of its steps), oldest first, the last five. */
+  /**
+   * Earlier nudges for a phase (or one of its steps), oldest first: every one kept,
+   * since the server reads each requirement's level from all of them and shows the
+   * model only the last few.
+   */
   historyFor(index: number, key = 'phase'): NudgeTurn[] {
-    return (this.phases[index].feedbackHistory[key] ?? []).slice(-5);
+    return this.phases[index].feedbackHistory[key] ?? [];
   }
 
-  /** Keeps a nudge the student was shown, so the next one can tell it is repeating itself. */
-  private remember(index: number, key: string, attempt: number, result: JudgeResult): void {
+  /** Keeps a nudge the student was shown: the next one must not repeat it, and its level must stick. */
+  private remember(index: number, key: string, turn: NudgeTurn): void {
+    const state = this.phases[index];
+    state.feedbackHistory[key] = keptTurns([...(state.feedbackHistory[key] ?? []), turn]);
+  }
+
+  /** Keeps a submit's nudge, at the level it came at. */
+  private rememberNudge(index: number, key: string, attempt: number, result: JudgeResult): void {
     const n = result.nudge;
     if (!n) return;
+    this.remember(index, key, { attempt, level: n.level ?? 'hint', focus_id: n.focus_id, nudge: n.nudge });
+  }
+
+  /** The stored result a step's feedback reads, for writing to: its own in a per-step phase, the phase's otherwise. */
+  private resultAt(index: number, key: string): JudgeResult | null {
     const state = this.phases[index];
-    const turns = state.feedbackHistory[key] ?? [];
-    turns.push({ attempt, situation: n.situation ?? 'other', focus_id: n.focus_id, nudge: n.nudge });
-    state.feedbackHistory[key] = turns.slice(-20);
+    return isPerStep(PHASES[index]) ? (state.stepResults[key]?.result ?? null) : state.result;
+  }
+
+  /**
+   * What the "Latest Passing" button would put back, by field id: a copy of
+   * the work as it last passed, offered only once a resubmit has failed and the work
+   * has changed since it passed. A case goes back on its own; Problem and Design go
+   * back whole, as they are judged whole. `null` when there is nothing to go back to.
+   */
+  private passedVersion(index: number, key: string): Record<string, ArtifactValue> | null {
+    const result = this.resultAt(index, key);
+    if (!result || result.passed) return null;
+    const state = this.phases[index];
+    const ids = (isPerStep(PHASES[index]) ? [key] : this.inPlay(index).map((field) => field.id)).filter(
+      (id) => state.passedArtifact[id] !== undefined
+    );
+    const json = (value: unknown) => JSON.stringify($state.snapshot(value));
+    if (ids.every((id) => json(state.artifact[id]) === json(state.passedArtifact[id]))) return null;
+    // Copies: the case boxes edit a row in place, and must never reach the passing version.
+    return Object.fromEntries(ids.map((id) => [id, $state.snapshot(state.passedArtifact[id]) as ArtifactValue]));
+  }
+
+  /** Whether a failed resubmit can be undone by going back to the version that passed. */
+  canRestore(index: number, key: string): boolean {
+    return this.passedVersion(index, key) !== null;
+  }
+
+  /**
+   * Puts back the work as it last passed -- the version the later phases are judged
+   * against -- and drops the failed result, which was about the work just replaced.
+   * The pass, the attempt count and the hint ladder's memory stay as they are.
+   */
+  restorePassed(index: number, key: string): void {
+    const version = this.passedVersion(index, key);
+    if (!version) return;
+    const config = PHASES[index];
+    const state = this.phases[index];
+    Object.assign(state.artifact, version);
+    if (isPerStep(config)) state.stepResults[key].result = null;
+    else state.result = null;
+    this.telemetry.record(CLIVE_EVENT.restorePassed, { phase: config.phase, step: isPerStep(config) ? key : null });
+    this.persist();
+  }
+
+  /**
+   * "I'm stuck" on a failed submit: ask for a prompt on the requirement its hint was
+   * about, show it under the hint (`JudgeResult.escalation`), and keep it as a turn,
+   * so the next submit's nudge on that requirement comes at prompt too. The server
+   * builds the prompt from its own record of the submit; only the history goes along.
+   */
+  async escalate(index: number, key: string, problemId: string): Promise<void> {
+    const config = PHASES[index];
+    const result = this.resultAt(index, key);
+    const focusId = result?.nudge?.focus_id;
+    if (!result || result.passed || !focusId || this.busy) return;
+    const turns = this.historyFor(index, key);
+    // The submit the hint answered: the newest turn on its requirement.
+    const attempt =
+      turns.findLast((t) => t.focus_id === focusId)?.attempt ?? Math.max(1, this.stateFor(index, key).attempt - 1);
+    this.busy = 'escalate';
+    this.busySince = Date.now();
+    this.error = null;
+    try {
+      const got = await escalate({
+        sessionId: this.sessionId,
+        phase: config.phase,
+        problemId,
+        step: isPerStep(config) ? key : undefined,
+        attempt,
+        priorArtifacts: this.priorArtifacts(index),
+        history: turns
+      });
+      result.escalation = got;
+      this.remember(index, key, { attempt, level: got.level ?? 'prompt', focus_id: got.focus_id, nudge: got.nudge });
+    } catch (cause) {
+      this.error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      this.busy = null;
+      this.busySince = null;
+      this.persist();
+    }
   }
 
   /** Records one step's result and passes the phase once every required step has passed. */
@@ -378,7 +464,7 @@ export class CliveSession {
     const config = PHASES[index];
     const state = this.phases[index];
     const step = state.stepResults[fieldId] ?? { result: null, passed: false, attempt: 1 };
-    this.remember(index, fieldId, step.attempt, result);
+    this.rememberNudge(index, fieldId, step.attempt, result);
     step.result = result;
     if (result.passed) {
       step.passed = true;
@@ -396,7 +482,7 @@ export class CliveSession {
   /** Records an all-at-once phase's result. */
   recordResult(index: number, result: JudgeResult): void {
     const state = this.phases[index];
-    this.remember(index, 'phase', state.attempt, result);
+    this.rememberNudge(index, 'phase', state.attempt, result);
     state.result = result;
     if (result.passed) {
       state.passedArtifact = $state.snapshot(state.artifact) as Record<string, ArtifactValue>;

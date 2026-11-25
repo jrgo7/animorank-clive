@@ -1,5 +1,5 @@
 /**
- * The research record: what each submission and stuck ask sent, what the model
+ * The research record: what each submission and escalation sent, what the model
  * was asked and answered, and what the student was shown — written by the server
  * into the practice session's history, beside the entries the page records.
  *
@@ -9,11 +9,13 @@
  * the same names.
  *
  * Some of what is written here is for the researcher only — the reference
- * check's rows hold the right output for every case, and a stuck ask's diagnosis
- * often names the answer. The instructor session-logs page is the one reader
+ * check's rows hold the right output for every case, and a nudge's `reason`
+ * (like a stuck ask's diagnosis before it) often names the answer. The instructor
+ * session-logs page is the one reader
  * (`plugins/plugin-clive/windows/CLiveLogs.window.svelte`), and it shows them to
  * instructors; anything that reads these rows into a student-facing page must
- * leave these fields out.
+ * leave these fields out. The one server reader is {@link latestSubmitRecord},
+ * which an escalation builds from, and it hands the page none of them.
  */
 import { randomUUID } from 'node:crypto';
 import type { JsonValue } from '@zenstackhq/orm';
@@ -26,6 +28,9 @@ import type { LlmCall } from './llmCalls';
 /** The entry types the server writes. The page writes the rest (`CLIVE_PROBLEM_LOAD`, `CLIVE_PHASE_OPEN`, …). */
 export const SESSION_LOG_TYPES = {
   submit: 'CLIVE_SUBMIT',
+  /** "I'm stuck" on a failed submit: the nudge's requirement raised to a prompt. */
+  escalate: 'CLIVE_ESCALATE',
+  /** No longer written (the hint ladder replaced the stuck ask); sessions recorded before it still hold these. */
   stuck: 'CLIVE_STUCK',
   codeFeedback: 'CLIVE_CODE_FEEDBACK',
   llmCall: 'CLIVE_LLM_CALL',
@@ -34,8 +39,8 @@ export const SESSION_LOG_TYPES = {
   participant: 'CLIVE_PARTICIPANT'
 } as const;
 
-/** Which route a model call served. */
-export type RequestKind = 'submit' | 'stuck' | 'code-feedback';
+/** Which route a model call served. Sessions recorded before the hint ladder also hold `stuck`. */
+export type RequestKind = 'submit' | 'escalate' | 'code-feedback';
 
 export interface SessionLogEntry {
   type: string;
@@ -122,6 +127,28 @@ export async function checkSessionLog(sessionId: string): Promise<LogCheckResult
   } catch (error) {
     return { ok: false, file: sessionId, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/**
+ * The newest `CLIVE_SUBMIT` record this practice session holds for `phaseId` and
+ * `step` (null for a phase judged all at once), or null when it holds none. An
+ * escalation is built from this, never from verdicts or work the page sends.
+ */
+export async function latestSubmitRecord(
+  sessionId: string,
+  phaseId: string,
+  step: string | null
+): Promise<Record<string, unknown> | null> {
+  const rows = await db.sessionHistoryEntry.findMany({
+    where: { practice_session_id: sessionId, type: SESSION_LOG_TYPES.submit },
+    orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+    select: { data: true }
+  });
+  for (const row of rows) {
+    const data = row.data as Record<string, unknown> | null;
+    if (data && data.phase_id === phaseId && (data.step ?? null) === step) return data;
+  }
+  return null;
 }
 
 /** Write `entries` into the practice session's history, in one statement. */

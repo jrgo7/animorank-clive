@@ -7,9 +7,12 @@
  * over a session reads the same things here as it did there. The prototype's
  * server-side records are written by this plugin's server into the same history
  * (see `../server/sessionLog.ts`): `CLIVE_SUBMIT` (the work judged, the
- * reference check, every verdict with its evidence, the nudge), `CLIVE_STUCK`
- * (the ask, the diagnosis and the reply), `CLIVE_LLM_CALL` (one per model call)
- * and `CLIVE_ERROR` (a submit or stuck ask that failed). `CLIVE_LOG_CHECK` is
+ * reference check, every verdict with its evidence, the nudge with its level and
+ * reason), `CLIVE_ESCALATE` ("I'm stuck" on a failed submit: the requirement, its
+ * prompt, the reason and the leak check), `CLIVE_LLM_CALL` (one per model call)
+ * and `CLIVE_ERROR` (a submit or escalation that failed). Sessions recorded before
+ * the hint ladder also hold `CLIVE_STUCK` (an ask, its diagnosis and the reply),
+ * which is no longer written. `CLIVE_LOG_CHECK` is
  * written by the server too: one entry with a fresh nonce, read back to prove
  * the session's history still accepts writes. What each page entry's `data`
  * holds:
@@ -41,6 +44,10 @@
  * - `CLIVE_LIVE_RAW_TOGGLE` — `{ on }`: the "show the compiler's own words" box.
  * - `CLIVE_RESEARCHER_OVERRIDE` — `{ from_phase, to_phase, attempt, reason }`: a researcher
  *   moved the student on without a pass (Ctrl+Shift+Y).
+ * - `CLIVE_RESTORE_PASSED` — `{ phase, step }`: after a failed resubmit, the
+ *   student put back the version that last passed; `step` is the case's field id
+ *   in Cases, `null` in Problem and Design, which go back whole. The version put
+ *   back is the artifact of the last passing `CLIVE_SUBMIT` for that phase or case.
  * - `CLIVE_LOG_CHECK` — `{ nonce }`: written by the server's log check, then
  *   read back; the entry being there is the proof the history accepts writes.
  */
@@ -57,5 +64,6 @@ export const CLIVE_EVENT = {
   liveCheck: 'CLIVE_LIVE_CHECK',
   liveRawToggle: 'CLIVE_LIVE_RAW_TOGGLE',
   researcherOverride: 'CLIVE_RESEARCHER_OVERRIDE',
+  restorePassed: 'CLIVE_RESTORE_PASSED',
   logCheck: 'CLIVE_LOG_CHECK'
 } as const;

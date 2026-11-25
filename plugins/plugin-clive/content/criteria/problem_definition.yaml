@@ -35,10 +35,24 @@
 #       that is relevant and generally correct). `input_order_stated` dropped (the signature fixes
 #       the parameter order) and `output_form_exact` dropped (a returned value has no printed form).
 #       Wording revised throughout; 'Judge the inputs only' replaces 'Judge STRICTLY'.
+#
+#   v11 (2026-11-23) `novel_wording` guidance rewritten: words that name the problem's rules,
+#       quantities or operations are not copying; FAIL only a summary that is mostly the
+#       statement's sentences carried over with no framing of its own; PASS when unsure.
+#       Feedback must not ask for synonyms of the problem's terms.
+#
+#   v12 (2026-11-24, after the single-fault run of 2026-11-22): `input_types` judges the words the
+#       student wrote and does not infer a type (CLive inferred "integer" from what n means).
+#       `constraints_noted` reads the Inputs, not the whole artifact, and a rule that defines the
+#       answer is not a limit on the input (CLive counted the Summary's validity rules).
+#
+#   v13 (2026-11-24, after the v12 rerun of the single-fault items): `input_types` and
+#       `output_types` judge only their own field (Inputs, Outputs); a type stated elsewhere, such
+#       as in the Summary, does not count (P1-input_types was still missed under v12).
 
 id: criteria.problem_definition
 phase: problem_definition
-version: 10
+version: 13
 
 criteria:
   - id: summary_is_correct
@@ -66,9 +80,11 @@ criteria:
     explain: >-
       Put the task in your own words instead of copying sentences from the problem.
     guidance: |
-      PASS if the summary restates the task in the student's own phrasing.
-      FAIL if it is largely copied spans from the problem statement, even when reordered.
-      Note that certain nouns may have no natural synonym (variable names, 'average') and therefore do not count as copying.
+      PASS if the summary frames the task in the student's own words — what the function takes and what it works out — even if it then restates the problem's rules.
+      Words that name the problem's rules, quantities or operations do not count as copying: terms like "multiple", "points", "add", "score", "average", numbers, and variable or function names. Restating a rule with these terms is expected.
+      FAIL only if the summary is mostly the problem's sentences carried over (whole sentences or long stretches from the statement, even when reordered) with no framing of the task in the student's own words.
+      When unsure, PASS: this checks that the student did not paste the statement, not how original the wording is.
+      For feedback writing: never ask the student to replace the problem's terms with synonyms or to avoid words like "multiple" or "points". Ask them to say, in their own words, what the function works out overall.
 
   - id: input_types
     text: Each input has a C type.
@@ -81,8 +97,8 @@ criteria:
     guidance: |
       PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double), or if each input names a definite type a C programmer could declare -- 'int', 'float', 'double', 'char'.
       For a function problem, the function's parameters are its inputs and the value it returns is its output.
-      FAIL for vague placeholders such as 'a number', 'some values', 'the data', or an input given with no type at all.
-      Judge the inputs only. The type of the output is a separate criterion.
+      FAIL for vague placeholders such as 'a number', 'some values', 'the data', or an input given with no type at all. Judge the words the student wrote, and do not infer a type.
+      Judge the Inputs field only. A type stated elsewhere, such as in the Summary, does not count. The type of the output is a separate criterion.
 
   - id: output_types
     text: State what kind of value the output is.
@@ -96,8 +112,8 @@ criteria:
       PASS plain words that name exactly one C type: 'integer' or 'whole number' (int), 'character' or 'letter' (char), 'decimal' or 'real number' (float or double), or if each output names a definite type a C programmer could declare -- 'int', 'float', 'double', 'char'.
       For a function problem, the function's parameters are its inputs and the value it returns is its output.
       FAIL for vague placeholders such as 'a number', 'some values', 'the data', or an output given with no type at all.
-      Judge the outputs only. The type of the input is a separate criterion.
-
+      Judge the Outputs field only. A type stated elsewhere, such as in the Summary, does not count. The type of the input is a separate criterion.
+      FAIL if a constraint contradicts the problem statement."
   - id: constraints_noted
     text: The constraints on the inputs should be stated or it should state explicitly that there are none.
     gate: gating
@@ -108,5 +124,5 @@ criteria:
       100" or "never negative". If there are no explicit constraints, state that it provides
       none.
     guidance: |
-      PASS if the artifact states at least one real constraint (such as value ranges, input size, sign, precision, ordering) OR explicitly says the problem states no constraints.
-      FAIL if constraints are simply never mentioned. Note that the students should explicitly state that there are no constraints.
+      PASS if the Inputs state at least one real constraint (such as value ranges, input size, sign, precision, ordering) OR explicitly say the problem states no constraints.
+      FAIL if constraints are simply never mentioned. Note that the students should explicitly state that there are no constraints. Note that rules that define the answer (e.g., what makes an ID valid) are not a limit on the input.

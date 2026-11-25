@@ -1,10 +1,8 @@
 <script lang="ts">
-  import Textarea from '$lib/components/ui/textareas/Textarea.svelte';
   import Button from '$lib/components/ui/buttons/Button.svelte';
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
   import Badge from '$lib/components/ui/badges/Badge.svelte';
   import Checkbox from '$lib/components/ui/checkboxes/Checkbox.svelte';
-  import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
   import TriangleExclamationIcon from '@iconify-svelte/fa6-solid/triangle-exclamation';
   import DesignPanel from './DesignPanel.svelte';
   import { isFunctionProblem } from './problemKind';
@@ -12,7 +10,7 @@
   import { PHASES, type OutlineRow } from './phase';
   import { MORE_TO_FIX } from './feedback';
   import { CLIVE_EVENT } from './telemetry';
-  import { askStuck, submitPhase, type JudgeContext } from './api';
+  import { submitPhase, type JudgeContext } from './api';
   import { live } from './live.svelte';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
@@ -71,7 +69,7 @@
     elapsed >= THINK_LONG_AFTER
       ? 'Taking longer than usual, but still working. Your work is saved.'
       : elapsed >= THINK_NOTE_AFTER
-        ? `${session.busy === 'stuck' ? 'An answer' : 'Checking'} can take up to a minute. Your work is saved, so please don't reload.`
+        ? `${session.busy === 'escalate' ? 'An answer' : 'Checking'} can take up to a minute. Your work is saved, so please don't reload.`
         : ''
   );
 
@@ -96,8 +94,6 @@
   const missingIds = $derived(current.result?.missing_ids ?? []);
   const latestCode = $derived(phaseState.codeFeedback[0]);
   const olderCode = $derived(phaseState.codeFeedback.slice(1));
-  const latestStuck = $derived(phaseState.stuck[0]);
-  const olderStuck = $derived(phaseState.stuck.slice(1));
 
   /** The Design outline, as the Design phase holds it; blank before the student writes one. */
   const designSteps = $derived((session.phases[2].artifact.steps ?? []) as OutlineRow[]);
@@ -110,41 +106,6 @@
 
   function save(): void {
     session.persist();
-  }
-
-  async function ask(): Promise<void> {
-    const statement = phaseState.stuckDraft.trim();
-    if (!statement) return;
-    session.busy = 'stuck';
-    session.busySince = Date.now();
-    session.error = null;
-    try {
-      // Oldest first, so the model reads them in the order the student did and does not repeat itself.
-      const history = phaseState.stuck
-        .slice()
-        .reverse()
-        .map((x) => ({ statement: x.statement, feedback: x.feedback }));
-      const got = await askStuck({
-        sessionId: context.practiceSession.id,
-        phase: config.phase,
-        problemId: context.problem.id,
-        artifact: phaseState.artifact,
-        attempt: current.attempt,
-        priorArtifacts: session.priorArtifacts(3),
-        statement,
-        // The phase shows exactly one field, so this is the field the student is on.
-        fieldId: 'code',
-        history,
-        code: context.editorState.code
-      });
-      phaseState.stuck.unshift({ statement, feedback: got.feedback, fieldId: 'code', attempt: current.attempt });
-    } catch (e) {
-      session.error = e instanceof Error ? e.message : String(e);
-    } finally {
-      session.busy = null;
-      session.busySince = null;
-      save();
-    }
   }
 
   async function submit(): Promise<void> {
@@ -257,47 +218,6 @@
         {/if}
       </div>
 
-      <!-- "What are you stuck on?": the student says what they find hard, in their own
-           words, and gets a few lines back. The only help on the page since 2026-10-10. -->
-      {#if phaseState.stuckOpen || session.busy === 'stuck'}
-        <div class="flex flex-col gap-2 rounded-box border border-base-content/10 bg-base-200 p-4">
-          <label
-            class="text-sm font-semibold"
-            for="clive-stuck-ask">What are you having trouble with?</label
-          >
-          <p class="text-xs text-base-content/60">
-            Say it in your own words. CLive replies with a few lines to think about.
-          </p>
-          <Textarea
-            id="clive-stuck-ask"
-            rows={3}
-            maxlength={1000}
-            placeholder="e.g. I don't know what the program should print when …"
-            bind:value={phaseState.stuckDraft}
-            disabled={session.busy === 'stuck'}
-            oninput={save}
-          />
-          <div class="flex flex-wrap gap-2">
-            <Button
-              class="btn-primary"
-              type="button"
-              disabled={!!session.busy || !session.hasApiKey || !phaseState.stuckDraft.trim()}
-              onclick={ask}
-            >
-              {session.busy === 'stuck' ? 'Thinking…' : 'Ask'}
-            </Button>
-            <Button
-              class="btn-ghost"
-              type="button"
-              disabled={!!session.busy}
-              onclick={() => {
-                phaseState.stuckOpen = false;
-              }}>Cancel</Button
-            >
-          </div>
-        </div>
-      {/if}
-
       <div class="flex flex-wrap items-center gap-2.5">
         <Button
           class="btn-primary"
@@ -307,19 +227,6 @@
         >
           {session.busy === 'submit' ? 'Checking…' : 'Check against your plan'}
         </Button>
-        {#if !(phaseState.stuckOpen || session.busy === 'stuck')}
-          <Button
-            class="btn-ghost gap-2"
-            type="button"
-            disabled={!!session.busy || !session.hasApiKey}
-            onclick={() => {
-              phaseState.stuckOpen = true;
-            }}
-          >
-            <LightbulbIcon class="h-3.5 w-3.5" />
-            I'm stuck
-          </Button>
-        {/if}
         {#if !canCheckImplementation}
           <span class="font-mono text-xs text-base-content/50">Pass Submit in the Code Editor window first</span>
         {/if}
@@ -395,7 +302,7 @@
       {#if nudge}
         <div class="flex flex-col gap-3 rounded-box border-l-[3px] border-error bg-base-200 p-5">
           <h3 class="font-display text-base font-bold text-error">Let's look at this one</h3>
-          <p class="text-[15.5px]">{nudge.summary}</p>
+          {#if nudge.focus_not_met}<p class="text-[15.5px]">{nudge.focus_not_met}</p>{/if}
           {#if focus}
             <ul class="list-disc pl-5 text-sm font-medium text-base-content">
               <li>{focus.text}</li>
@@ -411,33 +318,6 @@
           <TriangleExclamationIcon class="h-4 w-4" />
           <span>Your work was checked, but we could not put together a next step: {nudgeError}</span>
         </Alert>
-      {/if}
-
-      {#if latestStuck}
-        <div class="flex flex-col gap-3 rounded-box border-l-[3px] border-warning bg-base-200 p-5">
-          <h3 class="font-display text-base font-bold text-warning">Something to think about</h3>
-          <p class="text-sm text-base-content/70 whitespace-pre-wrap">You said: “{latestStuck.statement}”</p>
-          <p class="max-w-[66ch] text-[15.5px] leading-relaxed whitespace-pre-wrap">{latestStuck.feedback}</p>
-          <!-- This phase's code is the student's own; the advisory judge reads the plan. -->
-          <div class="text-xs text-base-content/60">
-            This is about your plan, not C syntax; the C reference above covers that.
-          </div>
-          {#if olderStuck.length}
-            <details class="border-t border-base-content/10 pt-2.5">
-              <summary class="cursor-pointer text-sm text-base-content/70">
-                Earlier in this phase ({olderStuck.length})
-              </summary>
-              <div class="mt-2 flex flex-col gap-2.5">
-                {#each olderStuck as ask, i (i)}
-                  <div class="border-b border-base-content/10 pb-2.5 last:border-b-0">
-                    <div class="mb-1 text-xs text-base-content/60 whitespace-pre-wrap">You said: “{ask.statement}”</div>
-                    <p class="text-sm leading-relaxed whitespace-pre-wrap text-base-content/70">{ask.feedback}</p>
-                  </div>
-                {/each}
-              </div>
-            </details>
-          {/if}
-        </div>
       {/if}
 
       {#if verdicts.length || missingIds.length}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { JudgeError } from './content/errors';
+import { eventsAfter, watching } from './liveFeed';
 import { callModel, captureLlmCalls, noteJudgeChecks } from './llmCalls';
 import type { JudgeJsonOptions, Provider, ProviderResult } from './providers';
 
@@ -137,11 +138,21 @@ describe('callModel', () => {
   it('keeps two captures running at once apart', async () => {
     const [first, second] = await Promise.all([
       captureLlmCalls(() => callModel(answered, 'judge', options)),
-      captureLlmCalls(() => callModel(answered, 'stuck', options))
+      captureLlmCalls(() => callModel(answered, 'nudge', options))
     ]);
 
     expect(first.calls.map((c) => c.purpose)).toEqual(['judge']);
-    expect(second.calls.map((c) => c.purpose)).toEqual(['stuck']);
+    expect(second.calls.map((c) => c.purpose)).toEqual(['nudge']);
+  });
+
+  it('heads the live window’s block with the label it is given, and the purpose otherwise', async () => {
+    const session = 'llm-calls-live-label';
+    await watching(session, async () => {
+      await callModel(answered, 'nudge', options, 'nudge · prompt');
+      await callModel(answered, 'judge', options);
+    });
+    const starts = eventsAfter(session, 0).events.filter((e) => e.kind === 'start');
+    expect(starts.map((e) => e.purpose)).toEqual(['nudge · prompt', 'judge']);
   });
 
   it('calls the provider normally outside a capture', async () => {

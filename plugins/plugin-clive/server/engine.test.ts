@@ -1,21 +1,29 @@
 /**
  * The engine's behavior, with a fake provider and a fake executor — no network,
  * no Judge0. Ported contract-by-contract from the prototype's `judge.py`,
- * `nudge.py`, `stuck.py`, `reference_check.py`, `grade.py` and `steps.py`.
+ * `nudge.py`, `reference_check.py`, `grade.py` and `steps.py`; the hint ladder
+ * (`pickFocus`, `levelFor`, the leak check) is this plugin's own.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { CodeExecutor } from '$lib/executor';
 import type { ExecutionRequest, ExecutionResult } from '$lib/executor/types';
 import { phaseDoc, rubricDoc } from './content/load';
 import { JudgeError } from './content/errors';
+import { failingGates } from './criteria';
 import { judge } from './judge';
-import { nudge } from './nudge';
+import { findLeak, levelFor, nudge, pickFocus } from './nudge';
 import { codeNudge, type CodeRun } from './codeNudge';
 import type { Provider } from './providers';
-import { publicTestRun } from './publicTests';
-import { caseStdin, check, functionArgs, functionHarness, judgeWithChecks, outputsMatch } from './referenceCheck';
+import {
+  caseStdin,
+  check,
+  functionArgs,
+  functionHarness,
+  judgeWithChecks,
+  outputsMatch,
+  type CheckResult
+} from './referenceCheck';
 import { cut, isPerStep } from './steps';
-import { stuck } from './stuck';
 import type { ProblemForPrompt } from './content/templates';
 
 const PROBLEM: ProblemForPrompt = {
@@ -113,180 +121,253 @@ describe('judge', () => {
   });
 });
 
+/** A provider that answers each call with the next reply in turn, and keeps every user message it was sent. */
+function scripted(...replies: unknown[]): { provider: Provider; users: string[] } {
+  const users: string[] = [];
+  return {
+    users,
+    provider: {
+      ...fakeProvider({}),
+      judgeJson: async (options) => {
+        users.push(options.user);
+        return { parsed: replies.shift(), model: 'fake-model', inputTokens: 0, outputTokens: 0 };
+      }
+    }
+  };
+}
+
+const verdict = (criterion_id: string, result: 'PASS' | 'FAIL', evidence = '') => ({
+  criterion_id,
+  verdict: result,
+  evidence,
+  confidence: 'high' as const
+});
+
+describe('pickFocus', () => {
+  it('picks the first failing requirement in rubric order, whatever order the judge answered in', () => {
+    const criteria = rubricDoc('problem_definition').criteria;
+    const verdicts = [
+      verdict('constraints_noted', 'FAIL'),
+      verdict('output_types', 'FAIL'),
+      verdict('input_types', 'FAIL'),
+      verdict('novel_wording', 'PASS'),
+      verdict('summary_is_correct', 'PASS')
+    ];
+    expect(pickFocus(criteria, verdicts)?.id).toBe('input_types');
+  });
+
+  it('picks a required requirement before an optional one written above it', () => {
+    const design = rubricDoc('algorithm_design').criteria;
+    const optional = design.find((c) => c.id === 'values_are_tracked')!;
+    const required = design.find((c) => c.id === 'traceable_on_own_case')!;
+    expect([optional.gate, required.gate]).toEqual(['advisory', 'gating']);
+    const verdicts = [verdict('values_are_tracked', 'FAIL'), verdict('traceable_on_own_case', 'FAIL')];
+    expect(pickFocus([optional, required], verdicts)?.id).toBe('traceable_on_own_case');
+    // An optional failure alone is never nudged.
+    expect(pickFocus([optional, required], [verdict('values_are_tracked', 'FAIL')])).toBeNull();
+  });
+
+  it('in Cases, picks only from the step being submitted', () => {
+    // Made required here so only the per-step cut, not the gate, keeps it out of Case 1.
+    const criteria = rubricDoc('case_design').criteria.map((c) =>
+      c.id === 'worked_out_differently' ? { ...c, gate: 'gating' as const } : c
+    );
+    const artifact = { normal_cases: [{ input: '4 6', output: '25', working: '4 * 6' }], edge_cases: [] };
+    const verdicts = [verdict('worked_out_differently', 'FAIL'), verdict('outputs_are_correct', 'FAIL')];
+    const caseOne = cut(phaseDoc('case_design'), artifact, criteria, 'normal_cases');
+    expect(pickFocus(caseOne.criteria, verdicts)?.id).toBe('outputs_are_correct');
+    const caseTwo = cut(phaseDoc('case_design'), artifact, criteria, 'edge_cases');
+    expect(pickFocus(caseTwo.criteria, verdicts)?.id).toBe('outputs_are_correct');
+    expect(pickFocus(caseTwo.criteria, [verdict('worked_out_differently', 'FAIL')])?.id).toBe('worked_out_differently');
+  });
+});
+
+describe('levelFor', () => {
+  const turn = (focus_id: string, level: 'hint' | 'prompt', attempt = 1) => ({ attempt, level, focus_id, nudge: 'n' });
+
+  it('is a hint by default, and after hints alone', () => {
+    expect(levelFor([], 'input_types')).toBe('hint');
+    expect(levelFor([turn('input_types', 'hint'), turn('input_types', 'hint', 2)], 'input_types')).toBe('hint');
+  });
+
+  it('is a prompt once that requirement was escalated, and stays one', () => {
+    const history = [turn('input_types', 'hint'), turn('input_types', 'prompt'), turn('input_types', 'prompt', 2)];
+    expect(levelFor(history, 'input_types')).toBe('prompt');
+  });
+
+  it('starts a different requirement at a hint, whatever happened to another', () => {
+    expect(levelFor([turn('input_types', 'prompt')], 'output_types')).toBe('hint');
+  });
+});
+
 describe('nudge', () => {
   const phase = phaseDoc('case_design');
   const criteria = rubricDoc('case_design').criteria;
   const verdicts = [
-    { criterion_id: 'case_is_concrete', verdict: 'PASS' as const, evidence: '4 6', confidence: 'high' as const },
-    { criterion_id: 'work_is_shown', verdict: 'FAIL' as const, evidence: '4 * 6', confidence: 'high' as const },
-    { criterion_id: 'outputs_are_correct', verdict: 'FAIL' as const, evidence: '', confidence: 'low' as const },
-    {
-      criterion_id: 'worked_out_differently',
-      verdict: 'FAIL' as const,
-      evidence: '24',
-      confidence: 'high' as const
-    }
+    verdict('case_is_concrete', 'PASS', '4 6'),
+    verdict('work_is_shown', 'FAIL', '4 * 6'),
+    verdict('outputs_are_correct', 'FAIL'),
+    verdict('worked_out_differently', 'FAIL', '24')
   ];
+  const failing = failingGates(criteria, verdicts);
+  const request = (provider: Provider, overrides: Partial<Parameters<typeof nudge>[0]> = {}) => ({
+    phase,
+    problem: PROBLEM,
+    artifact: CASES_ARTIFACT,
+    focus: failing[0],
+    failing,
+    level: 'hint' as const,
+    provider,
+    ...overrides
+  });
 
-  it('returns the failing gating criteria in rubric order, never the model’s list', async () => {
-    const provider = fakeProvider({ summary: 's', focus_id: 'work_is_shown', reason: 'r', nudge: 'n' });
-    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, verdicts, 1, [], [], provider);
+  it('returns the level, the requirement it was given, and every failing gate in rubric order', async () => {
+    const { provider } = scripted({ reason: 'Restates the answer.', nudge: 'Which numbers did you multiply?' });
+    const result = await nudge(request(provider));
 
-    // The advisory failure is not offered, and `failing` is the gating set only.
+    expect(result).toMatchObject({
+      level: 'hint',
+      focus_id: 'work_is_shown',
+      focus_text: criteria.find((c) => c.id === 'work_is_shown')?.text,
+      focus_not_met: criteria.find((c) => c.id === 'work_is_shown')?.not_met,
+      reason: 'Restates the answer.',
+      nudge: 'Which numbers did you multiply?',
+      leak_blocked: false,
+      leaks: []
+    });
+    // The advisory failure is never in `failing`; the model chose nothing.
     expect(result.failing.map((f) => f.id)).toEqual(['work_is_shown', 'outputs_are_correct']);
-    expect(result.focus_text).toBe(criteria.find((c) => c.id === 'work_is_shown')?.text);
+    expect(result).not.toHaveProperty('situation');
+    expect(result).not.toHaveProperty('summary');
   });
 
-  it('rejects a focus_id that is not among the failing gating criteria', async () => {
-    const provider = fakeProvider({
-      summary: 's',
-      focus_id: 'worked_out_differently',
-      reason: 'r',
-      nudge: 'n'
-    });
-    await expect(nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, verdicts, 1, [], [], provider)).rejects.toThrow(
-      /not among the failing gating criteria/
+  it('shows the model only its one requirement, at the level asked', async () => {
+    const { provider, users } = scripted({ reason: 'r', nudge: 'n' });
+    await nudge(
+      request(provider, {
+        level: 'prompt',
+        history: [{ attempt: 1, level: 'hint', focus_id: 'work_is_shown', nudge: 'Which numbers?' }]
+      })
     );
-  });
-
-  it('returns the situation the model decided the student is in', async () => {
-    const provider = fakeProvider({
-      situation: 'rule_not_worked',
-      summary: 's',
-      focus_id: 'work_is_shown',
-      reason: 'r',
-      nudge: 'n'
-    });
-    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, verdicts, 1, [], [], provider);
-    expect(result.situation).toBe('rule_not_worked');
-  });
-
-  it('never calls a wrong expected output the reference confirmed a right answer', async () => {
-    const provider = fakeProvider({
-      situation: 'right_answer_wrong_reason',
-      summary: 's',
-      focus_id: 'work_is_shown',
-      reason: 'r',
-      nudge: 'n'
-    });
-    const refuted = verdicts.map((v) =>
-      v.criterion_id === 'outputs_are_correct'
-        ? { ...v, source: 'reference' as const, evidence: 'Expected 12:00 PM' }
-        : v
-    );
-    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, refuted, 1, [], [], provider);
-    expect(result.situation).toBe('wrong_answer');
-  });
-
-  it('turns a situation the phase does not list into other', async () => {
-    const provider = fakeProvider({
-      situation: 'plan_is_wrong',
-      summary: 's',
-      focus_id: 'work_is_shown',
-      reason: 'r',
-      nudge: 'n'
-    });
-    const result = await nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, verdicts, 1, [], [], provider);
-    expect(result.situation).toBe('other');
-  });
-
-  it('rejects when nothing is blocking', async () => {
-    const passing = verdicts.map((v) => ({ ...v, verdict: 'PASS' as const }));
-    await expect(nudge(phase, PROBLEM, CASES_ARTIFACT, criteria, passing, 1, [], [], fakeProvider({}))).rejects.toThrow(
-      /Nothing is blocking/
-    );
+    expect(users[0]).toContain('[work_is_shown]');
+    expect(users[0]).not.toContain('[outputs_are_correct]');
+    expect(users[0]).toContain('LEVEL\nprompt');
+    expect(users[0]).toContain('- attempt 1, hint: Which numbers?');
   });
 });
 
-describe('stuck', () => {
+describe('the leak check', () => {
   const phase = phaseDoc('case_design');
+  const criteria = rubricDoc('case_design').criteria;
+  const failing = failingGates(criteria, [verdict('outputs_are_correct', 'FAIL', 'Case 1')]);
+  /** A reference check that ran Case 1 and printed `actual`; the student claimed `claimed`. */
+  const checked = (actual: string, claimed = '25'): CheckResult => ({
+    status: 'checked',
+    verdict: claimed === actual ? 'PASS' : 'FAIL',
+    wrong: claimed === actual ? [] : ['Case 1'],
+    outside: [],
+    rows: [
+      { label: 'Case 1', input: '4 6', claimed, actual: `${actual}\n`, outcome: claimed === actual ? 'right' : 'wrong' }
+    ]
+  });
+  const request = (provider: Provider, referenceCheck: CheckResult | null) => ({
+    phase,
+    problem: PROBLEM,
+    artifact: CASES_ARTIFACT,
+    focus: failing[0],
+    failing,
+    level: 'prompt' as const,
+    provider,
+    referenceCheck
+  });
 
-  it('returns the feedback for the student and the diagnosis for the researcher', async () => {
-    const provider = fakeProvider({
-      diagnosis: 'Does not connect “leftover” with a remainder.',
-      feedback: 'How many fit?\nWhat is left over?'
+  it('asks once more when a reply gives away the reference output, then blocks it', async () => {
+    const { provider, users } = scripted(
+      { reason: 'r', nudge: 'Is it 24?' },
+      { reason: 'r', nudge: 'Check it: 4 times 6 is 24.' }
+    );
+    const result = await nudge(request(provider, checked('24')));
+
+    expect(users).toHaveLength(2);
+    // The second ask names what was given away, without repeating the value itself.
+    const note = users[1].slice(users[0].length);
+    expect(note).toContain('expected output');
+    expect(note).not.toContain('24');
+    expect(result.nudge).toBe('');
+    expect(result.leak_blocked).toBe(true);
+    expect(result.leaks).toHaveLength(2);
+  });
+
+  it('keeps the second reply when it no longer gives anything away', async () => {
+    const { provider, users } = scripted(
+      { reason: 'r', nudge: 'Is it 24?' },
+      { reason: 'r', nudge: 'What is 4 groups of 6?' }
+    );
+    const result = await nudge(request(provider, checked('24')));
+    expect(users).toHaveLength(2);
+    expect(result).toMatchObject({ nudge: 'What is 4 groups of 6?', leak_blocked: false });
+    expect(result.leaks).toHaveLength(1);
+  });
+
+  it('does not check a single-character output', async () => {
+    const { provider, users } = scripted({ reason: 'r', nudge: 'Is it 7?' });
+    const result = await nudge(request(provider, checked('7')));
+    expect(users).toHaveLength(1);
+    expect(result).toMatchObject({ nudge: 'Is it 7?', leak_blocked: false, leaks: [] });
+  });
+
+  it('matches the output as a whole token only', () => {
+    expect(findLeak('case_design', 'Is it 24?', checked('24'))).not.toBeNull();
+    expect(findLeak('case_design', 'What about 240, or 1.24, or 24.5?', checked('24'))).toBeNull();
+    expect(findLeak('case_design', 'Would it print yes?', checked('YES'))).not.toBeNull();
+  });
+
+  it('never counts a value the student already wrote and got right', () => {
+    expect(findLeak('case_design', 'How did you get 24?', checked('24', '24'))).toBeNull();
+  });
+
+  it('catches C code in a Problem or Design nudge', () => {
+    for (const text of [
+      'Try printf("%d", n)?',
+      'Would scanf (" %c", &c) read it?',
+      'What does int total = 0 do?',
+      'Set total to 0;',
+      'Is it for (i = 0; ...)?',
+      'What about while (n > 0)?',
+      'What if (n < 0) holds?',
+      'Wrap it in { }?'
+    ]) {
+      expect(findLeak('algorithm_design', text, null), text).not.toBeNull();
+      expect(findLeak('problem_definition', text, null), text).not.toBeNull();
+    }
+    for (const text of [
+      'Which C type can hold a number like 87.5?',
+      'What is the total before the first score is added?\nWhich step gives it that value?',
+      'Section 1: _ + _ + _ = _'
+    ]) {
+      expect(findLeak('algorithm_design', text, null), text).toBeNull();
+    }
+  });
+
+  it('asks again when a Design nudge holds code', async () => {
+    const design = rubricDoc('algorithm_design').criteria;
+    const designFailing = failingGates(design, [verdict('values_are_tracked', 'FAIL'), verdict('not_c_code', 'FAIL')]);
+    const { provider, users } = scripted(
+      { reason: 'r', nudge: 'Start with int total = 0?' },
+      { reason: 'r', nudge: 'What is the total before anything is added?' }
+    );
+    const result = await nudge({
+      phase: phaseDoc('algorithm_design'),
+      problem: PROBLEM,
+      artifact: { steps: [{ text: 'Add each score to the total.', level: 0 }] },
+      focus: designFailing[0],
+      failing: designFailing,
+      level: 'hint',
+      provider
     });
-    const result = await stuck(
-      phase,
-      PROBLEM,
-      CASES_ARTIFACT,
-      'I do not get the leftover.',
-      undefined,
-      [],
-      [],
-      undefined,
-      provider
-    );
-
-    expect(result.feedback).toBe('How many fit?\nWhat is left over?');
-    expect(result.diagnosis).toBe('Does not connect “leftover” with a remainder.');
-  });
-
-  it('passes the public test results and earlier asks into the prompt', async () => {
-    let seen = '';
-    const provider: Provider = {
-      ...fakeProvider({ diagnosis: 'd', feedback: 'f' }),
-      judgeJson: async (options) => {
-        seen = options.user;
-        return { parsed: { diagnosis: 'd', feedback: 'f' }, model: 'fake-model', inputTokens: 0, outputTokens: 0 };
-      }
-    };
-    const tests = {
-      compiled: true,
-      cases: [{ input: '3', expected: '6', actual: '7', passed: false, status: 'ok' }],
-      all_public_passed: false
-    };
-    const field = phase.artifact_fields.find((f) => f.id === 'normal_cases');
-    await stuck(
-      phase,
-      PROBLEM,
-      CASES_ARTIFACT,
-      'I am stuck on the output.',
-      field,
-      [],
-      [{ statement: 'Is my input right?', feedback: 'Which value first?' }],
-      tests,
-      provider
-    );
-
-    expect(seen).toContain('PUBLIC TEST RESULTS');
-    expect(seen).toContain('printed "7" — FAIL');
-    expect(seen).toContain('STUDENT IS ON');
-    expect(seen).toContain('- student: Is my input right?');
-    expect(seen).toContain('STUDENT SAYS');
-  });
-});
-
-describe('public test run', () => {
-  const cases = [
-    { input: '3', output: '6' },
-    { input: '1', output: '1' }
-  ];
-
-  it('passes each case whose output matches, ignoring trailing whitespace', async () => {
-    const run = await publicTestRun('x', cases, new FakeExecutor(() => execution(0, 0, '6\n')));
-    expect(run.compiled).toBe(true);
-    expect(run.cases.map((c) => c.passed)).toEqual([true, false]);
-    expect(run.all_public_passed).toBe(false);
-  });
-
-  it('says every public case passes when they all do', async () => {
-    const run = await publicTestRun('x', [cases[0]], new FakeExecutor(() => execution(0, 0, '6  \n')));
-    expect(run.all_public_passed).toBe(true);
-  });
-
-  it('does not forgive leading whitespace, as the app’s own grading does not', async () => {
-    const run = await publicTestRun('x', [cases[0]], new FakeExecutor(() => execution(0, 0, ' 6\n')));
-    expect(run.all_public_passed).toBe(false);
-  });
-
-  it('reports a program that did not compile, and a run that was stopped', async () => {
-    const broken = await publicTestRun('x', cases, new FakeExecutor(() => execution(1, 0, '')));
-    expect(broken).toMatchObject({ compiled: false, cases: [] });
-
-    const stopped = await publicTestRun('x', [cases[0]], new FakeExecutor(() => execution(0, undefined as never, '')));
-    expect(stopped.cases[0].status).toBe('timeout');
-    expect(stopped.all_public_passed).toBe(false);
+    expect(users).toHaveLength(2);
+    expect(users[1].slice(users[0].length)).toContain('C code');
+    expect(result.nudge).toBe('What is the total before anything is added?');
   });
 });
 
@@ -296,6 +377,12 @@ describe('reference check', () => {
     expect(outputsMatch('63.4', '63.33')).toBe(false);
     expect(outputsMatch('  Yes ', 'YES')).toBe(true);
     expect(outputsMatch('Yes', '1')).toBe(false);
+  });
+
+  it('ignores a label written before the output, as students write them', () => {
+    expect(outputsMatch('Output: 1', '1\n')).toBe(true);
+    expect(outputsMatch('Expected output: 602002110', '602002110')).toBe(true);
+    expect(outputsMatch('Output: 2', '1')).toBe(false);
   });
 
   it('checks each row, reporting the wrong ones by label', async () => {
@@ -387,6 +474,12 @@ describe('reference check', () => {
     expect(functionArgs('checkSecretCode(612, 123456002)', SUM)).toBe('612 123456002\n');
     expect(functionArgs('nAlice = 612, nGuest = 123456002', SUM)).toBe('612 123456002\n');
     expect(functionArgs('612', SUM)).toBeNull();
+  });
+
+  it('drops input labels, whose digits are not arguments', () => {
+    expect(functionArgs('Input: 812\nInput: 602002110', SUM)).toBe('812 602002110\n');
+    expect(functionArgs('Input1: 812\nInput2: 602002110', SUM)).toBe('812 602002110\n');
+    expect(functionArgs('Input1: 812', SUM)).toBeNull();
   });
 
   it('cannot compute a function case whose values it cannot read, rather than calling it out of rules', async () => {

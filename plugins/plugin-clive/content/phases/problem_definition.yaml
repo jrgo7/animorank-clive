@@ -20,13 +20,14 @@
 #              Sandbox carry-forward toggle). With it absent the block vanishes
 #              and the prompt is byte-identical to v3.
 id: phase.problem_definition
-version: 18
+version: 19
 phase: problem_definition
 label: Problem
 order: 1
 layout: steps
 created: 2026-08-18
 changelog: |
+  v19: The judge no longer sees the public test cases (2026-11-23): the student is not shown them until Implement, so the judge works from what the student can see. The context rule names only the problem statement.
   v18: The intro says "Before we code, let us first make sure we understand the problem at a high level." and the Summary hint says "One or two sentences suffice. Write simply and generally as if you are explaining to someone else.", in the author's words (2026-11-17). ProblemWindow.window.svelte shows the same two lines and was changed with them.
   v17: The judge's system prompt is rewritten (2026-11-17 criteria review): shared rules for all four phases; the evidence rule FAILs an empty artifact only for a criterion that requires something. criteria v10 (2026-11-17): summary_is_correct added; input_order_stated and output_form_exact dropped; function problems that return a value only.
   v16: The Outputs hint asks for exact printed form only of a printed output; a returned value needs its type and meaning. The Inputs hint says an int holds up to about two billion, so a nine-digit input does not send a student to `long`. criteria v9: input order and output form no longer assume reading and printing (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
@@ -91,7 +92,7 @@ system_prompt: |
   - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion. Judge each criterion independently of the others.
   - Judge only what the artifact contains.
   - Quote evidence verbatim from the student artifact. Copy the exact span, and do not paraphrase, correct, or reformat it. If nothing in the artifact bears on a criterion that requires something, return an empty evidence string and a FAIL verdict.
-  - The problem statement and public test cases are context for judging. Do not quote them as evidence. Evidence must come from the student artifact.
+  - The problem statement is context for judging. Do not quote it as evidence. Evidence must come from the student artifact.
   - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases. Evidence must come from the STUDENT ARTIFACT section.
   - A criterion fails if only the earlier work satisfies it.
   - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous.
@@ -99,12 +100,6 @@ user_template: |
   PROBLEM STATEMENT
   {{ problem.statement }}
 
-  {% if problem.public_test_cases %}
-  PUBLIC TEST CASES
-  {% for case in problem.public_test_cases %}
-  - input: {{ case.input | tojson }} output: {{ case.output | tojson }}
-  {% endfor %}
-  {% endif %}
   {% if prior_artifacts %}
   EARLIER PHASES
   This student's work from earlier phases, for context. Never quote it as evidence.

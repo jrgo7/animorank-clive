@@ -12,12 +12,18 @@ const ORPHAN_CALLS = 'CLIVE_ORPHAN_CALLS';
 /** The server's model-call entry; the other records name which request they served. */
 const LLM_CALL = 'CLIVE_LLM_CALL';
 
+/** A request a model call can serve. `stuck` is no longer made, but sessions recorded before the hint ladder hold it. */
+type Request = 'submit' | 'escalate' | 'stuck' | 'code-feedback';
+
 /** The request a record's calls belong to. */
-const SERVED_BY: Record<string, 'submit' | 'stuck' | 'code-feedback'> = {
+const SERVED_BY: Record<string, Request> = {
   CLIVE_SUBMIT: 'submit',
+  CLIVE_ESCALATE: 'escalate',
   CLIVE_STUCK: 'stuck',
   CLIVE_CODE_FEEDBACK: 'code-feedback'
 };
+
+const REQUESTS = new Set<unknown>(Object.values(SERVED_BY));
 
 /**
  * An entry's `data` as an object. The column is JSON and could hold anything;
@@ -49,8 +55,8 @@ export function attachCalls(entries: SessionLogEntry[]): CliveLogEvent[] {
     const data = asRecord(entry.data);
     const during =
       entry.type === 'CLIVE_ERROR'
-        ? data.call === 'submit' || data.call === 'stuck' || data.call === 'code-feedback'
-          ? data.call
+        ? REQUESTS.has(data.call)
+          ? (data.call as Request)
           : null
         : (SERVED_BY[entry.type] ?? null);
     const calls = during ? held.filter((call) => asRecord(call.data).during === during) : [];

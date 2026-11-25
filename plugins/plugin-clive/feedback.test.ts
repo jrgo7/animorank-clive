@@ -4,7 +4,18 @@
  * `startHere`, `renderFieldFeedback` and the question tabs' marks).
  */
 import { describe, expect, it } from 'vitest';
-import { MORE_TO_FIX, fieldFeedback, fieldMark, fieldStates, helpOffered, startHere } from './windows/feedback';
+import * as feedback from './windows/feedback';
+import {
+  MORE_TO_FIX,
+  canEscalate,
+  fieldFeedback,
+  fieldMark,
+  fieldStates,
+  keptTurns,
+  levelFor,
+  migrateTurns,
+  startHere
+} from './windows/feedback';
 import type { JudgeResult, Verdict } from './windows/cliveSession.svelte';
 
 const FIELDS = ['summary', 'inputs', 'outputs'];
@@ -49,9 +60,8 @@ function failedProblem(): JudgeResult {
     ],
     {
       nudge: {
-        summary: 'One thing first.',
+        level: 'hint',
         nudge: 'What values can each input take?',
-        reason: 'Upstream.',
         focus_id: 'constraints_noted',
         focus_text: 'Every constraint on the inputs is written down.',
         focus_not_met: 'You should write down every constraint the problem puts on the inputs.',
@@ -94,14 +104,43 @@ describe('where a failed submit opens', () => {
 });
 
 describe('what one question shows', () => {
-  it('starts the student on the nudge’s question with its line and the guiding questions', () => {
+  it('starts the student on the nudge’s question with its line and the hint', () => {
     expect(fieldFeedback(failedProblem(), 'inputs', false)).toEqual({
       kind: 'start',
       lead: 'You should write down every constraint the problem puts on the inputs.',
       check: null,
+      level: 'hint',
       nudge: 'What values can each input take?',
+      prompt: null,
       more: true
     });
+  });
+
+  it('puts the prompt "I\'m stuck" brought under the hint, on the same card', () => {
+    const r = failedProblem();
+    r.escalation = { ...r.nudge!, level: 'prompt', nudge: 'Does the problem give a smallest or largest n?' };
+    expect(fieldFeedback(r, 'inputs', false)).toMatchObject({
+      kind: 'start',
+      level: 'hint',
+      nudge: 'What values can each input take?',
+      prompt: 'Does the problem give a smallest or largest n?'
+    });
+  });
+
+  it('shows a prompt the submit itself brought as the card’s text, with nothing under it', () => {
+    const r = failedProblem();
+    r.nudge = { ...r.nudge!, level: 'prompt', nudge: 'Which values of n does the problem allow?' };
+    expect(fieldFeedback(r, 'inputs', false)).toMatchObject({
+      level: 'prompt',
+      nudge: 'Which values of n does the problem allow?',
+      prompt: null
+    });
+  });
+
+  it('reads a result saved before the ladder, with no level, as a hint', () => {
+    const r = failedProblem();
+    delete r.nudge!.level;
+    expect(fieldFeedback(r, 'inputs', false)).toMatchObject({ kind: 'start', level: 'hint' });
   });
 
   it('words the requirement as something to check when it has no line of its own', () => {
@@ -176,26 +215,65 @@ describe('the question tabs', () => {
   });
 });
 
-describe('offering help', () => {
-  const turn = (attempt: number, focus_id: string) => ({ attempt, focus_id, situation: 'other', nudge: 'n' });
-
-  it('comes on the third failed submit in a row on the same point', () => {
-    expect(helpOffered([turn(1, 'work_is_shown'), turn(2, 'work_is_shown'), turn(3, 'work_is_shown')])).toBe(true);
+describe('the hint ladder', () => {
+  const turn = (attempt: number, focus_id: string, level: 'hint' | 'prompt' = 'hint') => ({
+    attempt,
+    level,
+    focus_id,
+    nudge: `n${attempt}`
   });
 
-  it('waits while the point keeps changing, or there have been fewer than three', () => {
-    expect(helpOffered([turn(1, 'work_is_shown'), turn(2, 'work_is_shown')])).toBe(false);
-    expect(helpOffered([turn(1, 'case_is_concrete'), turn(2, 'work_is_shown'), turn(3, 'work_is_shown')])).toBe(false);
+  it('puts a requirement at hint until it is escalated, then at prompt for good', () => {
+    expect(levelFor([], 'work_is_shown')).toBe('hint');
+    expect(levelFor([turn(1, 'work_is_shown'), turn(2, 'work_is_shown')], 'work_is_shown')).toBe('hint');
+    const escalated = [
+      turn(1, 'work_is_shown'),
+      turn(1, 'work_is_shown', 'prompt'),
+      turn(2, 'work_is_shown', 'prompt')
+    ];
+    expect(levelFor(escalated, 'work_is_shown')).toBe('prompt');
+    // Another requirement starts at hint.
+    expect(levelFor(escalated, 'case_is_concrete')).toBe('hint');
   });
 
-  it('looks only at the last three', () => {
+  it('offers "I\'m stuck" only after a failed submit, while its requirement is at hint', () => {
+    const hinted = [turn(1, 'work_is_shown')];
+    expect(canEscalate(true, hinted, 'work_is_shown')).toBe(true);
+    expect(canEscalate(false, hinted, 'work_is_shown')).toBe(false);
+    expect(canEscalate(true, [], undefined)).toBe(false);
+    expect(canEscalate(true, [...hinted, turn(1, 'work_is_shown', 'prompt')], 'work_is_shown')).toBe(false);
+  });
+
+  it('keeps the last twenty turns, and never drops the turn that escalated a requirement', () => {
+    const turns = [
+      turn(1, 'work_is_shown', 'prompt'),
+      ...Array.from({ length: 25 }, (_, i) => turn(i + 2, 'case_is_concrete'))
+    ];
+    const kept = keptTurns(turns);
+    expect(kept).toHaveLength(21);
+    expect(kept[0]).toEqual(turn(1, 'work_is_shown', 'prompt'));
+    expect(kept.at(-1)).toEqual(turn(26, 'case_is_concrete'));
+    expect(levelFor(kept, 'work_is_shown')).toBe('prompt');
+    expect(keptTurns(turns.slice(0, 3))).toEqual(turns.slice(0, 3));
+  });
+
+  it('reads turns saved before the ladder: the situation goes, and a turn with no level is a hint', () => {
     expect(
-      helpOffered([
-        turn(1, 'case_is_concrete'),
-        turn(2, 'work_is_shown'),
-        turn(3, 'work_is_shown'),
-        turn(4, 'work_is_shown')
+      migrateTurns([
+        { attempt: 1, situation: 'not_a_case', focus_id: 'case_is_concrete', nudge: 'Real values?' },
+        { attempt: 2, level: 'prompt', focus_id: 'case_is_concrete', nudge: 'Which two numbers?' },
+        { nudge: 'no focus' },
+        'junk'
       ])
-    ).toBe(true);
+    ).toEqual([
+      { attempt: 1, level: 'hint', focus_id: 'case_is_concrete', nudge: 'Real values?' },
+      { attempt: 2, level: 'prompt', focus_id: 'case_is_concrete', nudge: 'Which two numbers?' }
+    ]);
+    expect(migrateTurns(undefined)).toEqual([]);
+  });
+
+  it('no longer offers help on the third failed submit', () => {
+    expect('helpOffered' in feedback).toBe(false);
+    expect('HELP_OFFER' in feedback).toBe(false);
   });
 });

@@ -1,15 +1,21 @@
 /**
- * The plugin's HTTP surface: `POST /submit`, `POST /stuck`, `POST /log-check`
- * and `GET /boot`, served under `/plugin-api/clive` (the plugin's id; see
- * `src/lib/server/index.ts`).
+ * The plugin's HTTP surface: `POST /submit`, `POST /escalate`, `POST /code-feedback`,
+ * `POST /log-check` and `GET /boot`, served under `/plugin-api/clive` (the plugin's
+ * id; see `src/lib/server/index.ts`).
  *
- * These are the counterpart of the prototype's `/api/student/{submit,stuck}` in
+ * `/submit` is the counterpart of the prototype's `/api/student/submit` in
  * `clive-userflow/src/clive/studio/student.py`. The rubric reaches the browser
  * only attached to a verdict here, the reference check's row detail (which holds
- * the reference's own output) is never put in a response, and the stuck call's
- * diagnosis — which often names the answer — goes to the session log instead.
+ * the reference's own output) is never put in a response, and a nudge's reason —
+ * which often names the answer — goes to the session log instead.
  *
- * Each submit and stuck ask is recorded in the practice session's history, as
+ * The hint ladder: a failed `/submit` answers with a nudge on the first failing
+ * gate in rubric order, at the level its history says (`hint` until the student
+ * escalates that requirement, `prompt` after). `/escalate` is the "I'm stuck"
+ * button: it raises the last failed submit's requirement to a prompt, built from
+ * the server's own record of that submit, never from verdicts the page sends.
+ *
+ * Each submit and escalation is recorded in the practice session's history, as
  * the prototype's `_logged` recorded it in the participant's file: one entry per
  * model call, then the record itself — or, when the request failed, an error
  * entry. So a request is only served for the signed-in student's own practice
@@ -19,21 +25,22 @@ import { requestUserId, ServerAPI } from '$lib/server/serverAPI';
 import type { FastifyPluginCallback, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { JudgeError } from './content/errors';
-import { phaseDoc, rubricDoc, type CriterionDoc } from './content/load';
-import type { PublicTestRun } from './content/templates';
+import { phaseDoc, rubricDoc, type CriterionDoc, type PhaseDoc } from './content/load';
+import type { HistoryTurn, ProblemForPrompt } from './content/templates';
+import { failingGates, type FailingCriterion } from './criteria';
 import { judge, type JudgeOutcome, type Verdict } from './judge';
 import { liveTable } from './live';
 import { captureLlmCalls } from './llmCalls';
 import { codeNudge } from './codeNudge';
 import { eventsAfter, watching } from './liveFeed';
 import { livePage } from './livePage';
-import { nudge } from './nudge';
+import { levelFor, nudge, pickFocus, type NudgeLevel, type NudgeOutcome } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
-import { publicTestRun } from './publicTests';
 import { judgeWithChecks, type CheckResult } from './referenceCheck';
 import {
   checkSessionLog,
+  latestSubmitRecord,
   ownsAnyPracticeSession,
   ownsPracticeSession,
   requestEntries,
@@ -45,11 +52,7 @@ import {
   type SessionLogEntry
 } from './sessionLog';
 import { compareCase, cut, isPerStep } from './steps';
-import type { CaseRow } from './artifact';
-import { stuck } from './stuck';
-
-/** The longest statement the model is handed; the page caps its box at the same length. */
-const STATEMENT_MAX = 1000;
+import type { CaseRow, PriorArtifact } from './artifact';
 
 const artifactSchema = z.record(z.string(), z.unknown());
 const priorArtifactsSchema = z.array(
@@ -58,6 +61,23 @@ const priorArtifactsSchema = z.array(
     fields: z.array(z.object({ label: z.string(), value: z.unknown() }))
   })
 );
+
+/**
+ * Earlier nudges in a phase (or step), oldest first, as the page keeps them. A turn
+ * saved before the hint ladder has a `situation` and no `level`: the situation is
+ * dropped (zod strips keys it does not name) and the turn reads as a hint.
+ */
+const historySchema = z
+  .array(
+    z.object({
+      attempt: z.number(),
+      level: z.enum(['hint', 'prompt']).default('hint'),
+      focus_id: z.string(),
+      nudge: z.string()
+    })
+  )
+  .max(50)
+  .default([]);
 
 const submitSchema = z.object({
   /** The practice session the request is recorded in; it must be the caller's. */
@@ -69,11 +89,24 @@ const submitSchema = z.object({
   priorArtifacts: priorArtifactsSchema.default([]),
   step: z.string().optional(),
   code: z.string().optional(),
-  /** Earlier nudges in this phase (or step), oldest first; only the last few are shown to the model. */
-  history: z
-    .array(z.object({ attempt: z.number(), situation: z.string(), focus_id: z.string(), nudge: z.string() }))
-    .max(50)
-    .default([])
+  /** Every earlier nudge in this phase (or step): the level is read from all of them, the model sees a few. */
+  history: historySchema
+});
+
+/**
+ * "I'm stuck" on a failed submit. Only where to look and what the page has already
+ * shown: the work and the verdicts are read from the server's own record of the
+ * last submit, and anything else the page sends is dropped unread.
+ */
+const escalateSchema = z.object({
+  /** The practice session the request is recorded in; it must be the caller's. */
+  sessionId: z.uuid(),
+  phase: z.string(),
+  problemId: z.string(),
+  step: z.string().optional(),
+  attempt: z.number().int().positive().default(1),
+  priorArtifacts: priorArtifactsSchema.default([]),
+  history: historySchema
 });
 
 /** The most earlier replies a feedback call is shown: enough to notice a repeat. */
@@ -122,22 +155,6 @@ const logCheckSchema = z.object({
   problemId: z.string()
 });
 
-const stuckSchema = z.object({
-  /** The practice session the request is recorded in; it must be the caller's. */
-  sessionId: z.uuid(),
-  phase: z.string(),
-  problemId: z.string(),
-  artifact: artifactSchema.default({}),
-  attempt: z.number().int().positive().default(1),
-  priorArtifacts: priorArtifactsSchema.default([]),
-  statement: z.string().default(''),
-  /** The field the student is on, when the phase shows exactly one. */
-  fieldId: z.string().nullish(),
-  /** Earlier asks in this phase and the replies, oldest first. */
-  history: z.array(z.object({ statement: z.string(), feedback: z.string() })).default([]),
-  code: z.string().optional()
-});
-
 interface ResponseVerdict {
   criterion_id: string;
   criterion_text: string;
@@ -153,24 +170,94 @@ interface ResponseVerdict {
   fields: string[];
 }
 
+/** A nudge as the page receives it, from `/submit` and `/escalate` alike: no reason, no leak detail. */
+interface PageNudge {
+  level: NudgeLevel;
+  nudge: string;
+  focus_id: string;
+  focus_text: string;
+  focus_not_met: string;
+  /** The questions the focused requirement is about: the first is the one the page opens on. */
+  focus_fields: string[];
+  failing: { id: string; text: string }[];
+}
+
 interface SubmitResponse {
   passed: boolean;
   verdicts: ResponseVerdict[];
   missing_ids: string[];
   advisory_unmet: string[];
-  nudge?: {
-    situation: string;
-    summary: string;
-    nudge: string;
-    reason: string;
-    focus_id: string;
-    focus_text: string;
-    focus_not_met: string;
-    /** The questions the focused requirement is about: the first is the one the page opens on. */
-    focus_fields: string[];
-    failing: { id: string; text: string }[];
-  };
+  nudge?: PageNudge;
   nudge_error?: string;
+}
+
+/** The page's nudge, from a nudge outcome. */
+function pageNudge(n: NudgeOutcome, applied: CriterionDoc[]): PageNudge {
+  return {
+    level: n.level,
+    nudge: n.nudge,
+    focus_id: n.focus_id,
+    focus_text: n.focus_text,
+    focus_not_met: n.focus_not_met,
+    focus_fields: applied.find((c) => c.id === n.focus_id)?.fields ?? [],
+    failing: n.failing
+  };
+}
+
+/** The record's nudge: the page's, with what only the researcher reads. */
+function recordedNudge(n: NudgeOutcome, applied: CriterionDoc[]) {
+  return { ...pageNudge(n, applied), reason: n.reason, leaks: n.leaks, leak_blocked: n.leak_blocked };
+}
+
+/**
+ * Where a failed submit stands on the ladder: its focus (the first failing gate in
+ * rubric order), every failing gate, the focus's level read from the whole history,
+ * and the few turns on that focus the model is shown. Null when nothing gating failed.
+ */
+function ladderFor(applied: CriterionDoc[], verdicts: Verdict[], history: HistoryTurn[]) {
+  const focus = pickFocus(applied, verdicts);
+  if (!focus) return null;
+  return {
+    focus,
+    failing: failingGates(applied, verdicts),
+    // From every turn, before the window below: an escalation must never fall out of it.
+    level: levelFor(history, focus.id),
+    turns: history.filter((t) => t.focus_id === focus.id).slice(-HISTORY_KEPT)
+  };
+}
+
+/** What a nudge needs that a submit has already worked out: the phase as judged, and what it judged. */
+interface Judged {
+  phase: PhaseDoc;
+  problem: ProblemForPrompt;
+  artifact: Record<string, unknown>;
+  applied: CriterionDoc[];
+  verdicts: Verdict[];
+  referenceCheck: CheckResult | null;
+}
+
+/** The nudge for a ladder rung, with the arguments both routes share. */
+function nudgeFor(
+  judged: Judged,
+  ladder: { focus: FailingCriterion; failing: FailingCriterion[]; turns: HistoryTurn[] },
+  level: NudgeLevel,
+  attempt: number,
+  priorArtifacts: PriorArtifact[],
+  liveLabel?: string
+): Promise<NudgeOutcome> {
+  return nudge({
+    phase: judged.phase,
+    problem: judged.problem,
+    artifact: judged.artifact,
+    focus: ladder.focus,
+    failing: ladder.failing,
+    level,
+    attempt,
+    priorArtifacts,
+    history: ladder.turns,
+    referenceCheck: judged.referenceCheck,
+    liveLabel
+  });
 }
 
 export function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]): ResponseVerdict[] {
@@ -192,9 +279,9 @@ export function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]
 }
 
 /**
- * The student's work a submit or stuck ask is about: for Implement the code from
- * AnimoRank's editor, sent beside the artifact (the artifact's own copy can be
- * stale, or never filled in), the artifact otherwise.
+ * The student's work a submit is about: for Implement the code from AnimoRank's
+ * editor, sent beside the artifact (the artifact's own copy can be stale, or never
+ * filled in), the artifact otherwise.
  */
 function studentWork(body: {
   phase: string;
@@ -273,31 +360,16 @@ async function submit(
     advisory_unmet: advisoryUnmet.map((v) => v.criterion_id)
   };
 
-  if (blocking.length) {
+  let recorded: ReturnType<typeof recordedNudge> | undefined;
+  const ladder = blocking.length ? ladderFor(applied, outcome.verdicts, body.history) : null;
+  if (ladder) {
     // In the same call, so no page can show a failure without its guidance. A nudge
     // that fails is reported beside verdicts that stand on their own.
     try {
-      const n = await nudge(
-        phaseForJudge,
-        problem,
-        artifact,
-        applied,
-        outcome.verdicts,
-        body.attempt,
-        body.priorArtifacts,
-        body.history.slice(-HISTORY_KEPT)
-      );
-      response.nudge = {
-        situation: n.situation,
-        summary: n.summary,
-        nudge: n.nudge,
-        reason: n.reason,
-        focus_id: n.focus_id,
-        focus_text: n.focus_text,
-        focus_not_met: n.focus_not_met,
-        focus_fields: applied.find((c) => c.id === n.focus_id)?.fields ?? [],
-        failing: n.failing
-      };
+      const asJudged = { phase: phaseForJudge, problem, artifact, applied, verdicts: outcome.verdicts, referenceCheck };
+      const n = await nudgeFor(asJudged, ladder, ladder.level, body.attempt, body.priorArtifacts);
+      response.nudge = pageNudge(n, applied);
+      recorded = recordedNudge(n, applied);
     } catch (error) {
       if (!(error instanceof JudgeError)) throw error;
       response.nudge_error = error.message;
@@ -314,6 +386,7 @@ async function submit(
     reference_check: referenceCheck,
     response: {
       ...response,
+      ...(recorded ? { nudge: recorded } : {}),
       verdicts: response.verdicts.map((v) => {
         const verdict = judged.get(v.criterion_id);
         return {
@@ -331,29 +404,87 @@ async function submit(
   return { response, record };
 }
 
-/** A stuck ask: what the model was told the student said, its diagnosis, and the reply the student gets. */
-async function askStuck(
-  body: z.infer<typeof stuckSchema>
-): Promise<{ statement: string; diagnosis: string; feedback: string }> {
-  const statement = body.statement.trim().slice(0, STATEMENT_MAX);
-  if (!statement) throw new JudgeError('Say what you are having trouble with first.');
+/** Why an escalation may not go ahead: the page's state and the server's record disagree. */
+class Conflict extends Error {}
+
+/** A recorded verdict, back as the judge's: what {@link pickFocus} reads. */
+function recordedVerdicts(record: Record<string, unknown>): (Verdict & { gate?: string })[] {
+  const response = (record.response ?? {}) as { verdicts?: unknown };
+  const rows = Array.isArray(response.verdicts) ? (response.verdicts as Record<string, unknown>[]) : [];
+  return rows.map((v) => ({
+    criterion_id: String(v.criterion_id ?? ''),
+    verdict: v.verdict === 'PASS' ? 'PASS' : 'FAIL',
+    evidence: typeof v.evidence === 'string' ? v.evidence : '',
+    confidence: v.confidence === 'low' || v.confidence === 'medium' ? v.confidence : 'high',
+    source: v.source === 'reference' ? 'reference' : 'judge',
+    gate: typeof v.gate === 'string' ? v.gate : undefined
+  }));
+}
+
+/**
+ * The prompt for the last failed submit's requirement, built from the server's own
+ * record of that submit: its work, its verdicts and its reference check, with the
+ * phase cut to its step as it was judged. Throws {@link Conflict} when there is no
+ * failed submit to escalate, or its requirement is already at prompt.
+ */
+async function escalate(
+  body: z.infer<typeof escalateSchema>
+): Promise<{ response: PageNudge; record: Record<string, unknown> }> {
+  const step = body.step ?? null;
+  const record = await latestSubmitRecord(body.sessionId, body.phase, step);
+  if (!record) throw new Conflict('There is no submission here to get more help on. Submit first.');
+  if ((record.response as { passed?: unknown } | undefined)?.passed === true) {
+    throw new Conflict('Your last submission here passed, so there is nothing to get more help on.');
+  }
+
   const phase = phaseDoc(body.phase);
   const problem = await loadCLiveProblem(body.problemId);
-  const field = phase.artifact_fields.find((f) => f.id === body.fieldId);
-  const work = studentWork(body);
-  // In a tests-gated phase the model first sees how the program does on the public
-  // cases -- the ones the student can already see -- so it never questions a
-  // calculation that works. Hidden cases are never run for this.
-  let tests: PublicTestRun | undefined;
-  if (phase.gate === 'tests') {
-    try {
-      tests = await publicTestRun(String(work.code ?? ''), problem.public_test_cases);
-    } catch {
-      tests = undefined;
-    }
+  let criteria = rubricDoc(body.phase).criteria;
+  let artifact = (record.artifact ?? {}) as Record<string, unknown>;
+  let phaseForJudge = phase;
+  if (isPerStep(phase)) {
+    if (!step) throw new JudgeError(`Phase '${phase.phase}' is judged one step at a time; a step is required.`);
+    const cutPhase = cut(phase, artifact, criteria, step);
+    phaseForJudge = cutPhase.phase;
+    artifact = cutPhase.artifact;
+    criteria = cutPhase.criteria;
   }
-  const got = await stuck(phase, problem, work, statement, field, body.priorArtifacts, body.history, tests);
-  return { statement, diagnosis: got.diagnosis, feedback: got.feedback };
+  // The gates as the submit applied them: a reference check that could not run had
+  // made its criterion advisory, and the recorded verdicts carry that.
+  const verdicts = recordedVerdicts(record);
+  const gates = new Map(verdicts.map((v) => [v.criterion_id, v.gate]));
+  const applied = criteria.map((c): CriterionDoc => {
+    const gate = gates.get(c.id);
+    return gate === 'gating' || gate === 'advisory' ? { ...c, gate } : c;
+  });
+
+  const ladder = ladderFor(applied, verdicts, body.history);
+  if (!ladder) throw new Conflict('Your last submission here has nothing left to fix.');
+  if (ladder.level === 'prompt') throw new Conflict('You already have the most specific help for this one.');
+
+  const attempt = typeof record.attempt === 'number' ? record.attempt : body.attempt;
+  const judged = {
+    phase: phaseForJudge,
+    problem,
+    artifact,
+    applied,
+    verdicts,
+    referenceCheck: (record.reference_check ?? null) as CheckResult | null
+  };
+  const n = await nudgeFor(judged, ladder, 'prompt', attempt, body.priorArtifacts, 'escalation · prompt');
+  return {
+    response: pageNudge(n, applied),
+    record: {
+      phase_id: phase.phase,
+      problem_id: body.problemId,
+      step,
+      attempt,
+      level: n.level,
+      focus_id: n.focus_id,
+      history: body.history,
+      response: recordedNudge(n, applied)
+    }
+  };
 }
 
 /**
@@ -560,8 +691,9 @@ class CLiveAPI extends ServerAPI {
         return reply.send(result.value);
       });
 
-      app.post('/stuck', async (request, reply) => {
-        const parsed = stuckSchema.safeParse(request.body);
+      // "I'm stuck" on a failed submit: the same requirement, one rung up, as a prompt.
+      app.post('/escalate', async (request, reply) => {
+        const parsed = escalateSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
         const body = parsed.data;
         try {
@@ -571,36 +703,32 @@ class CLiveAPI extends ServerAPI {
           return handle(reply, error);
         }
 
-        const asked = {
-          phase_id: body.phase,
-          problem_id: body.problemId,
-          attempt: body.attempt,
-          field_id: body.fieldId ?? null,
-          statement: body.statement,
-          history: body.history,
-          artifact: studentWork(body)
-        };
-        const { calls, result } = await captureLlmCalls(() => watching(body.sessionId, () => askStuck(body)));
+        const { calls, result } = await captureLlmCalls(() => watching(body.sessionId, () => escalate(body)));
         if (!result.ok) {
+          // A refusal is the page asking at the wrong moment, not a failed request: nothing to record.
+          if (result.error instanceof Conflict) return sendError(reply, result.error.message, 409);
+          const asked = {
+            phase_id: body.phase,
+            problem_id: body.problemId,
+            step: body.step ?? null,
+            attempt: body.attempt,
+            history: body.history
+          };
           await keep(
             request,
             body.sessionId,
-            requestEntries('stuck', calls, errorRecord('stuck', asked, result.error))
+            requestEntries('escalate', calls, errorRecord('escalate', asked, result.error))
           );
           return handle(reply, result.error);
         }
-        // The diagnosis names the idea the student lacks, which is often the answer itself:
-        // it goes to the session log, and the page receives the feedback alone.
-        const { statement, diagnosis, feedback } = result.value;
+        // The reason often names the answer: it goes to the session log, never to the page.
+        const { response, record } = result.value;
         await keep(
           request,
           body.sessionId,
-          requestEntries('stuck', calls, {
-            type: SESSION_LOG_TYPES.stuck,
-            data: { ...asked, statement, diagnosis, response: { feedback } }
-          })
+          requestEntries('escalate', calls, { type: SESSION_LOG_TYPES.escalate, data: record })
         );
-        return reply.send({ feedback });
+        return reply.send(response);
       });
     };
   }

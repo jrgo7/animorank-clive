@@ -1,8 +1,9 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
   import Button from '$lib/components/ui/buttons/Button.svelte';
   import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
-  import { HELP_OFFER, MORE_TO_FIX, type FieldFeedback } from './feedback';
+  import { MORE_TO_FIX, type FieldFeedback } from './feedback';
 
   /**
    * What one question shows after a submit, right under it: "Start here" on the
@@ -10,16 +11,26 @@
    * required failure, "Worth a look" for a passed submit's optional points. Which
    * one, and its lines, is `fieldFeedback`'s call (`feedback.ts`); this only
    * draws it. Shared by the three stepped phases.
+   *
+   * The hint ladder lives on the "Start here" card: the hint, then — once the
+   * student presses "I'm stuck" — the prompt under it. The button is offered only
+   * while the requirement is at hint (`canEscalate`), and goes once it is a prompt.
    */
   let {
     feedback,
-    offerHelp = false,
-    onstuck
+    canEscalate = false,
+    disabled = false,
+    onescalate,
+    waiting
   }: {
     feedback: FieldFeedback;
-    /** The third failed submit in a row on this point: say so, and put the ask right here. */
-    offerHelp?: boolean;
-    onstuck?: () => void;
+    /** Whether "I'm stuck" is offered: a failed submit, its requirement still at hint. */
+    canEscalate?: boolean;
+    /** The page is busy, or no model is configured. */
+    disabled?: boolean;
+    onescalate?: () => void;
+    /** Drawn under the card's text while the prompt is on its way. */
+    waiting?: Snippet;
   } = $props();
 </script>
 
@@ -28,17 +39,33 @@
     <h3 class="font-display text-base font-bold text-error">Start here</h3>
     <p class="text-[15.5px] font-medium">{feedback.lead}</p>
     {#if feedback.check}<p class="text-[15.5px]">{feedback.check}</p>{/if}
-    <p class="max-w-[66ch] text-sm leading-relaxed whitespace-pre-wrap text-base-content/70">{feedback.nudge}</p>
+    {#if feedback.nudge}
+      <p
+        class="max-w-[66ch] text-sm leading-relaxed whitespace-pre-wrap text-base-content/70"
+        data-nudge-level={feedback.level}
+      >
+        {feedback.nudge}
+      </p>
+    {/if}
+    {#if feedback.prompt}
+      <p
+        class="max-w-[66ch] border-l-2 border-base-content/20 pl-3 text-sm leading-relaxed whitespace-pre-wrap"
+        data-nudge-level="prompt"
+      >
+        {feedback.prompt}
+      </p>
+    {/if}
+    {#if waiting}{@render waiting()}{/if}
     {#if feedback.more}
       <div class="border-t border-base-content/10 pt-2.5 text-xs text-base-content/60">{MORE_TO_FIX}</div>
     {/if}
-    {#if offerHelp}
+    {#if canEscalate && !waiting}
       <div class="flex flex-wrap items-center gap-2.5 border-t border-base-content/10 pt-2.5">
-        <span class="text-sm">{HELP_OFFER}</span>
         <Button
           class="btn-sm gap-2"
           type="button"
-          onclick={() => onstuck?.()}
+          {disabled}
+          onclick={() => onescalate?.()}
         >
           <LightbulbIcon class="h-3.5 w-3.5" />
           I'm stuck

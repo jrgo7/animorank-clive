@@ -1,5 +1,5 @@
 id: phase.case_design
-version: 16
+version: 17
 phase: case_design
 label: Cases
 order: 2
@@ -7,6 +7,7 @@ layout: steps
 judge: per_step
 created: 2026-08-20
 changelog: |
+  v17: The judge no longer sees the public test cases (2026-11-23). The student is not shown them until Implement, so a case that happened to match one (n = 3 on Icebreaker) failed case_is_concrete as "copied". Only a case copied from an example in the problem statement counts as not designed. criteria v12 says the same.
   v16: Shorter wording, in the author's words (2026-11-17). The intro keeps only "Before you plan anything, solve the problem yourself." Each case's question is "Pick some values and solve the problem by hand." The hint is "Write the values you would give it, and work out by hand the output. Do not use values provided by the examples in the problem." It no longer says to write a function's arguments in order and separated by commas (case_is_concrete accepts any clear form), or to show how (the How I got it box asks for that, and Submit needs it filled). CaseDesignWindow.window.svelte shows the same lines, and its passed banner drops "It stays passed either way."
   v15: The judge's system prompt uses the shared rules plus this phase's own, with a new rule that YOUR CASE 1 is context only. user_template renders the student's Case 1 as YOUR CASE 1 when Case 2 (edge_cases) is judged, for worked_out_differently. criteria v11 (2026-11-17): worked_out_differently added (optional, Case 2 only); output_format_matches_statement dropped.
   v14: The hint says how to write a function's arguments (in order, separated by commas) and to use values of one's own rather than the problem's examples, which the judge refuses as not designed. criteria v10: "print or return" (2026-10-26, a walkthrough of Red Wildlings as a CCPROG1 student).
@@ -97,9 +98,9 @@ system_prompt: |
   - Judge each criterion only against its own stated text and guidance. A strong artifact can still fail one criterion. Judge each criterion independently of the others.
   - Judge only what the artifact contains.
   - Before judging any criterion about correctness, work each case out yourself from the problem statement. Do not assume a stated output is right because it looks plausible.
-  - A case copied verbatim from the PUBLIC TEST CASES is not a case the student designed. It may be quoted as evidence that copying occurred, but it cannot by itself satisfy a criterion asking for a case.
+  - A case copied verbatim from an example in the PROBLEM STATEMENT is not a case the student designed. It may be quoted as evidence that copying occurred, but it cannot by itself satisfy a criterion asking for a case.
   - Quote evidence verbatim from the student artifact. Copy the exact span, and do not paraphrase, correct, or reformat it. If nothing in the artifact bears on a criterion that requires something, return an empty evidence string and a FAIL verdict.
-  - The problem statement and public test cases are context for judging. Do not quote them as evidence. Evidence must come from the student artifact.
+  - The problem statement is context for judging. Do not quote it as evidence. Evidence must come from the student artifact.
   - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases. Evidence must come from the STUDENT ARTIFACT section.
   - A criterion fails if only the earlier work satisfies it.
   - If a YOUR CASE 1 section is present, it is also context only: the student's own first case, there for comparison. Evidence must come from the STUDENT ARTIFACT section.
@@ -108,13 +109,6 @@ user_template: |
   PROBLEM STATEMENT
   {{ problem.statement }}
 
-  {% if problem.public_test_cases %}
-  PUBLIC TEST CASES
-  These were given to the student. A case reproduced from this list is not one the student designed.
-  {% for case in problem.public_test_cases %}
-  - input: {{ case.input | tojson }} output: {{ case.output | tojson }}
-  {% endfor %}
-  {% endif %}
   {% if prior_artifacts %}
   EARLIER PHASES
   This student's work from earlier phases, for context. Never quote it as evidence.

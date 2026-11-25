@@ -12,7 +12,7 @@ import ProblemWindow from './ProblemWindow.window.svelte';
 import CaseDesignWindow from './CaseDesignWindow.window.svelte';
 import AlgorithmDesignWindow from './AlgorithmDesignWindow.window.svelte';
 import ImplementWindow from './ImplementWindow.window.svelte';
-import { cliveSessionFor, type JudgeResult, type Verdict } from './cliveSession.svelte';
+import { cliveSessionFor, type JudgeResult, type NudgeResult, type Verdict } from './cliveSession.svelte';
 import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
 function stubContext(id: string): SolveWindowContext {
@@ -36,16 +36,39 @@ function clickButton(label: string): void {
 
 /** The server answers every submit with `response`. */
 function stubSubmit(response: JudgeResult): void {
+  stubServer({ submit: [response] });
+}
+
+/**
+ * A server that answers each `/submit` and `/escalate` with the next reply queued
+ * for it (the last one repeats), and keeps every body the page sent.
+ */
+function stubServer(replies: { submit: JudgeResult[]; escalate?: NudgeResult[] }) {
+  const sent: { path: string; body: Record<string, unknown> }[] = [];
+  const next = <T>(queue: T[]): T => (queue.length > 1 ? queue.shift()! : queue[0]);
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: RequestInfo | URL) => {
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const path = String(url);
       if (path.endsWith('/boot')) return new Response(JSON.stringify({ hasApiKey: true }), { status: 200 });
-      if (path.endsWith('/submit')) return new Response(JSON.stringify(response), { status: 200 });
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (path.endsWith('/submit')) {
+        sent.push({ path: '/submit', body });
+        return new Response(JSON.stringify(next(replies.submit)), { status: 200 });
+      }
+      if (path.endsWith('/escalate') && replies.escalate) {
+        sent.push({ path: '/escalate', body });
+        return new Response(JSON.stringify(next(replies.escalate)), { status: 200 });
+      }
       throw new Error(`unexpected ${path}`);
     })
   );
+  return { sent: (path: string) => sent.filter((s) => s.path === path).map((s) => s.body) };
 }
+
+/** The buttons that say "I'm stuck". */
+const stuckButtons = () =>
+  Array.from(document.querySelectorAll('button')).filter((el) => el.textContent?.includes("I'm stuck"));
 
 function verdict(id: string, fields: string[], overrides: Partial<Verdict> = {}): Verdict {
   return {
@@ -75,9 +98,8 @@ const FAILED_PROBLEM: JudgeResult = {
   missing_ids: [],
   advisory_unmet: [],
   nudge: {
-    summary: 'Your inputs need one more thing.',
+    level: 'hint',
     nudge: NUDGE_TEXT,
-    reason: 'Upstream.',
     focus_id: 'constraints_noted',
     focus_text: 'The constraints_noted requirement.',
     focus_not_met: 'You should fix constraints_noted.',
@@ -145,26 +167,162 @@ describe('feedback one thing at a time', () => {
     unmount(app);
   });
 
-  it('offers help on the third failed submit in a row on the same point, and opens the ask', async () => {
-    stubSubmit(FAILED_PROBLEM);
-    const { session, app } = mountProblem('feedback-help');
-    const offer = "That's three tries on this one point.";
+  describe('the hint ladder', () => {
+    const PROMPT_TEXT = 'Does the problem give a smallest or largest value for n?';
+    const ESCALATED: NudgeResult = { ...FAILED_PROBLEM.nudge!, level: 'prompt', nudge: PROMPT_TEXT };
+    /** A resubmit still failing on the same requirement, which the server now answers at prompt. */
+    const STILL_FAILING: JudgeResult = {
+      ...FAILED_PROBLEM,
+      nudge: { ...FAILED_PROBLEM.nudge!, level: 'prompt', nudge: 'Which line of the problem says how big n can be?' }
+    };
+    /** A resubmit whose first failing requirement is now another one, on Outputs. */
+    const NEW_FOCUS: JudgeResult = {
+      ...FAILED_PROBLEM,
+      verdicts: [verdict('constraints_noted', ['inputs'], { verdict: 'PASS' }), verdict('output_types', ['outputs'])],
+      nudge: {
+        level: 'hint',
+        nudge: 'What kind of value does it print?',
+        focus_id: 'output_types',
+        focus_text: 'The output_types requirement.',
+        focus_not_met: 'You should fix output_types.',
+        focus_fields: ['outputs'],
+        failing: [{ id: 'output_types', text: 'outputs' }]
+      }
+    };
 
-    for (let n = 1; n <= 3; n += 1) {
-      clickButton(n === 1 ? 'Submit' : 'Resubmit');
-      await vi.waitFor(() => expect([session.phases[0].attempt, session.busy]).toEqual([n + 1, null]));
+    it('shows no "I\'m stuck" before a failed submit, and no box to type into anywhere', () => {
+      stubSubmit(FAILED_PROBLEM);
+      const { app } = mountProblem('ladder-before');
+      expect(stuckButtons()).toHaveLength(0);
+      expect(document.body.textContent).not.toContain('What are you having trouble with?');
+      unmount(app);
+    });
+
+    it('answers a failed submit with a hint and "I\'m stuck"; the button brings a prompt under the hint and goes', async () => {
+      const server = stubServer({ submit: [FAILED_PROBLEM], escalate: [ESCALATED] });
+      const { session, app } = mountProblem('ladder-escalate');
+
+      clickButton('Submit');
+      await vi.waitFor(() => expect(session.phases[0].result).not.toBeNull());
       flushSync();
-      expect((document.body.textContent ?? '').includes(offer)).toBe(n === 3);
-    }
+      expect(document.body.textContent).toContain(NUDGE_TEXT);
+      expect(stuckButtons()).toHaveLength(1);
 
-    const buttons = Array.from(document.querySelectorAll('button')).filter((el) =>
-      el.textContent?.includes("I'm stuck")
-    );
-    expect(buttons.length).toBeGreaterThanOrEqual(2); // the offer's own, beside the usual one
-    buttons[0].click();
-    flushSync();
-    expect(document.body.textContent).toContain('What are you having trouble with?');
-    unmount(app);
+      stuckButtons()[0].click();
+      flushSync();
+      expect(session.busy).toBe('escalate');
+      await vi.waitFor(() => expect(session.busy).toBeNull());
+      flushSync();
+
+      // Where the student is and what they were told: no work and no verdicts.
+      const [asked] = server.sent('/escalate');
+      expect(asked).toMatchObject({
+        sessionId: 'ladder-escalate',
+        phase: 'problem_definition',
+        problemId: 'problem-1',
+        attempt: 1,
+        history: [{ attempt: 1, level: 'hint', focus_id: 'constraints_noted', nudge: NUDGE_TEXT }]
+      });
+      expect(asked).not.toHaveProperty('artifact');
+      expect(asked).not.toHaveProperty('verdicts');
+
+      const text = document.body.textContent ?? '';
+      expect(text).toContain(PROMPT_TEXT);
+      expect(text.indexOf(NUDGE_TEXT)).toBeLessThan(text.indexOf(PROMPT_TEXT));
+      expect(stuckButtons()).toHaveLength(0);
+      expect(session.historyFor(0).at(-1)).toEqual({
+        attempt: 1,
+        level: 'prompt',
+        focus_id: 'constraints_noted',
+        nudge: PROMPT_TEXT
+      });
+      unmount(app);
+    });
+
+    it('answers the next failed submit on that requirement with a new prompt and no button', async () => {
+      const server = stubServer({ submit: [FAILED_PROBLEM, STILL_FAILING], escalate: [ESCALATED] });
+      const { session, app } = mountProblem('ladder-stays');
+
+      clickButton('Submit');
+      await vi.waitFor(() => expect(session.phases[0].result).not.toBeNull());
+      flushSync();
+      stuckButtons()[0].click();
+      await vi.waitFor(() => expect(session.historyFor(0).at(-1)?.level).toBe('prompt'));
+      flushSync();
+
+      clickButton('Resubmit');
+      await vi.waitFor(() => expect(session.phases[0].attempt).toBe(3));
+      flushSync();
+
+      // The resubmit carried the escalation, so the server could keep the requirement at prompt.
+      expect(server.sent('/submit')[1].history).toContainEqual({
+        attempt: 1,
+        level: 'prompt',
+        focus_id: 'constraints_noted',
+        nudge: PROMPT_TEXT
+      });
+      const text = document.body.textContent ?? '';
+      expect(text).toContain('Which line of the problem says how big n can be?');
+      expect(text).not.toContain(NUDGE_TEXT);
+      expect(stuckButtons()).toHaveLength(0);
+      unmount(app);
+    });
+
+    it('starts a new requirement at a hint, with the button back', async () => {
+      stubServer({ submit: [FAILED_PROBLEM, NEW_FOCUS], escalate: [ESCALATED] });
+      const { session, app } = mountProblem('ladder-new-focus');
+
+      clickButton('Submit');
+      await vi.waitFor(() => expect(session.phases[0].result).not.toBeNull());
+      flushSync();
+      stuckButtons()[0].click();
+      await vi.waitFor(() => expect(session.historyFor(0).at(-1)?.level).toBe('prompt'));
+      flushSync();
+
+      clickButton('Resubmit');
+      await vi.waitFor(() => expect(session.phases[0].attempt).toBe(3));
+      flushSync();
+
+      expect(session.phases[0].step).toBe(2);
+      expect(document.body.textContent).toContain('What kind of value does it print?');
+      expect(stuckButtons()).toHaveLength(1);
+      unmount(app);
+    });
+
+    it('waits under the hint while the prompt is coming', () => {
+      stubSubmit(FAILED_PROBLEM);
+      const { session, app } = mountProblem('ladder-wait');
+      session.phases[0].result = FAILED_PROBLEM;
+      session.phases[0].step = 1;
+      session.busy = 'escalate';
+      flushSync();
+
+      const text = document.body.textContent ?? '';
+      expect(text).toContain(NUDGE_TEXT);
+      expect(text).toContain('CLive is thinking');
+      expect(text.indexOf(NUDGE_TEXT)).toBeLessThan(text.indexOf('CLive is thinking'));
+      session.busy = null;
+      unmount(app);
+    });
+
+    it('shows no stuck UI in any phase, Implement included', () => {
+      stubSubmit(FAILED_PROBLEM);
+      const context = stubContext('ladder-no-stuck');
+      const session = cliveSessionFor(context);
+      session.tutorialSeen = true;
+      for (const phase of session.phases) {
+        phase.unlocked = true;
+        phase.read = true;
+      }
+      for (const Window of [ProblemWindow, CaseDesignWindow, AlgorithmDesignWindow, ImplementWindow]) {
+        const app = mount(Window, { target: document.body, props: { context } });
+        flushSync();
+        expect(stuckButtons(), Window.name).toHaveLength(0);
+        expect(document.body.textContent).not.toContain('What are you having trouble with?');
+        expect(document.body.textContent).not.toContain('Something to think about');
+        unmount(app);
+      }
+    });
   });
 
   it('offers a passed submit’s optional points as worth a look, on their question', async () => {

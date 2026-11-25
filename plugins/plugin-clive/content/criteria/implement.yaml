@@ -13,33 +13,42 @@
 #       as handling a case (the main calculation, a guard, a branch, or a loop that plainly covers
 #       it); `readable` allows a loop counter like `i` and names the problem's signature gives.
 #       Every criterion stays advisory.
+#
+#   v7 (2026-11-24, after the single-fault run of 2026-11-22): the program should keep to the plan,
+#       and the student may either change the code or update the plan. `follows_own_design`:
+#       splitting or combining the plan's loops is a different route. `state_matches_design`: a
+#       value that serves the same purpose by different means is different state ("the role must
+#       generally be the same" removed), and values carried between loop iterations (running
+#       totals) are state even within one step; loop counters stay exempt. Both not_met lines now
+#       offer "or update your design". `readable`: any single-letter name for a value that carries
+#       meaning fails. All four stay advisory.
 
 id: criteria.implement
 phase: implement
-version: 6
+version: 7
 
 criteria:
   - id: follows_own_design
     text: The program must follow the steps of the design, in that order.
     gate: advisory
-    not_met: "Look back at your design and try to make your program follow your design's steps in order."
+    not_met: "Your program does not conform to your earlier design. Either match your logic to your design, or go back and update your design to match your program."
     explain: >-
       The program should carry out the steps you planned in Design, in the order you planned
       them.
     guidance: |
       PASS if the plan's steps can be matched onto the program, with the same work happening in the same order. Extra code the plan did not mention is fine if it is minor.
-      FAIL if the program reaches the right answer by a route the plan does not describe, such as skipping a step the plan required. Do not fail this because the code is more detailed than the plan, as a plan is meant to be less specific than the program.
+      FAIL if the program reaches the right answer by a route the plan does not describe, such as skipping a step the plan required. Do not fail this because the code is more detailed than the plan, as a plan is meant to be less specific than the program. Splitting one of the plan's iterations into several, or combining several of its loops into one, is a different route and should fail.
 
   - id: state_matches_design
     text: The variables match the values the design keeps track of.
     gate: advisory
-    not_met: "Look back at your design and match your variables to the values your design keeps track of."
+    not_met: "Your program keeps track of something differently from your design. Either match your variables to your design, or go back and update your design to match your program."
     explain: >-
       The variables in the program should match the values your Design said it keeps track of.
     guidance: |
-      PASS if the state-tracking variables in the design, such as counters or flags, exist in the program, and the program does not depend on state the plan doesn't contain. Note that the specific names can differ, but the role must generally be the same.
+      PASS if the state-tracking variables in the design, such as counters or flags, exist in the program, and the program does not depend on state the plan doesn't contain. Specific variable names can differ, but each state variable should track the state in a similar way. Fail this criterion if the program's state variables don't follow the design. A state value that serves the same purpose by different means should fail.
       FAIL if a piece of state in the design is absent in the code, or if the program keeps track of something that the plan does not account for.
-      State means values that are central to the implementation of the program. Values needed only within one step (such as the counter of an isolated for loop) do not count.
+      State means values that are central to the implementation of the program. Values needed only within one step (such as the counter of an isolated for loop) do not count. State values include those carried between iterations of a loop as part of the logic, such as running totals, even if that logic sits in one step. A loop's own counter is still not state.
 
   - id: handles_own_edge_cases
     text: The program handles each case worked out in Cases.
@@ -60,4 +69,4 @@ criteria:
       for your variables.
     guidance: |
       PASS if names of variables match their purpose and the structure is not too nested.
-      FAIL if the variable names are incomprehensible from their purpose, such as single-letter variable names. A loop counter like `i`, or a name the problem's signature gives, is fine. Do not fail this for formatting, brace style, or a lack of comments.
+      FAIL if the variable names are incomprehensible from their purpose, such as single-letter variable names. FAIL if any value that carries meaning has a single-letter name. A loop counter like `i`, or a name the problem's signature gives, is fine. Do not fail this for formatting, brace style, or a lack of comments.

@@ -23,7 +23,8 @@ const log = vi.hoisted(() => ({
   checked: [] as string[],
   writtenTo: [] as string[],
   tagged: [] as { sessionId: string; participant: string }[],
-  started: [] as { userId: string; problemId: string }[]
+  started: [] as { userId: string; problemId: string }[],
+  lookups: [] as { sessionId: string; phaseId: string; step: string | null }[]
 }));
 
 vi.mock('./problem', () => ({
@@ -56,13 +57,6 @@ vi.mock('./providers', () => ({
   })
 }));
 
-// No executor in tests: the stuck route's public-case run fails, which it is built to survive.
-vi.mock('./publicTests', () => ({
-  publicTestRun: async () => {
-    throw new Error('no executor in tests');
-  }
-}));
-
 vi.mock('./sessionLog', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./sessionLog')>();
   return {
@@ -73,6 +67,15 @@ vi.mock('./sessionLog', async (importOriginal) => {
       if (log.fail) throw new Error('database down');
       log.writtenTo.push(sessionId);
       log.written.push(...entries);
+    },
+    // The newest CLIVE_SUBMIT this fake history holds for the phase and step: what the real
+    // reader finds in the practice session's history.
+    latestSubmitRecord: async (sessionId: string, phaseId: string, step: string | null) => {
+      log.lookups.push({ sessionId, phaseId, step });
+      const found = log.written.findLast(
+        (e) => e.type === 'CLIVE_SUBMIT' && e.data.phase_id === phaseId && (e.data.step ?? null) === step
+      );
+      return found ? found.data : null;
     },
     tagParticipant: async (sessionId: string, participant: string) => {
       log.tagged.push({ sessionId, participant });
@@ -118,12 +121,21 @@ const PROBLEM_VERDICTS = [
   { criterion_id: 'constraints_noted', verdict: 'FAIL', evidence: '', confidence: 'high' }
 ];
 
-const NUDGE = {
-  summary: 'One thing first.',
-  focus_id: 'case_is_concrete',
-  reason: 'It is upstream.',
-  nudge: 'Real values?'
-};
+/** A nudge reply (v9): the model writes the lines and its reason, and picks nothing. */
+const NUDGE = { reason: 'Describes the input instead of giving one.', nudge: 'What would you actually type in?' };
+const PROMPT = { reason: 'Still no values.', nudge: 'Which two numbers would you give it?' };
+
+/** Case 1 failing on one requirement, as the judge answers it. */
+const failingOn = (...ids: string[]) =>
+  CASE_VERDICTS.map((v) => (ids.includes(v.criterion_id) ? { ...v, verdict: 'FAIL' } : v));
+
+/** One turn of the history the page sends back. */
+const turn = (attempt: number, focus_id: string, level: 'hint' | 'prompt', nudge = `nudge-${attempt}`) => ({
+  attempt,
+  level,
+  focus_id,
+  nudge
+});
 
 /** The registrations are process-wide, so the entry runs once per process. */
 let installed: Promise<void> | undefined;
@@ -158,16 +170,15 @@ const casesBody = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 });
 
-const stuckBody = (overrides: Record<string, unknown> = {}) => ({
+/** An escalation as the page sends it: no verdicts, no artifact — the server reads its own record. */
+const escalateBody = (overrides: Record<string, unknown> = {}) => ({
   sessionId: SESSION,
   phase: 'case_design',
   problemId: 'p',
-  artifact: { normal_cases: [{ input: '4 6', output: '24', working: '4 * 6 = 24.' }] },
-  attempt: 1,
+  step: 'normal_cases',
+  attempt: 2,
   priorArtifacts: [],
-  statement: 'I do not get the leftover.',
-  fieldId: 'normal_cases',
-  history: [{ statement: 'Is my input right?', feedback: 'Which value comes first?' }],
+  history: [turn(1, 'case_is_concrete', 'hint', NUDGE.nudge)],
   ...overrides
 });
 
@@ -177,7 +188,7 @@ type SubmitRecord = Record<string, unknown> & {
   response: {
     passed: boolean;
     verdicts: { criterion_id: string; evidence: string; evidence_found: boolean | null; confidence: string | null }[];
-    nudge?: { focus_id: string };
+    nudge?: { focus_id: string; level: string; reason: string; leaks: string[]; leak_blocked: boolean };
   };
 };
 
@@ -197,6 +208,7 @@ describe('CLive plugin routes', () => {
     log.writtenTo = [];
     log.tagged = [];
     log.started = [];
+    log.lookups = [];
   });
 
   it('tags the practice session with a participant, and logs it', async () => {
@@ -305,21 +317,90 @@ describe('CLive plugin routes', () => {
     expect(judged).not.toContain('Input: 4 6');
   });
 
-  it('answers a blocking failure with a nudge in the same call', async () => {
-    const failing = CASE_VERDICTS.map((v) => (v.criterion_id === 'case_is_concrete' ? { ...v, verdict: 'FAIL' } : v));
-    state.queue = [{ verdicts: failing }, NUDGE];
+  it('answers a blocking failure with a hint in the same call', async () => {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
     const response = await post('/submit', casesBody());
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.passed).toBe(false);
-    expect(body.nudge?.focus_id).toBe('case_is_concrete');
+    expect(body.nudge).toMatchObject({ level: 'hint', focus_id: 'case_is_concrete', nudge: NUDGE.nudge });
     expect(body.nudge?.focus_not_met).toBeTruthy();
     expect(body.nudge?.failing.map((f: { id: string }) => f.id)).toContain('case_is_concrete');
+    // The old situation and summary are gone; the reason is for the record, not the page.
+    expect(body.nudge).not.toHaveProperty('situation');
+    expect(body.nudge).not.toHaveProperty('summary');
+    expect(body.nudge).not.toHaveProperty('reason');
+  });
+
+  it('nudges the first failing requirement in rubric order, and shows the model that one alone', async () => {
+    // The judge's own order puts work_is_shown first; the rubric puts case_is_concrete first.
+    const verdicts = failingOn('case_is_concrete', 'work_is_shown');
+    state.queue = [{ verdicts: [verdicts[1], verdicts[0], verdicts[2]] }, NUDGE];
+    const body = (await post('/submit', casesBody())).json();
+
+    expect(body.nudge.focus_id).toBe('case_is_concrete');
+    expect(body.nudge.failing.map((f: { id: string }) => f.id)).toEqual(['case_is_concrete', 'work_is_shown']);
+    expect(state.users[1]).toContain('[case_is_concrete]');
+    expect(state.users[1]).not.toContain('[work_is_shown]');
+    expect(state.users[1]).toContain('LEVEL\nhint');
+  });
+
+  it('gives a prompt once the focus was escalated, even when that is older than the last five turns', async () => {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, PROMPT];
+    const history = [
+      turn(1, 'case_is_concrete', 'hint'),
+      turn(1, 'case_is_concrete', 'prompt'),
+      ...[2, 3, 4, 5, 6, 7].map((n) => turn(n, 'case_is_concrete', 'hint'))
+    ];
+    const body = (await post('/submit', casesBody({ attempt: 8, history }))).json();
+
+    expect(body.nudge.level).toBe('prompt');
+    expect(state.users[1]).toContain('LEVEL\nprompt');
+    // The model is shown the last five turns on the focus only.
+    expect(state.users[1]).toContain('- attempt 3, hint: nudge-3');
+    expect(state.users[1]).toContain('- attempt 7, hint: nudge-7');
+    expect(state.users[1]).not.toContain('nudge-2');
+    expect(state.users[1]).not.toContain('prompt: nudge-1');
+  });
+
+  it('shows the model only the earlier turns on its own requirement, and starts a new focus at a hint', async () => {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
+    const history = [turn(1, 'work_is_shown', 'prompt', 'about the working'), turn(2, 'case_is_concrete', 'hint')];
+    const body = (await post('/submit', casesBody({ attempt: 3, history }))).json();
+
+    expect(body.nudge.level).toBe('hint');
+    expect(state.users[1]).toContain('- attempt 2, hint: nudge-2');
+    expect(state.users[1]).not.toContain('about the working');
+  });
+
+  it('reads the turns a session saved before the ladder: no level is a hint, and a situation is ignored', async () => {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
+    const history = [{ attempt: 1, situation: 'not_a_case', focus_id: 'case_is_concrete', nudge: 'Real values?' }];
+    const response = await post('/submit', casesBody({ attempt: 2, history }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().nudge.level).toBe('hint');
+    expect(state.users[1]).toContain('- attempt 1, hint: Real values?');
+    expect(state.users[1]).not.toContain('not_a_case');
+  });
+
+  it('keeps the reason and the leak check in the record', async () => {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
+    await post('/submit', casesBody());
+
+    const record = entry('CLIVE_SUBMIT').data as SubmitRecord;
+    expect(record.response.nudge).toMatchObject({
+      level: 'hint',
+      focus_id: 'case_is_concrete',
+      reason: NUDGE.reason,
+      leaks: [],
+      leak_blocked: false
+    });
   });
 
   it('tags each verdict, and the nudge, with the questions they are about', async () => {
-    state.queue = [{ verdicts: PROBLEM_VERDICTS }, { ...NUDGE, focus_id: 'constraints_noted' }];
+    state.queue = [{ verdicts: PROBLEM_VERDICTS }, NUDGE];
     const response = await post('/submit', {
       sessionId: SESSION,
       phase: 'problem_definition',
@@ -387,23 +468,112 @@ describe('CLive plugin routes', () => {
     expect(entry('CLIVE_SUBMIT').data.artifact).toEqual({ code: 'int main(void) { return 0; }' });
   });
 
-  it('answers a stuck ask with the feedback alone, keeping the diagnosis out of the response', async () => {
-    state.queue = [
-      { diagnosis: 'Does not connect “leftover” with a remainder.', feedback: 'How many fit?\nWhat is left over?' }
-    ];
-    const response = await post('/stuck', stuckBody());
+  /** A failed Case 1 submit on case_is_concrete, answered with a hint: what an escalation follows. */
+  async function failedSubmit(): Promise<void> {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
+    expect((await post('/submit', casesBody())).statusCode).toBe(200);
+  }
+
+  it('escalates the last failed submit to a prompt on the same requirement', async () => {
+    await failedSubmit();
+    state.queue = [PROMPT];
+    const response = await post('/escalate', escalateBody());
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ feedback: 'How many fit?\nWhat is left over?' });
-    // The diagnosis names the answer often enough that the page must never receive it.
-    expect(JSON.stringify(response.json())).not.toContain('remainder');
+    expect(response.json()).toMatchObject({
+      level: 'prompt',
+      focus_id: 'case_is_concrete',
+      nudge: PROMPT.nudge,
+      focus_fields: ['normal_cases'],
+      failing: [{ id: 'case_is_concrete' }]
+    });
+    expect(response.json().focus_not_met).toBeTruthy();
+    expect(response.json()).not.toHaveProperty('reason');
+    expect(log.lookups).toEqual([{ sessionId: SESSION, phaseId: 'case_design', step: 'normal_cases' }]);
+    expect(state.users[2]).toContain('LEVEL\nprompt');
+    expect(state.users[2]).toContain(`- attempt 1, hint: ${NUDGE.nudge}`);
   });
 
-  it('refuses a stuck ask with nothing asked', async () => {
-    state.queue = [{ diagnosis: 'd', feedback: 'f' }];
-    const response = await post('/stuck', stuckBody({ statement: '   ', fieldId: undefined, history: [] }));
+  it('builds the escalation from the server’s own record, never from verdicts or work the page sends', async () => {
+    await failedSubmit();
+    state.queue = [PROMPT];
+    const response = await post(
+      '/escalate',
+      escalateBody({
+        verdicts: [{ criterion_id: 'work_is_shown', verdict: 'FAIL', evidence: 'CLIENT_EVIDENCE' }],
+        artifact: { normal_cases: [{ input: 'CLIENT_INPUT', output: '1', working: '' }] }
+      })
+    );
+
+    expect(response.json().focus_id).toBe('case_is_concrete');
+    expect(state.users[2]).toContain('[case_is_concrete]');
+    expect(state.users[2]).toContain('Input: 4 6');
+    expect(state.users[2]).not.toContain('CLIENT_INPUT');
+    expect(state.users[2]).not.toContain('CLIENT_EVIDENCE');
+  });
+
+  it('refuses to escalate a submit that passed', async () => {
+    state.queue = [{ verdicts: CASE_VERDICTS }];
+    await post('/submit', casesBody());
+    const response = await post('/escalate', escalateBody({ history: [] }));
+
+    expect(response.statusCode).toBe(409);
+    expect(state.calls).toBe(1);
+  });
+
+  it('refuses to escalate a requirement already at prompt', async () => {
+    await failedSubmit();
+    const history = [turn(1, 'case_is_concrete', 'hint'), turn(1, 'case_is_concrete', 'prompt')];
+    const response = await post('/escalate', escalateBody({ history }));
+
+    expect(response.statusCode).toBe(409);
+    expect(state.calls).toBe(2);
+  });
+
+  it('refuses to escalate when nothing was submitted for that phase or step', async () => {
+    await failedSubmit();
+    const response = await post('/escalate', escalateBody({ step: 'edge_cases' }));
+
+    expect(response.statusCode).toBe(409);
+    expect(state.calls).toBe(2);
+  });
+
+  it('logs an escalation: its model call, then its record', async () => {
+    await failedSubmit();
+    log.written = log.written.filter((e) => e.type === 'CLIVE_SUBMIT');
+    state.queue = [PROMPT];
+    await post('/escalate', escalateBody());
+
+    expect(types()).toEqual(['CLIVE_SUBMIT', 'CLIVE_LLM_CALL', 'CLIVE_ESCALATE']);
+    expect(entry('CLIVE_LLM_CALL').data).toMatchObject({ during: 'escalate', seq: 1, purpose: 'nudge' });
+    expect(entry('CLIVE_ESCALATE').data).toMatchObject({
+      phase_id: 'case_design',
+      problem_id: 'p',
+      step: 'normal_cases',
+      attempt: 1,
+      level: 'prompt',
+      focus_id: 'case_is_concrete',
+      history: escalateBody().history,
+      response: { level: 'prompt', nudge: PROMPT.nudge, reason: PROMPT.reason, leak_blocked: false }
+    });
+  });
+
+  it('logs a failed escalation as an error', async () => {
+    await failedSubmit();
+    state.queue = [new JudgeError('The model gave up.')];
+    const response = await post('/escalate', escalateBody());
+
     expect(response.statusCode).toBe(400);
-    expect(response.json().error).toMatch(/Say what you are having trouble with first/);
+    expect(entry('CLIVE_ERROR').data).toMatchObject({
+      call: 'escalate',
+      phase_id: 'case_design',
+      step: 'normal_cases'
+    });
+  });
+
+  it('has no stuck route', async () => {
+    const response = await post('/stuck', { sessionId: SESSION, phase: 'case_design', problemId: 'p' });
+    expect(response.statusCode).toBe(404);
   });
 
   it('turns a JudgeError into a 400 with its message', async () => {
@@ -421,14 +591,15 @@ describe('CLive plugin routes', () => {
     expect(log.written).toEqual([]);
   });
 
-  it('refuses a submit or stuck ask into a practice session that is not yours', async () => {
+  it('refuses a submit or an escalation into a practice session that is not yours', async () => {
     log.owns = false;
     state.queue = [{ verdicts: CASE_VERDICTS }];
 
     expect((await post('/submit', casesBody())).statusCode).toBe(403);
-    expect((await post('/stuck', stuckBody())).statusCode).toBe(403);
+    expect((await post('/escalate', escalateBody())).statusCode).toBe(403);
     expect(state.calls).toBe(0);
     expect(log.written).toEqual([]);
+    expect(log.lookups).toEqual([]);
   });
 
   it('writes the judge call and the full submission record', async () => {
@@ -461,8 +632,7 @@ describe('CLive plugin routes', () => {
   });
 
   it('writes the nudge call after the judge call when a gating criterion fails', async () => {
-    const failing = CASE_VERDICTS.map((v) => (v.criterion_id === 'case_is_concrete' ? { ...v, verdict: 'FAIL' } : v));
-    state.queue = [{ verdicts: failing }, NUDGE];
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
     await post('/submit', casesBody());
 
     expect(types()).toEqual(['CLIVE_LLM_CALL', 'CLIVE_LLM_CALL', 'CLIVE_SUBMIT']);
@@ -532,22 +702,6 @@ describe('CLive plugin routes', () => {
     expect(state.users[0]).not.toContain('turn-2');
   });
 
-  it('shows the nudge only the last five earlier nudges, and returns its situation', async () => {
-    const failing = CASE_VERDICTS.map((v) => (v.criterion_id === 'case_is_concrete' ? { ...v, verdict: 'FAIL' } : v));
-    state.queue = [{ verdicts: failing }, { ...NUDGE, situation: 'not_a_case' }];
-    const history = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
-      attempt: n,
-      situation: 'other',
-      focus_id: 'case_is_concrete',
-      nudge: `nudge-${n}`
-    }));
-    const response = await post('/submit', casesBody({ history }));
-    expect(response.json().nudge.situation).toBe('not_a_case');
-    expect(state.users[1]).toContain('nudge-3');
-    expect(state.users[1]).toContain('nudge-7');
-    expect(state.users[1]).not.toContain('nudge-2');
-  });
-
   async function getFrom(ip: string, url: string) {
     const instance = await app();
     return instance.inject({
@@ -583,26 +737,27 @@ describe('CLive plugin routes', () => {
     expect(response.statusCode).toBe(403);
   });
 
-  it('never hands the page a judge’s guidance, its evidence, or a stuck diagnosis', async () => {
+  it('never hands the page a judge’s guidance, its evidence, or a nudge’s reason', async () => {
     // The prototype's leak sweep (`tests/test_student.py`), for every route a student page calls.
     const failing = CASE_VERDICTS.map((v) =>
       v.criterion_id === 'case_is_concrete' ? { ...v, verdict: 'FAIL', evidence: 'EVIDENCE_MARKER' } : v
     );
     state.queue = [
       { verdicts: failing },
-      { ...NUDGE, situation: 'not_a_case' },
-      { diagnosis: 'DIAGNOSIS_MARKER', feedback: 'Which value comes first?' },
+      { reason: 'REASON_MARKER', nudge: 'What would you type in?' },
+      { reason: 'REASON_MARKER', nudge: 'Which two numbers?' },
       CODE_REPLY
     ];
     const bodies = [
       (await post('/submit', casesBody())).body,
-      (await post('/stuck', stuckBody())).body,
+      (await post('/escalate', escalateBody())).body,
       (await post('/code-feedback', codeBody())).body,
       (await (await app()).inject({ method: 'GET', url: '/plugin-api/clive/boot' })).body
     ].join('\n');
 
+    expect(bodies).toContain('Which two numbers?');
     expect(bodies).not.toContain('EVIDENCE_MARKER');
-    expect(bodies).not.toContain('DIAGNOSIS_MARKER');
+    expect(bodies).not.toContain('REASON_MARKER');
     for (const phase of ['problem_definition', 'case_design', 'algorithm_design', 'implement']) {
       for (const criterion of rubricDoc(phase).criteria) {
         for (const line of (criterion.guidance ?? '').split('\n').map((l) => l.trim())) {
@@ -610,37 +765,6 @@ describe('CLive plugin routes', () => {
         }
       }
     }
-  });
-
-  it('writes the stuck record with the diagnosis', async () => {
-    state.queue = [{ diagnosis: 'Does not connect “leftover” with a remainder.', feedback: 'How many fit?' }];
-    await post('/stuck', stuckBody());
-
-    expect(types()).toEqual(['CLIVE_LLM_CALL', 'CLIVE_STUCK']);
-    expect(entry('CLIVE_LLM_CALL').data).toMatchObject({ during: 'stuck', purpose: 'stuck' });
-    expect(entry('CLIVE_STUCK').data).toMatchObject({
-      phase_id: 'case_design',
-      problem_id: 'p',
-      attempt: 1,
-      field_id: 'normal_cases',
-      statement: 'I do not get the leftover.',
-      history: stuckBody().history,
-      artifact: stuckBody().artifact,
-      diagnosis: 'Does not connect “leftover” with a remainder.',
-      response: { feedback: 'How many fit?' }
-    });
-  });
-
-  it('shows the stuck model the program from the editor in Implement, and records it', async () => {
-    state.queue = [
-      { diagnosis: 'Has not met the remainder operator.', feedback: 'Which operator gives the leftover?' }
-    ];
-    const code = 'int main(void) { int n; scanf("%d", &n); return 0; }';
-    await post('/stuck', stuckBody({ phase: 'implement', fieldId: 'code', artifact: { code: '' }, code, history: [] }));
-
-    // The artifact's own copy of the code is stale; the editor's is what the student has written.
-    expect(entry('CLIVE_LLM_CALL').data.user).toContain(code);
-    expect(entry('CLIVE_STUCK').data.artifact).toEqual({ code });
   });
 
   it('writes the failed call and an error record when the judge fails', async () => {

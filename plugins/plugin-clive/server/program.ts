@@ -2,9 +2,9 @@
  * Running a C program the way the app does: one compile and one run per stdin,
  * through the executor the platform is configured with (Judge0).
  *
- * Shared by the reference check (the problem's own solution) and the public test
- * run the stuck ask is grounded in, so both compile with the same flags as the
- * app's own C test case.
+ * Used by the reference check (the problem's own solution), so it compiles with
+ * the same flags as the app's own C test case; the nudge's leak check reads its
+ * output through {@link normaliseOutput} the same way.
  */
 import { CodeExecutor } from '$lib/executor';
 import { ServerRegistryProvider } from '$lib/registry/server';

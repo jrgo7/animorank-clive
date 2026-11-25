@@ -1,7 +1,7 @@
 /**
  * The prompt renderers: Jinja templates from the YAML, rendered with nunjucks.
  *
- * The templates stay in `content/phases/*.yaml` and `content/base/{nudge,stuck}.yaml`
+ * The templates stay in `content/phases/*.yaml` and `content/base/{nudge,nudge_code}.yaml`
  * as authored; this module supplies the context and the few Jinja behaviours
  * nunjucks does not share (the `tojson` filter, Jinja's `truncate`, and comment /
  * trailing-newline handling). The environment is configured `trimBlocks` +
@@ -12,11 +12,10 @@ import nunjucks from 'nunjucks';
 import { textArtifact, textPrior, type CaseRow, type PriorArtifact } from '../artifact';
 import type { FailingCriterion } from '../criteria';
 import type { FunctionDef } from '../problem';
-import type { CriterionDoc, FieldDoc } from './load';
-import { NUDGE_CODE_DOC, NUDGE_DOC, STUCK_DOC, type PhaseDoc } from './load';
+import type { CriterionDoc } from './load';
+import { NUDGE_CODE_DOC, NUDGE_DOC, type PhaseDoc } from './load';
 
 export const NUDGE_SYSTEM = NUDGE_DOC.system_prompt;
-export const STUCK_SYSTEM = STUCK_DOC.system_prompt;
 export const NUDGE_CODE_SYSTEM = NUDGE_CODE_DOC.system_prompt;
 
 /** What every template reads as the problem. */
@@ -31,25 +30,18 @@ export interface ProblemForPrompt {
   functions: FunctionDef[];
 }
 
-/** One earlier nudge in a phase (or step): what the student was told, and why. */
+/**
+ * The rung of the hint ladder a nudge is written at: a `hint` points to where to
+ * look, a `prompt` asks for the one missing piece. The answer itself is never a rung.
+ */
+export type NudgeLevel = 'hint' | 'prompt';
+
+/** One earlier nudge in a phase (or step): what the student was told, about which requirement, at which level. */
 export interface HistoryTurn {
   attempt: number;
-  situation: string;
+  level: NudgeLevel;
   focus_id: string;
   nudge: string;
-}
-
-/** One earlier stuck ask in a phase and the reply to it, oldest first. */
-export interface StuckTurn {
-  statement: string;
-  feedback: string;
-}
-
-/** The public test run a stuck ask in a tests-gated phase is grounded in. */
-export interface PublicTestRun {
-  compiled: boolean;
-  cases: { input: string; expected: string; actual: string; passed: boolean; status: string }[];
-  all_public_passed: boolean;
 }
 
 const env = new nunjucks.Environment(null, {
@@ -161,13 +153,19 @@ export function renderPhasePrompt(
   });
 }
 
+/**
+ * The nudge's user message: one requirement (`focus`, chosen by the caller), the
+ * level to write at, and the earlier feedback on that requirement alone.
+ */
 export function renderNudgePrompt(context: {
   phase: PhaseDoc;
   problem: ProblemForPrompt;
   artifact: Record<string, unknown>;
-  failures: FailingCriterion[];
+  focus: FailingCriterion;
+  level: NudgeLevel;
   attempt: number;
   priorArtifacts: PriorArtifact[];
+  /** Earlier nudges on `focus` only, oldest first. */
   history: HistoryTurn[];
 }): string {
   return render(NUDGE_DOC.user_template, {
@@ -175,33 +173,11 @@ export function renderNudgePrompt(context: {
     problem: problemForTemplate(context.problem),
     artifact: textArtifact(context.artifact),
     artifact_fields: context.phase.artifact_fields,
-    failures: context.failures,
+    focus: context.focus,
+    level: context.level,
     attempt: context.attempt,
     prior_artifacts: priorForTemplate(context.priorArtifacts),
-    history: context.history.length ? context.history : undefined
-  });
-}
-
-export function renderStuckPrompt(context: {
-  phase: PhaseDoc;
-  problem: ProblemForPrompt;
-  artifact: Record<string, unknown>;
-  field?: FieldDoc;
-  statement: string;
-  priorArtifacts: PriorArtifact[];
-  history: StuckTurn[];
-  tests?: PublicTestRun;
-}): string {
-  return render(STUCK_DOC.user_template, {
-    // `undefined`, never `[]`, for the guarded blocks: nunjucks treats an empty array as truthy.
-    tests: context.tests,
-    phase: { label: context.phase.label, task_description: context.phase.task_description },
-    problem: problemForTemplate(context.problem),
-    artifact: textArtifact(context.artifact),
-    artifact_fields: context.phase.artifact_fields,
-    field: context.field,
-    statement: context.statement,
-    prior_artifacts: priorForTemplate(context.priorArtifacts),
+    // `undefined`, never `[]`, for the guarded block: nunjucks treats an empty array as truthy.
     history: context.history.length ? context.history : undefined
   });
 }
