@@ -148,6 +148,11 @@
   );
   const allInPlayPassed = $derived(fields.every((f) => session.stateFor(1, f.id).passed));
 
+  /** After a failed resubmit, this case can go back to how it was when it passed. */
+  const canGoBack = $derived(session.canRestore(1, openField.id));
+  const RESTORE_TITLE =
+    'Puts back this case as it was when it last passed. The next phases are checked against that version.';
+
   // What the judge's reply has to show, read out of the step's own result, one
   // thing at a time (see `feedback.ts`): no list of every requirement is put in
   // front of the student.
@@ -421,6 +426,17 @@
         >
           {session.busy === 'submit' ? 'Checking…' : phaseState.passed || current.attempt > 1 ? 'Resubmit' : 'Submit'}
         </Button>
+        {#if canGoBack}
+          <Button
+            class="btn-ghost"
+            type="button"
+            title={RESTORE_TITLE}
+            disabled={!!session.busy}
+            onclick={() => session.restorePassed(1, openField.id)}
+          >
+            Latest Passing
+          </Button>
+        {/if}
       </div>
 
       {#if phaseState.passed}

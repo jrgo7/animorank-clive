@@ -116,6 +116,10 @@
   const offerEscalation = $derived(
     canEscalate(!!current.result && !current.result.passed, session.historyFor(0), current.result?.nudge?.focus_id)
   );
+  /** After a failed resubmit, the answers can go back to how they were when they passed. */
+  const canGoBack = $derived(session.canRestore(0, 'phase'));
+  const RESTORE_TITLE =
+    'Puts back all three answers as they were when they last passed. The next phases are checked against that version.';
 
   function save(): void {
     session.persist();
@@ -387,6 +391,17 @@
           >
             Next: {fields[openIndex + 1].label}
             <ArrowRightIcon class="h-3 w-3" />
+          </Button>
+        {/if}
+        {#if canGoBack}
+          <Button
+            class="btn-ghost"
+            type="button"
+            title={RESTORE_TITLE}
+            disabled={!!session.busy}
+            onclick={() => session.restorePassed(0, 'phase')}
+          >
+            Latest Passing
           </Button>
         {/if}
       </div>

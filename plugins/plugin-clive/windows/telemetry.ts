@@ -44,6 +44,10 @@
  * - `CLIVE_LIVE_RAW_TOGGLE` — `{ on }`: the "show the compiler's own words" box.
  * - `CLIVE_RESEARCHER_OVERRIDE` — `{ from_phase, to_phase, attempt, reason }`: a researcher
  *   moved the student on without a pass (Ctrl+Shift+Y).
+ * - `CLIVE_RESTORE_PASSED` — `{ phase, step }`: after a failed resubmit, the
+ *   student put back the version that last passed; `step` is the case's field id
+ *   in Cases, `null` in Problem and Design, which go back whole. The version put
+ *   back is the artifact of the last passing `CLIVE_SUBMIT` for that phase or case.
  * - `CLIVE_LOG_CHECK` — `{ nonce }`: written by the server's log check, then
  *   read back; the entry being there is the proof the history accepts writes.
  */
@@ -60,5 +64,6 @@ export const CLIVE_EVENT = {
   liveCheck: 'CLIVE_LIVE_CHECK',
   liveRawToggle: 'CLIVE_LIVE_RAW_TOGGLE',
   researcherOverride: 'CLIVE_RESEARCHER_OVERRIDE',
+  restorePassed: 'CLIVE_RESTORE_PASSED',
   logCheck: 'CLIVE_LOG_CHECK'
 } as const;

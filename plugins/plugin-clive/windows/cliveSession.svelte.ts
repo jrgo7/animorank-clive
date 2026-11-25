@@ -380,6 +380,47 @@ export class CliveSession {
   }
 
   /**
+   * What the "Latest Passing" button would put back, by field id: a copy of
+   * the work as it last passed, offered only once a resubmit has failed and the work
+   * has changed since it passed. A case goes back on its own; Problem and Design go
+   * back whole, as they are judged whole. `null` when there is nothing to go back to.
+   */
+  private passedVersion(index: number, key: string): Record<string, ArtifactValue> | null {
+    const result = this.resultAt(index, key);
+    if (!result || result.passed) return null;
+    const state = this.phases[index];
+    const ids = (isPerStep(PHASES[index]) ? [key] : this.inPlay(index).map((field) => field.id)).filter(
+      (id) => state.passedArtifact[id] !== undefined
+    );
+    const json = (value: unknown) => JSON.stringify($state.snapshot(value));
+    if (ids.every((id) => json(state.artifact[id]) === json(state.passedArtifact[id]))) return null;
+    // Copies: the case boxes edit a row in place, and must never reach the passing version.
+    return Object.fromEntries(ids.map((id) => [id, $state.snapshot(state.passedArtifact[id]) as ArtifactValue]));
+  }
+
+  /** Whether a failed resubmit can be undone by going back to the version that passed. */
+  canRestore(index: number, key: string): boolean {
+    return this.passedVersion(index, key) !== null;
+  }
+
+  /**
+   * Puts back the work as it last passed -- the version the later phases are judged
+   * against -- and drops the failed result, which was about the work just replaced.
+   * The pass, the attempt count and the hint ladder's memory stay as they are.
+   */
+  restorePassed(index: number, key: string): void {
+    const version = this.passedVersion(index, key);
+    if (!version) return;
+    const config = PHASES[index];
+    const state = this.phases[index];
+    Object.assign(state.artifact, version);
+    if (isPerStep(config)) state.stepResults[key].result = null;
+    else state.result = null;
+    this.telemetry.record(CLIVE_EVENT.restorePassed, { phase: config.phase, step: isPerStep(config) ? key : null });
+    this.persist();
+  }
+
+  /**
    * "I'm stuck" on a failed submit: ask for a prompt on the requirement its hint was
    * about, show it under the hint (`JudgeResult.escalation`), and keep it as a turn,
    * so the next submit's nudge on that requirement comes at prompt too. The server

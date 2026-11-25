@@ -115,6 +115,11 @@
   /** A requirement the judge never ruled on belongs to no question, so it is said once, above it. */
   const missingIds = $derived(current.result?.missing_ids ?? []);
 
+  /** After a failed resubmit, the outline can go back to how it was when it passed. */
+  const canGoBack = $derived(session.canRestore(2, 'phase'));
+  const RESTORE_TITLE =
+    'Puts back your steps as they were when they last passed. Implement is checked against that version.';
+
   function save(): void {
     session.persist();
   }
@@ -421,6 +426,17 @@
         >
           {session.busy === 'submit' ? 'Checking…' : phaseState.passed || current.attempt > 1 ? 'Resubmit' : 'Submit'}
         </Button>
+        {#if canGoBack}
+          <Button
+            class="btn-ghost"
+            type="button"
+            title={RESTORE_TITLE}
+            disabled={!!session.busy}
+            onclick={() => session.restorePassed(2, 'phase')}
+          >
+            Latest Passing
+          </Button>
+        {/if}
       </div>
 
       {#if phaseState.passed}

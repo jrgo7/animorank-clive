@@ -66,6 +66,7 @@
     CLIVE_LOG_CHECK: 'Log check',
     CLIVE_PARTICIPANT: 'Participant tagged',
     CLIVE_RESEARCHER_OVERRIDE: 'Researcher override',
+    CLIVE_RESTORE_PASSED: 'Went back to the passing version',
     CLIVE_ORPHAN_CALLS: 'Model calls with no event after them'
   };
 
