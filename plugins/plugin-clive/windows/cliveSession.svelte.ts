@@ -352,15 +352,15 @@ export class CliveSession {
   }
 
   /**
-   * Earlier nudges for a phase (or one of its steps), oldest first: every one kept,
-   * since the server reads each requirement's level from all of them and shows the
-   * model only the last few.
+   * Earlier nudges for a phase (or one of its steps), oldest first, hints and prompts:
+   * the server shows the model the last few on the requirement, so a new one does not
+   * repeat them.
    */
   historyFor(index: number, key = 'phase'): NudgeTurn[] {
     return this.phases[index].feedbackHistory[key] ?? [];
   }
 
-  /** Keeps a nudge the student was shown: the next one must not repeat it, and its level must stick. */
+  /** Keeps a nudge the student was shown: the next one must not repeat it. */
   private remember(index: number, key: string, turn: NudgeTurn): void {
     const state = this.phases[index];
     state.feedbackHistory[key] = keptTurns([...(state.feedbackHistory[key] ?? []), turn]);
@@ -423,14 +423,15 @@ export class CliveSession {
   /**
    * "I'm stuck" on a failed submit: ask for a prompt on the requirement its hint was
    * about, show it under the hint (`JudgeResult.escalation`), and keep it as a turn,
-   * so the next submit's nudge on that requirement comes at prompt too. The server
+   * so later nudges on that requirement do not repeat it. Once per submission: the
+   * next failed submit comes back with a hint and the button again. The server
    * builds the prompt from its own record of the submit; only the history goes along.
    */
   async escalate(index: number, key: string, problemId: string): Promise<void> {
     const config = PHASES[index];
     const result = this.resultAt(index, key);
     const focusId = result?.nudge?.focus_id;
-    if (!result || result.passed || !focusId || this.busy) return;
+    if (!result || result.passed || !focusId || result.escalation || this.busy) return;
     const turns = this.historyFor(index, key);
     // The submit the hint answered: the newest turn on its requirement.
     const attempt =

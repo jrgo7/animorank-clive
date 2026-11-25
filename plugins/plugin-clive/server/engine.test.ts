@@ -2,7 +2,7 @@
  * The engine's behavior, with a fake provider and a fake executor — no network,
  * no Judge0. Ported contract-by-contract from the prototype's `judge.py`,
  * `nudge.py`, `reference_check.py`, `grade.py` and `steps.py`; the hint ladder
- * (`pickFocus`, `levelFor`, the leak check) is this plugin's own.
+ * (`pickFocus`, the leak check) is this plugin's own.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { CodeExecutor } from '$lib/executor';
@@ -11,7 +11,8 @@ import { phaseDoc, rubricDoc } from './content/load';
 import { JudgeError } from './content/errors';
 import { failingGates } from './criteria';
 import { judge } from './judge';
-import { findLeak, levelFor, nudge, pickFocus } from './nudge';
+import * as nudgeModule from './nudge';
+import { findLeak, nudge, pickFocus } from './nudge';
 import { codeNudge, type CodeRun } from './codeNudge';
 import type { Provider } from './providers';
 import {
@@ -182,21 +183,9 @@ describe('pickFocus', () => {
   });
 });
 
-describe('levelFor', () => {
-  const turn = (focus_id: string, level: 'hint' | 'prompt', attempt = 1) => ({ attempt, level, focus_id, nudge: 'n' });
-
-  it('is a hint by default, and after hints alone', () => {
-    expect(levelFor([], 'input_types')).toBe('hint');
-    expect(levelFor([turn('input_types', 'hint'), turn('input_types', 'hint', 2)], 'input_types')).toBe('hint');
-  });
-
-  it('is a prompt once that requirement was escalated, and stays one', () => {
-    const history = [turn('input_types', 'hint'), turn('input_types', 'prompt'), turn('input_types', 'prompt', 2)];
-    expect(levelFor(history, 'input_types')).toBe('prompt');
-  });
-
-  it('starts a different requirement at a hint, whatever happened to another', () => {
-    expect(levelFor([turn('input_types', 'prompt')], 'output_types')).toBe('hint');
+describe('the level of a nudge', () => {
+  it('is no longer read from the history: a submit always hints, and "I\'m stuck" asks for the prompt', () => {
+    expect('levelFor' in nudgeModule).toBe(false);
   });
 });
 

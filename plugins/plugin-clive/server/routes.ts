@@ -9,11 +9,11 @@
  * the reference's own output) is never put in a response, and a nudge's reason —
  * which often names the answer — goes to the session log instead.
  *
- * The hint ladder: a failed `/submit` answers with a nudge on the first failing
- * gate in rubric order, at the level its history says (`hint` until the student
- * escalates that requirement, `prompt` after). `/escalate` is the "I'm stuck"
- * button: it raises the last failed submit's requirement to a prompt, built from
- * the server's own record of that submit, never from verdicts the page sends.
+ * The hint ladder: a failed `/submit` always answers with a hint on the first
+ * failing gate in rubric order. `/escalate` is the "I'm stuck" button: a prompt on
+ * that requirement for the last failed submit, once per submission, built from the
+ * server's own record of that submit, never from verdicts the page sends. The model
+ * is shown the earlier hints and prompts on the requirement either way.
  *
  * Each submit and escalation is recorded in the practice session's history, as
  * the prototype's `_logged` recorded it in the participant's file: one entry per
@@ -34,7 +34,7 @@ import { captureLlmCalls } from './llmCalls';
 import { codeNudge } from './codeNudge';
 import { eventsAfter, watching } from './liveFeed';
 import { livePage } from './livePage';
-import { levelFor, nudge, pickFocus, type NudgeLevel, type NudgeOutcome } from './nudge';
+import { nudge, pickFocus, type NudgeLevel, type NudgeOutcome } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
 import { judgeWithChecks, type CheckResult } from './referenceCheck';
@@ -46,6 +46,7 @@ import {
   requestEntries,
   SESSION_LOG_TYPES,
   startNextSession,
+  submissionEscalated,
   tagParticipant,
   writeSessionLog,
   type RequestKind,
@@ -89,7 +90,7 @@ const submitSchema = z.object({
   priorArtifacts: priorArtifactsSchema.default([]),
   step: z.string().optional(),
   code: z.string().optional(),
-  /** Every earlier nudge in this phase (or step): the level is read from all of them, the model sees a few. */
+  /** Every earlier nudge in this phase (or step), hints and prompts: the model sees the last few on its requirement. */
   history: historySchema
 });
 
@@ -210,9 +211,10 @@ function recordedNudge(n: NudgeOutcome, applied: CriterionDoc[]) {
 }
 
 /**
- * Where a failed submit stands on the ladder: its focus (the first failing gate in
- * rubric order), every failing gate, the focus's level read from the whole history,
- * and the few turns on that focus the model is shown. Null when nothing gating failed.
+ * What a nudge on a failed submit is about: its focus (the first failing gate in
+ * rubric order), every failing gate, and the few earlier turns on that focus the
+ * model is shown, hints and prompts alike, so it does not repeat them. Null when
+ * nothing gating failed. The level is the caller's: a submit hints, "I'm stuck" prompts.
  */
 function ladderFor(applied: CriterionDoc[], verdicts: Verdict[], history: HistoryTurn[]) {
   const focus = pickFocus(applied, verdicts);
@@ -220,8 +222,6 @@ function ladderFor(applied: CriterionDoc[], verdicts: Verdict[], history: Histor
   return {
     focus,
     failing: failingGates(applied, verdicts),
-    // From every turn, before the window below: an escalation must never fall out of it.
-    level: levelFor(history, focus.id),
     turns: history.filter((t) => t.focus_id === focus.id).slice(-HISTORY_KEPT)
   };
 }
@@ -367,7 +367,7 @@ async function submit(
     // that fails is reported beside verdicts that stand on their own.
     try {
       const asJudged = { phase: phaseForJudge, problem, artifact, applied, verdicts: outcome.verdicts, referenceCheck };
-      const n = await nudgeFor(asJudged, ladder, ladder.level, body.attempt, body.priorArtifacts);
+      const n = await nudgeFor(asJudged, ladder, 'hint', body.attempt, body.priorArtifacts);
       response.nudge = pageNudge(n, applied);
       recorded = recordedNudge(n, applied);
     } catch (error) {
@@ -422,10 +422,28 @@ function recordedVerdicts(record: Record<string, unknown>): (Verdict & { gate?: 
 }
 
 /**
+ * Whether this submission (phase, step and attempt) was already escalated. The
+ * server's own records decide; the history the page sends is read only when they
+ * cannot be, where an escalation is a prompt turn on the same attempt.
+ */
+async function alreadyEscalated(
+  body: z.infer<typeof escalateSchema>,
+  step: string | null,
+  attempt: number
+): Promise<boolean> {
+  try {
+    return await submissionEscalated(body.sessionId, body.phase, step, attempt);
+  } catch {
+    return body.history.some((t) => t.attempt === attempt && t.level === 'prompt');
+  }
+}
+
+/**
  * The prompt for the last failed submit's requirement, built from the server's own
  * record of that submit: its work, its verdicts and its reference check, with the
  * phase cut to its step as it was judged. Throws {@link Conflict} when there is no
- * failed submit to escalate, or its requirement is already at prompt.
+ * failed submit to escalate, or that submission was already escalated: one prompt
+ * per submission, and a later submission may be escalated again.
  */
 async function escalate(
   body: z.infer<typeof escalateSchema>
@@ -460,9 +478,13 @@ async function escalate(
 
   const ladder = ladderFor(applied, verdicts, body.history);
   if (!ladder) throw new Conflict('Your last submission here has nothing left to fix.');
-  if (ladder.level === 'prompt') throw new Conflict('You already have the most specific help for this one.');
 
   const attempt = typeof record.attempt === 'number' ? record.attempt : body.attempt;
+  if (await alreadyEscalated(body, step, attempt)) {
+    throw new Conflict(
+      'You already have the more specific help for this submission. Change your work and submit again for a new hint.'
+    );
+  }
   const judged = {
     phase: phaseForJudge,
     problem,

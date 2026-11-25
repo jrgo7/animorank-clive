@@ -370,11 +370,7 @@
       {:else if feedback}
         <FieldFeedback
           {feedback}
-          canEscalate={canEscalate(
-            !!current.result && !current.result.passed,
-            session.historyFor(1, openField.id),
-            current.result?.nudge?.focus_id
-          )}
+          canEscalate={canEscalate(current.result)}
           disabled={!!session.busy || !session.hasApiKey}
           onescalate={() => session.escalate(1, openField.id, context.problem.id)}
           waiting={session.busy === 'escalate' ? thinking : undefined}

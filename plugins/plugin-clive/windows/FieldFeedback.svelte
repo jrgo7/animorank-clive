@@ -13,8 +13,8 @@
    * draws it. Shared by the three stepped phases.
    *
    * The hint ladder lives on the "Start here" card: the hint, then — once the
-   * student presses "I'm stuck" — the prompt under it. The button is offered only
-   * while the requirement is at hint (`canEscalate`), and goes once it is a prompt.
+   * student presses "I'm stuck" — the prompt under it. The button is offered on
+   * every failed submit (`canEscalate`), and goes once pressed for that submission.
    */
   let {
     feedback,
@@ -24,7 +24,7 @@
     waiting
   }: {
     feedback: FieldFeedback;
-    /** Whether "I'm stuck" is offered: a failed submit, its requirement still at hint. */
+    /** Whether "I'm stuck" is offered: a failed submit, not yet escalated. */
     canEscalate?: boolean;
     /** The page is busy, or no model is configured. */
     disabled?: boolean;

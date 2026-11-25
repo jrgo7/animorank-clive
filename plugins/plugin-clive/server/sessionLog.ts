@@ -14,8 +14,9 @@
  * session-logs page is the one reader
  * (`plugins/plugin-clive/windows/CLiveLogs.window.svelte`), and it shows them to
  * instructors; anything that reads these rows into a student-facing page must
- * leave these fields out. The one server reader is {@link latestSubmitRecord},
- * which an escalation builds from, and it hands the page none of them.
+ * leave these fields out. The server's own readers are {@link latestSubmitRecord},
+ * which an escalation builds from, and {@link submissionEscalated}, which allows one
+ * escalation per submission; neither hands the page any of them.
  */
 import { randomUUID } from 'node:crypto';
 import type { JsonValue } from '@zenstackhq/orm';
@@ -149,6 +150,35 @@ export async function latestSubmitRecord(
     if (data && data.phase_id === phaseId && (data.step ?? null) === step) return data;
   }
   return null;
+}
+
+/**
+ * Whether the newest `CLIVE_SUBMIT` for `phaseId` and `step` was already escalated:
+ * a `CLIVE_ESCALATE` on the same phase, step and attempt, written after it. "I'm
+ * stuck" gives one prompt per submission; a later submission may be escalated again.
+ */
+export async function submissionEscalated(
+  sessionId: string,
+  phaseId: string,
+  step: string | null,
+  attempt: number
+): Promise<boolean> {
+  const rows = await db.sessionHistoryEntry.findMany({
+    where: {
+      practice_session_id: sessionId,
+      type: { in: [SESSION_LOG_TYPES.submit, SESSION_LOG_TYPES.escalate] }
+    },
+    orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+    select: { type: true, data: true }
+  });
+  for (const row of rows) {
+    const data = row.data as Record<string, unknown> | null;
+    if (!data || data.phase_id !== phaseId || (data.step ?? null) !== step) continue;
+    // Reached the submission itself: nothing after it escalated it.
+    if (row.type === SESSION_LOG_TYPES.submit) return false;
+    if (data.attempt === attempt) return true;
+  }
+  return false;
 }
 
 /** Write `entries` into the practice session's history, in one statement. */

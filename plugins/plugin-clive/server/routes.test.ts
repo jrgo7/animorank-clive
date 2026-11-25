@@ -24,7 +24,9 @@ const log = vi.hoisted(() => ({
   writtenTo: [] as string[],
   tagged: [] as { sessionId: string; participant: string }[],
   started: [] as { userId: string; problemId: string }[],
-  lookups: [] as { sessionId: string; phaseId: string; step: string | null }[]
+  lookups: [] as { sessionId: string; phaseId: string; step: string | null }[],
+  /** Whether reading the escalations back fails, as a database that is down would. */
+  escalationsUnreadable: false
 }));
 
 vi.mock('./problem', () => ({
@@ -76,6 +78,17 @@ vi.mock('./sessionLog', async (importOriginal) => {
         (e) => e.type === 'CLIVE_SUBMIT' && e.data.phase_id === phaseId && (e.data.step ?? null) === step
       );
       return found ? found.data : null;
+    },
+    // Whether this fake history holds an escalation of the newest submit for the phase and
+    // step: a CLIVE_ESCALATE on the same attempt, written after it.
+    submissionEscalated: async (sessionId: string, phaseId: string, step: string | null, attempt: number) => {
+      if (log.escalationsUnreadable) throw new Error('database down');
+      for (const e of [...log.written].reverse()) {
+        if (e.data.phase_id !== phaseId || (e.data.step ?? null) !== step) continue;
+        if (e.type === 'CLIVE_SUBMIT') return false;
+        if (e.type === 'CLIVE_ESCALATE' && e.data.attempt === attempt) return true;
+      }
+      return false;
     },
     tagParticipant: async (sessionId: string, participant: string) => {
       log.tagged.push({ sessionId, participant });
@@ -209,6 +222,7 @@ describe('CLive plugin routes', () => {
     log.tagged = [];
     log.started = [];
     log.lookups = [];
+    log.escalationsUnreadable = false;
   });
 
   it('tags the practice session with a participant, and logs it', async () => {
@@ -346,22 +360,33 @@ describe('CLive plugin routes', () => {
     expect(state.users[1]).toContain('LEVEL\nhint');
   });
 
-  it('gives a prompt once the focus was escalated, even when that is older than the last five turns', async () => {
-    state.queue = [{ verdicts: failingOn('case_is_concrete') }, PROMPT];
+  it('answers a failed submit after an escalation with a hint, and shows the model the earlier prompt', async () => {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
     const history = [
-      turn(1, 'case_is_concrete', 'hint'),
+      turn(1, 'case_is_concrete', 'hint', 'the first hint'),
+      turn(1, 'case_is_concrete', 'prompt', 'the prompt asked for')
+    ];
+    const body = (await post('/submit', casesBody({ attempt: 2, history }))).json();
+
+    expect(body.nudge.level).toBe('hint');
+    expect(state.users[1]).toContain('LEVEL\nhint');
+    // So the new hint does not repeat what the prompt already said.
+    expect(state.users[1]).toContain('- attempt 1, prompt: the prompt asked for');
+    expect(state.users[1]).toContain('- attempt 1, hint: the first hint');
+  });
+
+  it('shows the model the last five earlier turns on the focus only', async () => {
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
+    const history = [
       turn(1, 'case_is_concrete', 'prompt'),
       ...[2, 3, 4, 5, 6, 7].map((n) => turn(n, 'case_is_concrete', 'hint'))
     ];
-    const body = (await post('/submit', casesBody({ attempt: 8, history }))).json();
+    await post('/submit', casesBody({ attempt: 8, history }));
 
-    expect(body.nudge.level).toBe('prompt');
-    expect(state.users[1]).toContain('LEVEL\nprompt');
-    // The model is shown the last five turns on the focus only.
     expect(state.users[1]).toContain('- attempt 3, hint: nudge-3');
     expect(state.users[1]).toContain('- attempt 7, hint: nudge-7');
     expect(state.users[1]).not.toContain('nudge-2');
-    expect(state.users[1]).not.toContain('prompt: nudge-1');
+    expect(state.users[1]).not.toContain('nudge-1');
   });
 
   it('shows the model only the earlier turns on its own requirement, and starts a new focus at a hint', async () => {
@@ -521,13 +546,57 @@ describe('CLive plugin routes', () => {
     expect(state.calls).toBe(1);
   });
 
-  it('refuses to escalate a requirement already at prompt', async () => {
+  it('refuses a second escalation of the same submission', async () => {
     await failedSubmit();
-    const history = [turn(1, 'case_is_concrete', 'hint'), turn(1, 'case_is_concrete', 'prompt')];
-    const response = await post('/escalate', escalateBody({ history }));
+    state.queue = [PROMPT];
+    expect((await post('/escalate', escalateBody())).statusCode).toBe(200);
 
-    expect(response.statusCode).toBe(409);
-    expect(state.calls).toBe(2);
+    const history = [
+      turn(1, 'case_is_concrete', 'hint', NUDGE.nudge),
+      turn(1, 'case_is_concrete', 'prompt', PROMPT.nudge)
+    ];
+    const again = await post('/escalate', escalateBody({ history }));
+
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error).toBe(
+      'You already have the more specific help for this submission. Change your work and submit again for a new hint.'
+    );
+    // The judge and the hint, then the one prompt: no second prompt was asked for.
+    expect(state.calls).toBe(3);
+  });
+
+  it('escalates a later submission on the same requirement, even though an earlier one had a prompt', async () => {
+    await failedSubmit();
+    state.queue = [PROMPT];
+    await post('/escalate', escalateBody());
+
+    const history = [
+      turn(1, 'case_is_concrete', 'hint', NUDGE.nudge),
+      turn(1, 'case_is_concrete', 'prompt', PROMPT.nudge)
+    ];
+    state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
+    const resubmit = (await post('/submit', casesBody({ attempt: 2, history }))).json();
+    expect(resubmit.nudge.level).toBe('hint');
+
+    state.queue = [PROMPT];
+    const response = await post(
+      '/escalate',
+      escalateBody({ attempt: 2, history: [...history, turn(2, 'case_is_concrete', 'hint', NUDGE.nudge)] })
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ level: 'prompt', focus_id: 'case_is_concrete' });
+    expect(log.written.filter((e) => e.type === 'CLIVE_ESCALATE').map((e) => e.data.attempt)).toEqual([1, 2]);
+  });
+
+  it('reads the page’s history for an earlier escalation only when the server’s record cannot be read', async () => {
+    await failedSubmit();
+    log.escalationsUnreadable = true;
+    const escalatedHere = [turn(1, 'case_is_concrete', 'hint'), turn(1, 'case_is_concrete', 'prompt')];
+    expect((await post('/escalate', escalateBody({ history: escalatedHere }))).statusCode).toBe(409);
+
+    state.queue = [PROMPT];
+    expect((await post('/escalate', escalateBody())).statusCode).toBe(200);
   });
 
   it('refuses to escalate when nothing was submitted for that phase or step', async () => {

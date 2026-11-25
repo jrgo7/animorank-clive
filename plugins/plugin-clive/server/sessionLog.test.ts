@@ -14,6 +14,7 @@ import {
   ownsPracticeSession,
   requestEntries,
   SESSION_LOG_TYPES,
+  submissionEscalated,
   writeSessionLog
 } from './sessionLog';
 
@@ -70,6 +71,45 @@ describe('session log', () => {
         orderBy: [{ timestamp: 'desc' }, { id: 'desc' }]
       })
     );
+  });
+
+  it('knows a submission was escalated only from an escalation written after it, on the same step and attempt', async () => {
+    const submit = (step: string, attempt: number) => ({
+      type: 'CLIVE_SUBMIT',
+      data: { phase_id: 'case_design', step, attempt }
+    });
+    const escalation = (step: string, attempt: number) => ({
+      type: 'CLIVE_ESCALATE',
+      data: { phase_id: 'case_design', step, attempt }
+    });
+    const escalated = () => submissionEscalated(SESSION, 'case_design', 'normal_cases', 2);
+
+    // Newest first, as the history is read.
+    db.sessionHistoryEntry.findMany.mockResolvedValue([
+      escalation('normal_cases', 2),
+      submit('normal_cases', 2),
+      escalation('normal_cases', 1),
+      submit('normal_cases', 1)
+    ]);
+    await expect(escalated()).resolves.toBe(true);
+    expect(db.sessionHistoryEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { practice_session_id: SESSION, type: { in: ['CLIVE_SUBMIT', 'CLIVE_ESCALATE'] } },
+        orderBy: [{ timestamp: 'desc' }, { id: 'desc' }]
+      })
+    );
+
+    // The escalation before it was of the submission before it.
+    db.sessionHistoryEntry.findMany.mockResolvedValue([submit('normal_cases', 2), escalation('normal_cases', 1)]);
+    await expect(escalated()).resolves.toBe(false);
+
+    // Another case's escalation, or one on another attempt, is not this one's.
+    db.sessionHistoryEntry.findMany.mockResolvedValue([
+      escalation('edge_cases', 2),
+      escalation('normal_cases', 1),
+      submit('normal_cases', 2)
+    ]);
+    await expect(escalated()).resolves.toBe(false);
   });
 
   it('owns a practice session only when it is this user’s, for this problem', async () => {
