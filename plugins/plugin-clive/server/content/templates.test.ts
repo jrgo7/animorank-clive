@@ -13,7 +13,10 @@
  * phase wording regenerated `nudge_user`, so those entries match the prototype only
  * once clive-userflow carries the same content. The hint ladder (nudge v9) regenerated
  * `nudge_user` and `nudge_system` from this renderer again, and dropped the stuck
- * entries with `stuck.yaml`.
+ * entries with `stuck.yaml`. Dropping the public test cases from every prompt before
+ * Implement (2026-11-23: phases problem_definition v19, case_design v17,
+ * algorithm_design v15, criteria case_design v12, nudge v10) regenerated the
+ * Problem, Cases and Design entries and `nudge_user` from this renderer.
  */
 import { describe, expect, it } from 'vitest';
 import { failingGates } from '../criteria';
@@ -192,18 +195,58 @@ describe('prompt parity with the Jinja2 originals', () => {
   });
 
   it('escapes non-ASCII the way Python’s json.dumps does', () => {
-    const rendered = renderNudgePrompt({
-      phase: phaseDoc('case_design'),
+    // Implement's judge is the one prompt that still lists the public tests.
+    const rendered = renderPhasePrompt(phaseDoc('implement'), {
       problem: { ...PROBLEM, public_test_cases: [{ input: 'salamat, Juán', output: 'salamat, Juán' }] },
-      artifact: ARTIFACTS.case_design,
-      focus: focusOf(VERDICTS),
-      level: 'hint',
+      artifact: ARTIFACTS.implement,
+      criteria: rubricDoc('implement').criteria,
       attempt: 1,
-      priorArtifacts: [],
-      history: []
+      priorArtifacts: []
     });
     // `JSON.stringify` would keep the á; `json.dumps(ensure_ascii=True)` escapes it.
     expect(rendered).toContain('- input: "salamat, Ju\\u00e1n" output: "salamat, Ju\\u00e1n"');
+  });
+});
+
+describe('public test cases', () => {
+  // The student is not shown the public tests until Implement (the page opens the
+  // test-case window only there), so no prompt before Implement may list them: the
+  // Cases judge would fail a case that happened to match one as "copied", and a
+  // nudge could hand the student a test's input and output.
+  const HEADING = /^PUBLIC TEST CASES$/m;
+
+  it('are left out of the Problem, Cases and Design judges, and shown to Implement’s', () => {
+    for (const id of PHASE_IDS) {
+      const phase = phaseDoc(id);
+      const criteria = rubricDoc(id).criteria;
+      const cutPhase = isPerStep(phase) ? cut(phase, ARTIFACTS[id], criteria, 'normal_cases') : null;
+      const rendered = renderPhasePrompt(cutPhase?.phase ?? phase, {
+        problem: PROBLEM,
+        artifact: cutPhase?.artifact ?? ARTIFACTS[id],
+        criteria: cutPhase?.criteria ?? criteria,
+        attempt: 1,
+        priorArtifacts: []
+      });
+      if (id === 'implement') expect(rendered, id).toMatch(HEADING);
+      else expect(rendered, id).not.toMatch(HEADING);
+    }
+  });
+
+  it('are left out of the nudge, at both levels', () => {
+    for (const level of ['hint', 'prompt'] as const) {
+      const rendered = renderNudgePrompt({
+        phase: phaseDoc('case_design'),
+        problem: PROBLEM,
+        artifact: ARTIFACTS.case_design,
+        focus: focusOf(VERDICTS),
+        level,
+        attempt: 2,
+        priorArtifacts: PRIOR,
+        history: []
+      });
+      expect(rendered, level).not.toMatch(HEADING);
+      expect(rendered, level).not.toContain('- input: "3" output: "6"');
+    }
   });
 });
 

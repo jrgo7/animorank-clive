@@ -25,10 +25,15 @@
 #       one rarely traces to the right output). `traceable_on_own_case` traces the case 'generally
 #       as written', a lenient reading the team chose until prototype testing. `not_c_code` passes
 #       pseudocode; `output_is_produced` checks only that a step returns the answer. Wording revised.
+#
+#   v10 (2026-11-24, after the single-fault run of 2026-11-22): `output_is_produced` needs a step
+#       that returns the value; a conclusion ("the ID is valid") is not enough.
+#       `traceable_on_own_case` (revisiting decision I1): a step that only restates its goal cannot
+#       be carried out as written, even when variable names or earlier phases hint at the rule.
 
 id: criteria.algorithm_design
 phase: algorithm_design
-version: 9
+version: 10
 
 criteria:
   - id: not_c_code
@@ -51,7 +56,7 @@ criteria:
       Include a step that returns the answer based on the problem description.
     guidance: |
       PASS if some step states the value the function returns.
-      FAIL if the plan computes an answer but never states that it is the output, or outputs something in a shape the statement does not ask for.
+      FAIL if the plan computes an answer but never states that it is the output, or outputs something in a shape the statement does not ask for. A step must say the value is returned as the function's result. Reaching a conclusion without explicitly returning it should fail.
 
   - id: traceable_on_own_case
     text: Steps can be carried out by hand on your own case.
@@ -65,7 +70,7 @@ criteria:
       Take the student's typical case from EARLIER PHASES (the Cases phase: its input and expected output) and trace it through the steps generally as written.
       FAIL if a step cannot be carried out as written and does not reach the case's expected output.
       PASS if every step can be done by hand on that case and the trace can be followed to the expected output.
-      Judge whether the plan can be followed, not whether it is the best plan or follows a particular solution.
+      Judge whether the plan can be followed, not whether it is the best plan or follows a particular solution. Steps that only restate what they should achieve (e.g. update the counts, if it works, add the points) cannot be carried out as written, even if variable names, phrases or earlier phases hint at it.
 
   # ---- Advisory: extra understanding, never blocking -------------------------
 

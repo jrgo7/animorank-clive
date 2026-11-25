@@ -46,9 +46,13 @@
 #   strings; every other construct, filter and whitespace rule is untouched.
 
 id: base.nudge
-version: 9
+version: 10
 created: 2026-10-25
 changelog: >
+  v10: no PUBLIC TEST CASES block. The student is not shown the public tests until
+  Implement, and this document serves Problem, Cases and Design, so a prompt-level
+  nudge could have handed them a test's input and output (2026-11-23).
+
   v9: one requirement chosen by code; LEVEL hint|prompt; no situation list; output
   {reason, nudge}; replaces stuck.yaml.
 
@@ -171,12 +175,6 @@ user_template: |
   PROBLEM STATEMENT
   {{ problem.statement }}
 
-  {% if problem.public_test_cases %}
-  PUBLIC TEST CASES
-  {% for case in problem.public_test_cases %}
-  - input: {{ case.input | tojson }} output: {{ case.output | tojson }}
-  {% endfor %}
-  {% endif %}
   {% if prior_artifacts %}
   EARLIER PHASES
   This student's work from earlier phases, for context.

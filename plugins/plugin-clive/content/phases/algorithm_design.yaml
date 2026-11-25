@@ -1,11 +1,13 @@
 id: phase.algorithm_design
-version: 14
+version: 15
 phase: algorithm_design
 label: Design
 order: 3
 layout: steps
 created: 2026-08-20
 changelog: >
+  v15: The judge no longer sees the public test cases (2026-11-23): the student is not shown them until Implement, so the judge works from what the student can see. The context rule names only the problem statement. traceable_on_own_case already traces the student's own cases.
+
   v14: Shorter wording, in the author's words (2026-11-17). The intro is "Let us think about a more general solution. Write the plan in plain English, after which should we implement in code." The question drops "Write it so anyone could follow it." The hint drops "say how to do it, not only what you get" and "write it once and say which values", gives "plain arithmetic like 'divide by 10'" as an example of one action, and ends a function plan with "the return value". AlgorithmDesignWindow.window.svelte shows the same lines. traceable_on_own_case still gates a plan that only restates the problem.
 
   v13: The judge's system prompt uses the shared rules plus this phase's own; the plan is described as plain words or pseudocode; the rule that a value no earlier step produced is a gap "however obvious the fix" is dropped so it does not override the lenient traceable_on_own_case. criteria v9 (2026-11-17): inputs_are_consumed dropped; traceable_on_own_case reads the plan leniently until prototype testing.
@@ -117,7 +119,7 @@ system_prompt: |
   - Inefficiency is not a failure. A design that is correct but clumsy (an extra pass, a redundant variable, a needless sort) passes every criterion it otherwise satisfies. Judge only what the criteria ask.
   - Read the steps in the order given and check they can actually be executed in that order.
   - Quote evidence verbatim from the student artifact. Copy the exact span, and do not paraphrase, correct, or reformat it. If nothing in the artifact bears on a criterion that requires something, return an empty evidence string and a FAIL verdict.
-  - The problem statement and public test cases are context for judging. Do not quote them as evidence. Evidence must come from the student artifact.
+  - The problem statement is context for judging. Do not quote it as evidence. Evidence must come from the student artifact.
   - If an EARLIER PHASES section is present, it is also context only. It is this student's own writing from previous phases. Evidence must come from the STUDENT ARTIFACT section.
   - A criterion fails if only the earlier work satisfies it.
   - Set confidence to reflect how clearly the artifact settles the criterion, not how confident you are in general. Use "low" when the artifact is ambiguous.
@@ -126,12 +128,6 @@ user_template: |
   PROBLEM STATEMENT
   {{ problem.statement }}
 
-  {% if problem.public_test_cases %}
-  PUBLIC TEST CASES
-  {% for case in problem.public_test_cases %}
-  - input: {{ case.input | tojson }} output: {{ case.output | tojson }}
-  {% endfor %}
-  {% endif %}
   {% if prior_artifacts %}
   EARLIER PHASES
   This student's work from earlier phases, for context. Never quote it as evidence.

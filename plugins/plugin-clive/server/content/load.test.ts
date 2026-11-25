@@ -47,11 +47,12 @@ describe('CLive content loading', () => {
     expect(problem.criteria.filter((c) => c.gate === 'advisory')).toHaveLength(0);
   });
 
-  it('reads the shared nudge document at v9: one requirement, a level, no situations', () => {
-    expect(NUDGE_DOC.version).toBe(9);
+  it('reads the shared nudge document at v10: one requirement, a level, no situations, no public tests', () => {
+    expect(NUDGE_DOC.version).toBe(10);
     expect(NUDGE_DOC.user_template).toContain('REQUIREMENT TO WORK ON');
     expect(NUDGE_DOC.user_template).toContain('LEVEL');
     expect(NUDGE_DOC.user_template).not.toContain('WHAT DID NOT PASS');
+    expect(NUDGE_DOC.user_template).not.toContain('PUBLIC TEST CASES');
     expect(NUDGE_DOC.system_prompt).toContain('## Levels');
     expect(NUDGE_DOC.system_prompt).not.toContain('Decide the situation first');
   });
