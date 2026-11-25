@@ -3,8 +3,9 @@
  *
  * Ported from `clive-userflow/src/clive/nudge.py` (the judged nudge) and reworked
  * for the hint ladder: the caller picks the requirement ({@link pickFocus}, the
- * first failing gate in rubric order) and the level ({@link levelFor}), and the
- * model writes a `hint` or a `prompt` for that requirement alone. Its sibling for
+ * first failing gate in rubric order) and the level (a failed submit always gets a
+ * `hint`; "I'm stuck" asks for a `prompt` on that submission), and the model writes
+ * that rung for that requirement alone. Its sibling for
  * Implement's code, `nudge_code`, lives in `codeNudge.ts`.
  *
  * Before a reply goes back it is checked for what it must never hold
@@ -58,15 +59,6 @@ export interface NudgeOutcome {
  */
 export function pickFocus(criteria: CriterionDoc[], verdicts: Verdict[]): FailingCriterion | null {
   return failingGates(criteria, verdicts)[0] ?? null;
-}
-
-/**
- * The rung a requirement is on: `prompt` once any earlier turn on it was a prompt
- * (the student escalated it), `hint` otherwise. Read from the whole history, so an
- * escalation never falls out of the few turns the model is shown; levels never go down.
- */
-export function levelFor(history: readonly Pick<HistoryTurn, 'focus_id' | 'level'>[], focusId: string): NudgeLevel {
-  return history.some((turn) => turn.focus_id === focusId && turn.level === 'prompt') ? 'prompt' : 'hint';
 }
 
 /** What a reply gave away: `note` is said to the model when it is asked again, `found` is logged. */

@@ -1,8 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
-  import Button from '$lib/components/ui/buttons/Button.svelte';
-  import LightbulbIcon from '@iconify-svelte/fa6-solid/lightbulb';
+  import StuckButton from './StuckButton.svelte';
   import { MORE_TO_FIX, type FieldFeedback } from './feedback';
 
   /**
@@ -13,8 +12,8 @@
    * draws it. Shared by the three stepped phases.
    *
    * The hint ladder lives on the "Start here" card: the hint, then — once the
-   * student presses "I'm stuck" — the prompt under it. The button is offered only
-   * while the requirement is at hint (`canEscalate`), and goes once it is a prompt.
+   * student presses "I'm stuck" — the prompt under it. The button is offered on
+   * every failed submit (`canEscalate`), and goes once pressed for that submission.
    */
   let {
     feedback,
@@ -24,7 +23,7 @@
     waiting
   }: {
     feedback: FieldFeedback;
-    /** Whether "I'm stuck" is offered: a failed submit, its requirement still at hint. */
+    /** Whether "I'm stuck" is offered: a failed submit, not yet escalated. */
     canEscalate?: boolean;
     /** The page is busy, or no model is configured. */
     disabled?: boolean;
@@ -60,17 +59,10 @@
       <div class="border-t border-base-content/10 pt-2.5 text-xs text-base-content/60">{MORE_TO_FIX}</div>
     {/if}
     {#if canEscalate && !waiting}
-      <div class="flex flex-wrap items-center gap-2.5 border-t border-base-content/10 pt-2.5">
-        <Button
-          class="btn-sm gap-2"
-          type="button"
-          {disabled}
-          onclick={() => onescalate?.()}
-        >
-          <LightbulbIcon class="h-3.5 w-3.5" />
-          I'm stuck
-        </Button>
-      </div>
+      <StuckButton
+        {disabled}
+        onclick={() => onescalate?.()}
+      />
     {/if}
   </div>
 {:else if feedback.kind === 'fix'}

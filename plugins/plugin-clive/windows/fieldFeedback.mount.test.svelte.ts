@@ -170,10 +170,15 @@ describe('feedback one thing at a time', () => {
   describe('the hint ladder', () => {
     const PROMPT_TEXT = 'Does the problem give a smallest or largest value for n?';
     const ESCALATED: NudgeResult = { ...FAILED_PROBLEM.nudge!, level: 'prompt', nudge: PROMPT_TEXT };
-    /** A resubmit still failing on the same requirement, which the server now answers at prompt. */
+    /** A resubmit still failing on the same requirement, which the server answers with a new hint. */
     const STILL_FAILING: JudgeResult = {
       ...FAILED_PROBLEM,
-      nudge: { ...FAILED_PROBLEM.nudge!, level: 'prompt', nudge: 'Which line of the problem says how big n can be?' }
+      nudge: { ...FAILED_PROBLEM.nudge!, level: 'hint', nudge: 'Read the input section again: is n ever limited?' }
+    };
+    const SECOND_PROMPT: NudgeResult = {
+      ...FAILED_PROBLEM.nudge!,
+      level: 'prompt',
+      nudge: 'Which line of the problem says how big n can be?'
     };
     /** A resubmit whose first failing requirement is now another one, on Outputs. */
     const NEW_FOCUS: JudgeResult = {
@@ -236,12 +241,16 @@ describe('feedback one thing at a time', () => {
         focus_id: 'constraints_noted',
         nudge: PROMPT_TEXT
       });
+
+      // One prompt per submission: asking again sends nothing.
+      await session.escalate(0, 'phase', 'problem-1');
+      expect(server.sent('/escalate')).toHaveLength(1);
       unmount(app);
     });
 
-    it('answers the next failed submit on that requirement with a new prompt and no button', async () => {
-      const server = stubServer({ submit: [FAILED_PROBLEM, STILL_FAILING], escalate: [ESCALATED] });
-      const { session, app } = mountProblem('ladder-stays');
+    it('answers the next failed submit on that requirement with a new hint and the button again', async () => {
+      const server = stubServer({ submit: [FAILED_PROBLEM, STILL_FAILING], escalate: [ESCALATED, SECOND_PROMPT] });
+      const { session, app } = mountProblem('ladder-again');
 
       clickButton('Submit');
       await vi.waitFor(() => expect(session.phases[0].result).not.toBeNull());
@@ -254,7 +263,7 @@ describe('feedback one thing at a time', () => {
       await vi.waitFor(() => expect(session.phases[0].attempt).toBe(3));
       flushSync();
 
-      // The resubmit carried the escalation, so the server could keep the requirement at prompt.
+      // The resubmit carried the prompt, so the model can avoid repeating it.
       expect(server.sent('/submit')[1].history).toContainEqual({
         attempt: 1,
         level: 'prompt',
@@ -262,8 +271,17 @@ describe('feedback one thing at a time', () => {
         nudge: PROMPT_TEXT
       });
       const text = document.body.textContent ?? '';
-      expect(text).toContain('Which line of the problem says how big n can be?');
-      expect(text).not.toContain(NUDGE_TEXT);
+      expect(text).toContain('Read the input section again: is n ever limited?');
+      expect(text).not.toContain(PROMPT_TEXT);
+      expect(stuckButtons()).toHaveLength(1);
+
+      // Pressed again, it asks for a prompt on the new submission.
+      stuckButtons()[0].click();
+      await vi.waitFor(() => expect(server.sent('/escalate')).toHaveLength(2));
+      await vi.waitFor(() => expect(session.busy).toBeNull());
+      flushSync();
+      expect(server.sent('/escalate')[1]).toMatchObject({ attempt: 2 });
+      expect(document.body.textContent).toContain('Which line of the problem says how big n can be?');
       expect(stuckButtons()).toHaveLength(0);
       unmount(app);
     });
@@ -458,7 +476,7 @@ describe('feedback one thing at a time', () => {
     unmount(app);
   });
 
-  it('folds Implement’s full list away under "See every requirement"', () => {
+  it('shows no Implement requirements, even for a result the old plan check left behind', () => {
     stubSubmit(FAILED_PROBLEM);
     const context = stubContext('feedback-implement');
     const session = cliveSessionFor(context);
@@ -476,17 +494,10 @@ describe('feedback one thing at a time', () => {
     const app = mount(ImplementWindow, { target: document.body, props: { context } });
     flushSync();
 
-    const ledger = Array.from(document.querySelectorAll('details')).find((el) =>
-      el.querySelector('summary')?.textContent?.includes('See every requirement')
-    );
-    expect(ledger).toBeDefined();
-    expect(ledger?.open).toBe(false);
-    const text = ledger?.textContent ?? '';
-    expect(text).toContain('Optional');
-    expect(text).toContain('Met');
-    expect(text).toContain('The follows_own_design requirement.');
-    expect(text).toContain('Not met. This one is optional: you can move on without it.');
-    expect(document.body.textContent).not.toContain('Every requirement, checked');
+    const text = document.body.textContent ?? '';
+    expect(text).not.toContain('See every requirement');
+    expect(text).not.toContain('The follows_own_design requirement.');
+    expect(text).not.toContain('Check against your plan');
     unmount(app);
   });
 });

@@ -3,7 +3,15 @@
  * and keeping only the newest reply when Runs overlap.
  */
 import { describe, expect, it } from 'vitest';
-import { implementReached, LatestOnly, shouldAsk, toCodeRun, wantsCodeFeedback } from './codeFeedback';
+import {
+  canEscalateCode,
+  codeHistory,
+  implementReached,
+  LatestOnly,
+  shouldAsk,
+  toCodeRun,
+  wantsCodeFeedback
+} from './codeFeedback';
 
 const intValue = (value: string) => ({ type: 'int', options: {}, data: { value } });
 
@@ -150,6 +158,51 @@ describe('quick fixes', () => {
     expect(wantsCodeFeedback(reached, true, failing)).toBe(true);
     expect(wantsCodeFeedback(reached, false, failing)).toBe(false);
     expect(wantsCodeFeedback(reached, true, [{ success: true }])).toBe(false);
+  });
+});
+
+describe('the hint ladder on code feedback', () => {
+  const reply = (nudge: string, extra: Record<string, unknown> = {}) => ({
+    attempt: 1,
+    runType: 'run' as const,
+    level: 'hint' as const,
+    situation: 'departs_from_plan',
+    focus: 'step 2',
+    nudge,
+    ...extra
+  });
+  const prompt = (nudge: string) => ({
+    level: 'prompt' as const,
+    situation: 'departs_from_plan',
+    focus: 'step 2',
+    nudge
+  });
+
+  it('offers "I\'m stuck" on the latest reply while it is a hint, until pressed or a later run passes', () => {
+    expect(canEscalateCode(reply('Look at step 2.'))).toBe(true);
+    // Saved before the ladder: no level, read as a hint.
+    expect(canEscalateCode({ ...reply('Look at step 2.'), level: undefined })).toBe(true);
+    expect(canEscalateCode(reply('Look at step 2.', { escalation: prompt('Where does nSum start?') }))).toBe(false);
+    expect(canEscalateCode(reply('Look at step 2.', { passedSince: true }))).toBe(false);
+    expect(canEscalateCode(undefined)).toBe(false);
+  });
+
+  it('sends the model the earlier replies oldest first, each prompt after its hint, the last five', () => {
+    // Kept newest first, as the page shows them.
+    const kept = [
+      reply('fourth'),
+      reply('third', { escalation: prompt('third, asked for') }),
+      { ...reply('second'), level: undefined },
+      reply('first'),
+      reply('zeroth')
+    ];
+    expect(codeHistory(kept)).toEqual([
+      { level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: 'first' },
+      { level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: 'second' },
+      { level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: 'third' },
+      { level: 'prompt', situation: 'departs_from_plan', focus: 'step 2', nudge: 'third, asked for' },
+      { level: 'hint', situation: 'departs_from_plan', focus: 'step 2', nudge: 'fourth' }
+    ]);
   });
 });
 

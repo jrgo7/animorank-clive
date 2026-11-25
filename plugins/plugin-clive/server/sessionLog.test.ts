@@ -9,11 +9,13 @@ vi.mock('$lib/zenstack', () => ({ db }));
 
 import {
   checkSessionLog,
+  latestCodeFeedbackRecord,
   latestSubmitRecord,
   llmCallEntries,
   ownsPracticeSession,
   requestEntries,
   SESSION_LOG_TYPES,
+  submissionEscalated,
   writeSessionLog
 } from './sessionLog';
 
@@ -70,6 +72,113 @@ describe('session log', () => {
         orderBy: [{ timestamp: 'desc' }, { id: 'desc' }]
       })
     );
+  });
+
+  it('knows a submission was escalated only from an escalation written after it, on the same step and attempt', async () => {
+    const submit = (step: string, attempt: number) => ({
+      type: 'CLIVE_SUBMIT',
+      data: { phase_id: 'case_design', step, attempt }
+    });
+    const escalation = (step: string, attempt: number) => ({
+      type: 'CLIVE_ESCALATE',
+      data: { phase_id: 'case_design', step, attempt }
+    });
+    const escalated = () => submissionEscalated(SESSION, 'case_design', 'normal_cases', 2);
+
+    // Newest first, as the history is read.
+    db.sessionHistoryEntry.findMany.mockResolvedValue([
+      escalation('normal_cases', 2),
+      submit('normal_cases', 2),
+      escalation('normal_cases', 1),
+      submit('normal_cases', 1)
+    ]);
+    await expect(escalated()).resolves.toBe(true);
+    expect(db.sessionHistoryEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { practice_session_id: SESSION, type: { in: ['CLIVE_SUBMIT', 'CLIVE_ESCALATE'] } },
+        orderBy: [{ timestamp: 'desc' }, { id: 'desc' }]
+      })
+    );
+
+    // The escalation before it was of the submission before it.
+    db.sessionHistoryEntry.findMany.mockResolvedValue([submit('normal_cases', 2), escalation('normal_cases', 1)]);
+    await expect(escalated()).resolves.toBe(false);
+
+    // Another case's escalation, or one on another attempt, is not this one's.
+    db.sessionHistoryEntry.findMany.mockResolvedValue([
+      escalation('edge_cases', 2),
+      escalation('normal_cases', 1),
+      submit('normal_cases', 2)
+    ]);
+    await expect(escalated()).resolves.toBe(false);
+  });
+
+  describe('the newest code feedback', () => {
+    const FEEDBACK_AT = new Date('2026-11-25T10:00:10.000Z');
+    const FEEDBACK = { attempt: 3, run_type: 'run', code: 'broken', response: { situation: 'other' } };
+    const run = (submittedCode: string, results: boolean[], runType = 'run') => ({
+      data: { runType, submittedCode, generalTestResults: results }
+    });
+
+    /** The history, by entry type, newest first: what each query of the reader finds. */
+    function history(rows: { feedback?: unknown[]; escalations?: unknown[]; runs?: unknown[] }): void {
+      db.sessionHistoryEntry.findMany.mockImplementation(async ({ where }: { where: { type: unknown } }) => {
+        if (where.type === 'CLIVE_CODE_FEEDBACK') return rows.feedback ?? [];
+        if (where.type === 'CLIVE_ESCALATE') return rows.escalations ?? [];
+        if (where.type === 'RUN_ATTEMPT') return rows.runs ?? [];
+        return [];
+      });
+    }
+
+    it('is null when no code feedback was recorded', async () => {
+      history({});
+      await expect(latestCodeFeedbackRecord(SESSION)).resolves.toBeNull();
+    });
+
+    it('is the newest record, not yet escalated, with nothing passing since the run it answered', async () => {
+      history({
+        feedback: [{ data: FEEDBACK, timestamp: FEEDBACK_AT }],
+        runs: [run('broken', [false, true]), run('older', [true, true])]
+      });
+      await expect(latestCodeFeedbackRecord(SESSION)).resolves.toEqual({
+        record: FEEDBACK,
+        escalated: false,
+        passedSince: false
+      });
+      expect(db.sessionHistoryEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { practice_session_id: SESSION, type: 'CLIVE_CODE_FEEDBACK' },
+          orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+          take: 1
+        })
+      );
+      // Only escalations written after the feedback are read.
+      expect(db.sessionHistoryEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { practice_session_id: SESSION, type: 'CLIVE_ESCALATE', timestamp: { gt: FEEDBACK_AT } }
+        })
+      );
+    });
+
+    it('knows a Run or Submit after the one it answered passed every test', async () => {
+      history({
+        feedback: [{ data: FEEDBACK, timestamp: FEEDBACK_AT }],
+        runs: [run('fixed', [true, true, true], 'submit'), run('broken', [false, true])]
+      });
+      await expect(latestCodeFeedbackRecord(SESSION)).resolves.toMatchObject({ passedSince: true });
+    });
+
+    it('knows an Implement escalation on the same attempt escalated it, and nothing else does', async () => {
+      const escalation = (phase_id: string, attempt: number) => ({ data: { phase_id, attempt } });
+      history({
+        feedback: [{ data: FEEDBACK, timestamp: FEEDBACK_AT }],
+        escalations: [escalation('case_design', 3), escalation('implement', 2)]
+      });
+      await expect(latestCodeFeedbackRecord(SESSION)).resolves.toMatchObject({ escalated: false });
+
+      history({ feedback: [{ data: FEEDBACK, timestamp: FEEDBACK_AT }], escalations: [escalation('implement', 3)] });
+      await expect(latestCodeFeedbackRecord(SESSION)).resolves.toMatchObject({ escalated: true });
+    });
   });
 
   it('owns a practice session only when it is this user’s, for this problem', async () => {

@@ -112,10 +112,8 @@
   const nudgeError = $derived(current.result?.nudge_error);
   /** A requirement the judge never ruled on belongs to no question, so it is said once, above them. */
   const missingIds = $derived(current.result?.missing_ids ?? []);
-  /** "I'm stuck" is offered on a failed submit's card while its requirement is at hint. */
-  const offerEscalation = $derived(
-    canEscalate(!!current.result && !current.result.passed, session.historyFor(0), current.result?.nudge?.focus_id)
-  );
+  /** "I'm stuck" is offered on a failed submit's card until it is pressed for that submission. */
+  const offerEscalation = $derived(canEscalate(current.result));
   /** After a failed resubmit, the answers can go back to how they were when they passed. */
   const canGoBack = $derived(session.canRestore(0, 'phase'));
   const RESTORE_TITLE =

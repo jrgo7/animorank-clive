@@ -15,12 +15,14 @@ import { phaseDoc } from './server/content/load';
 import { PHASES } from './windows/phase';
 
 describe('phase display config', () => {
-  it('covers every phase the server knows, in the same order', () => {
+  it('covers every phase the server judges, in the same order, then Implement', () => {
     expect(PHASES.map((p) => p.phase)).toEqual(['problem_definition', 'case_design', 'algorithm_design', 'implement']);
+    // AnimoRank's tests decide Implement: the server has no phase document for it.
+    expect(() => phaseDoc('implement')).toThrow(/Unknown CLive phase/);
   });
 
   it('agrees with the phase YAML on labels, layout, judge and fields', () => {
-    for (const config of PHASES) {
+    for (const config of PHASES.filter((p) => p.phase !== 'implement')) {
       const doc = phaseDoc(config.phase);
       expect(config.label, config.phase).toBe(doc.label);
       expect(config.layout, config.phase).toBe(doc.layout);

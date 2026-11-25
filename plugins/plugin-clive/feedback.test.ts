@@ -12,7 +12,6 @@ import {
   fieldMark,
   fieldStates,
   keptTurns,
-  levelFor,
   migrateTurns,
   startHere
 } from './windows/feedback';
@@ -223,37 +222,32 @@ describe('the hint ladder', () => {
     nudge: `n${attempt}`
   });
 
-  it('puts a requirement at hint until it is escalated, then at prompt for good', () => {
-    expect(levelFor([], 'work_is_shown')).toBe('hint');
-    expect(levelFor([turn(1, 'work_is_shown'), turn(2, 'work_is_shown')], 'work_is_shown')).toBe('hint');
-    const escalated = [
-      turn(1, 'work_is_shown'),
-      turn(1, 'work_is_shown', 'prompt'),
-      turn(2, 'work_is_shown', 'prompt')
-    ];
-    expect(levelFor(escalated, 'work_is_shown')).toBe('prompt');
-    // Another requirement starts at hint.
-    expect(levelFor(escalated, 'case_is_concrete')).toBe('hint');
+  it('offers "I\'m stuck" on every failed submit with a nudge, until it is pressed for that submission', () => {
+    const failed = failedProblem();
+    expect(canEscalate(failed)).toBe(true);
+    // Pressed for this submission: its prompt is shown, and there is no second one.
+    expect(
+      canEscalate({ ...failed, escalation: { ...failed.nudge!, level: 'prompt', nudge: 'Which line says so?' } })
+    ).toBe(false);
+    // Never before a failed submit, on a pass, or without a nudge to go further from.
+    expect(canEscalate(null)).toBe(false);
+    expect(canEscalate(result([verdict('novel_wording', ['summary'], { verdict: 'PASS' })]))).toBe(false);
+    expect(canEscalate({ ...failed, nudge: undefined })).toBe(false);
   });
 
-  it('offers "I\'m stuck" only after a failed submit, while its requirement is at hint', () => {
-    const hinted = [turn(1, 'work_is_shown')];
-    expect(canEscalate(true, hinted, 'work_is_shown')).toBe(true);
-    expect(canEscalate(false, hinted, 'work_is_shown')).toBe(false);
-    expect(canEscalate(true, [], undefined)).toBe(false);
-    expect(canEscalate(true, [...hinted, turn(1, 'work_is_shown', 'prompt')], 'work_is_shown')).toBe(false);
+  it('no longer keeps a requirement at prompt', () => {
+    expect('levelFor' in feedback).toBe(false);
   });
 
-  it('keeps the last twenty turns, and never drops the turn that escalated a requirement', () => {
+  it('keeps the last twenty turns, an old prompt included in no special way', () => {
     const turns = [
       turn(1, 'work_is_shown', 'prompt'),
       ...Array.from({ length: 25 }, (_, i) => turn(i + 2, 'case_is_concrete'))
     ];
     const kept = keptTurns(turns);
-    expect(kept).toHaveLength(21);
-    expect(kept[0]).toEqual(turn(1, 'work_is_shown', 'prompt'));
+    expect(kept).toHaveLength(20);
+    expect(kept[0]).toEqual(turn(7, 'case_is_concrete'));
     expect(kept.at(-1)).toEqual(turn(26, 'case_is_concrete'));
-    expect(levelFor(kept, 'work_is_shown')).toBe('prompt');
     expect(keptTurns(turns.slice(0, 3))).toEqual(turns.slice(0, 3));
   });
 

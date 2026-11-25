@@ -25,8 +25,8 @@
 #
 #   Levels     The hint ladder (AutoTutor's dialogue moves): a `hint` points to where to
 #              look, a `prompt` asks for the one missing piece, and the assertion -- the
-#              answer -- is never given. A failed submit gets a hint; the student's
-#              "I'm stuck" escalates that requirement to a prompt, and it stays a prompt.
+#              answer -- is never given. A failed submit always gets a hint; the student's
+#              "I'm stuck" asks for a prompt on that submission.
 #              The caller works out the level; this document only answers to it.
 #
 #   system_prompt

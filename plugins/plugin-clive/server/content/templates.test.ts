@@ -16,16 +16,25 @@
  * entries with `stuck.yaml`. Dropping the public test cases from every prompt before
  * Implement (2026-11-23: phases problem_definition v19, case_design v17,
  * algorithm_design v15, criteria case_design v12, nudge v10) regenerated the
- * Problem, Cases and Design entries and `nudge_user` from this renderer.
+ * Problem, Cases and Design entries and `nudge_user` from this renderer. Implement's
+ * judge went on 2026-11-25 (AnimoRank's tests alone decide Implement), and its three
+ * entries with it.
  */
 import { describe, expect, it } from 'vitest';
 import { failingGates } from '../criteria';
 import { compareCase, cut, isPerStep } from '../steps';
 import { phaseDoc, rubricDoc } from './load';
-import { NUDGE_SYSTEM, renderNudgePrompt, renderPhasePrompt, type ProblemForPrompt } from './templates';
+import {
+  NUDGE_SYSTEM,
+  renderCodeNudgePrompt,
+  renderNudgePrompt,
+  renderPhasePrompt,
+  type ProblemForPrompt
+} from './templates';
 import golden from './prompts.golden.json';
 
-const PHASE_IDS = ['problem_definition', 'case_design', 'algorithm_design', 'implement'] as const;
+/** The phases a judge decides; Implement is decided by AnimoRank's tests. */
+const PHASE_IDS = ['problem_definition', 'case_design', 'algorithm_design'] as const;
 
 const PROBLEM: ProblemForPrompt = {
   slug: 'fixture',
@@ -66,8 +75,7 @@ const ARTIFACTS: Record<string, Record<string, unknown>> = {
       { text: 'Add each number up to n to the total.', level: 0 },
       { text: 'Print the total.', level: 0 }
     ]
-  },
-  implement: { code: 'int main(void) { return 0; }' }
+  }
 };
 
 const VERDICTS = [
@@ -129,7 +137,12 @@ describe('prompt parity with the Jinja2 originals', () => {
     for (const id of PHASE_IDS) {
       expect(phaseDoc(id).system_prompt, id).toBe(golden.phase_system[id as keyof typeof golden.phase_system]);
     }
-    expect(rubricDoc('implement').criteria.every((c) => c.gate === 'advisory')).toBe(true);
+  });
+
+  it('keeps no Implement judge prompt', () => {
+    for (const entries of [golden.phase_user, golden.phase_user_empty, golden.phase_system]) {
+      expect(Object.keys(entries)).toEqual([...PHASE_IDS]);
+    }
   });
 
   it('renders the nudge template byte-for-byte', () => {
@@ -195,16 +208,23 @@ describe('prompt parity with the Jinja2 originals', () => {
   });
 
   it('escapes non-ASCII the way Python’s json.dumps does', () => {
-    // Implement's judge is the one prompt that still lists the public tests.
-    const rendered = renderPhasePrompt(phaseDoc('implement'), {
-      problem: { ...PROBLEM, public_test_cases: [{ input: 'salamat, Juán', output: 'salamat, Juán' }] },
-      artifact: ARTIFACTS.implement,
-      criteria: rubricDoc('implement').criteria,
+    // Code feedback is the one prompt that lists example cases, with `tojson`.
+    const rendered = renderCodeNudgePrompt({
+      problem: PROBLEM,
+      code: 'int main(void) { return 0; }',
+      run: {
+        compiled: true,
+        compilerOutput: '',
+        cases: [{ input: 'salamat, Juán', expected: 'salamat, Juán', actual: '', passed: false }],
+        hiddenFailed: 0
+      },
+      priorArtifacts: [],
+      history: [],
       attempt: 1,
-      priorArtifacts: []
+      level: 'hint'
     });
     // `JSON.stringify` would keep the á; `json.dumps(ensure_ascii=True)` escapes it.
-    expect(rendered).toContain('- input: "salamat, Ju\\u00e1n" output: "salamat, Ju\\u00e1n"');
+    expect(rendered).toContain('input "salamat, Ju\\u00e1n", expected "salamat, Ju\\u00e1n"');
   });
 });
 
@@ -215,7 +235,7 @@ describe('public test cases', () => {
   // nudge could hand the student a test's input and output.
   const HEADING = /^PUBLIC TEST CASES$/m;
 
-  it('are left out of the Problem, Cases and Design judges, and shown to Implement’s', () => {
+  it('are left out of the Problem, Cases and Design judges', () => {
     for (const id of PHASE_IDS) {
       const phase = phaseDoc(id);
       const criteria = rubricDoc(id).criteria;
@@ -227,8 +247,7 @@ describe('public test cases', () => {
         attempt: 1,
         priorArtifacts: []
       });
-      if (id === 'implement') expect(rendered, id).toMatch(HEADING);
-      else expect(rendered, id).not.toMatch(HEADING);
+      expect(rendered, id).not.toMatch(HEADING);
     }
   });
 

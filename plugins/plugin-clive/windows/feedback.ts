@@ -6,9 +6,10 @@
  * submit passes. The full list of requirements is not put in front of a stepped
  * phase at all.
  *
- * The hint ladder's rules live here too: a requirement's level ({@link levelFor}),
- * when "I'm stuck" is offered ({@link canEscalate}), and which earlier nudges are
- * kept ({@link keptTurns}, {@link migrateTurns}).
+ * The hint ladder's rules live here too: when "I'm stuck" is offered
+ * ({@link canEscalate}), and which earlier nudges are kept ({@link keptTurns},
+ * {@link migrateTurns}). A failed submit always brings a hint, and "I'm stuck" a
+ * prompt for that submission; the server decides both.
  *
  * A port of the prototype's `fieldStates`, `startHere`, `renderFieldFeedback`
  * and question-tab marks (`clive-userflow/src/clive/studio/static/student.html`).
@@ -179,46 +180,21 @@ export function casePartFor(focusId: string | undefined): 'input' | 'output' | '
 }
 
 /**
- * The rung a requirement is on: `prompt` once any earlier turn on it was a prompt
- * (the student escalated it), `hint` otherwise. Levels never go down. The server
- * reads the level the same way (`server/nudge.ts`), from the turns the page sends.
+ * Whether "I'm stuck" is offered on this result: the last submit here failed, its
+ * hint has a requirement to go further on, and it has not been pressed for this
+ * submission yet. A new failed submit offers it again; there is never a second
+ * prompt for one submission, and never a button before a failed submit.
  */
-export function levelFor(turns: readonly NudgeTurn[], focusId: string | undefined): NudgeLevel {
-  return turns.some((t) => t.focus_id === focusId && t.level === 'prompt') ? 'prompt' : 'hint';
-}
-
-/**
- * Whether "I'm stuck" is offered: the last submit here failed with a nudge, and its
- * requirement is still at hint. There is no rung above prompt, so it is never
- * offered there, and never before a failed submit.
- */
-export function canEscalate(
-  lastSubmitFailed: boolean,
-  turns: readonly NudgeTurn[],
-  focusId: string | undefined
-): boolean {
-  return lastSubmitFailed && !!focusId && levelFor(turns, focusId) === 'hint';
+export function canEscalate(result: JudgeResult | null | undefined): boolean {
+  return !!result && !result.passed && !!result.nudge?.focus_id && !result.escalation;
 }
 
 /** How many of the latest turns a phase (or step) keeps. */
 const TURNS_KEPT = 20;
 
-/**
- * The turns worth keeping: the last {@link TURNS_KEPT}, and before them the first
- * prompt on any requirement that would otherwise lose it, so an escalation never
- * falls off the end and a requirement never drops back to hint.
- */
+/** The turns worth keeping: the last {@link TURNS_KEPT}, hints and prompts alike. */
 export function keptTurns(turns: readonly NudgeTurn[]): NudgeTurn[] {
-  if (turns.length <= TURNS_KEPT) return [...turns];
-  const recent = turns.slice(-TURNS_KEPT);
-  const older = turns.slice(0, -TURNS_KEPT);
-  const escalations = older.filter(
-    (t, i) =>
-      t.level === 'prompt' &&
-      older.findIndex((u) => u.level === 'prompt' && u.focus_id === t.focus_id) === i &&
-      !recent.some((u) => u.level === 'prompt' && u.focus_id === t.focus_id)
-  );
-  return [...escalations, ...recent];
+  return turns.slice(-TURNS_KEPT);
 }
 
 /**

@@ -190,13 +190,24 @@ export interface CodeRunForPrompt {
   hiddenFailed: number;
 }
 
+/** One earlier reply about the code, at the level it came at. */
+export interface CodeHistoryTurn {
+  level: NudgeLevel;
+  situation: string;
+  focus: string;
+  nudge: string;
+}
+
 export function renderCodeNudgePrompt(context: {
   problem: ProblemForPrompt;
   code: string;
   run: CodeRunForPrompt;
   priorArtifacts: PriorArtifact[];
-  history: { situation: string; focus: string; nudge: string }[];
+  history: CodeHistoryTurn[];
   attempt: number;
+  level: NudgeLevel;
+  /** For a prompt: the situation and place its hint settled on. */
+  fixed?: { situation: string; focus: string };
 }): string {
   return render(NUDGE_CODE_DOC.user_template, {
     problem: problemForTemplate(context.problem),
@@ -205,6 +216,9 @@ export function renderCodeNudgePrompt(context: {
     prior_artifacts: priorForTemplate(context.priorArtifacts),
     // `undefined`, never `[]`: nunjucks treats an empty array as truthy.
     history: context.history.length ? context.history : undefined,
-    attempt: context.attempt
+    attempt: context.attempt,
+    level: context.level,
+    situation: context.fixed?.situation ?? '',
+    focus: context.fixed?.focus ?? ''
   });
 }

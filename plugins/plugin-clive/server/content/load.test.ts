@@ -6,7 +6,7 @@ import * as load from './load';
 import { NUDGE_CODE_DOC, NUDGE_DOC, JUDGE_JSON_SCHEMA, phaseDoc, rubricDoc } from './load';
 
 describe('CLive content loading', () => {
-  it('reads the four phase documents with their authored shape', () => {
+  it('reads the three judged phase documents with their authored shape', () => {
     expect(phaseDoc('case_design').judge).toBe('per_step');
     expect(phaseDoc('case_design').layout).toBe('steps');
     expect(phaseDoc('case_design').artifact_fields.map((f) => f.id)).toEqual([
@@ -22,17 +22,15 @@ describe('CLive content loading', () => {
         .map((f) => f.id)
     ).toEqual(['case_3', 'case_4', 'case_5']);
     expect(phaseDoc('problem_definition').gate).toBe('criteria');
-    expect(phaseDoc('implement').gate).toBe('tests');
-    expect(phaseDoc('implement').artifact_fields.map((f) => f.kind)).toEqual(['code']);
     expect(phaseDoc('algorithm_design').artifact_fields.map((f) => f.kind)).toEqual(['steps']);
   });
 
-  it('reads the four rubrics, defaulting an omitted gate to gating', () => {
-    const implement = rubricDoc('implement');
-    expect(implement.criteria).toHaveLength(4);
-    expect(implement.criteria.every((c) => c.gate === 'advisory')).toBe(true);
-    expect(implement.criteria.every((c) => c.fields === undefined)).toBe(true);
+  it('has no Implement judge: AnimoRank’s tests alone decide Implement', () => {
+    expect(() => phaseDoc('implement')).toThrow(/Unknown CLive phase/);
+    expect(() => rubricDoc('implement')).toThrow(/Unknown CLive phase/);
+  });
 
+  it('reads the three rubrics, defaulting an omitted gate to gating', () => {
     const cases = rubricDoc('case_design');
     expect(cases.criteria).toHaveLength(4);
     expect(cases.criteria.find((c) => c.id === 'outputs_are_correct')?.check).toBe('reference');
@@ -55,6 +53,17 @@ describe('CLive content loading', () => {
     expect(NUDGE_DOC.user_template).not.toContain('PUBLIC TEST CASES');
     expect(NUDGE_DOC.system_prompt).toContain('## Levels');
     expect(NUDGE_DOC.system_prompt).not.toContain('Decide the situation first');
+  });
+
+  it('reads the code nudge at v8: two levels, the five situations, a fixed situation for a prompt', () => {
+    expect(NUDGE_CODE_DOC.version).toBe(8);
+    expect(NUDGE_CODE_DOC.system_prompt).toContain('## Levels');
+    for (const id of ['syntax_following_plan', 'departs_from_plan', 'plan_is_wrong', 'far_from_plan', 'other']) {
+      expect(NUDGE_CODE_DOC.system_prompt, id).toContain(`\`${id}\``);
+    }
+    expect(NUDGE_CODE_DOC.system_prompt).toContain("does one of the plan's steps differently from what it says");
+    expect(NUDGE_CODE_DOC.user_template).toContain('LEVEL');
+    expect(NUDGE_CODE_DOC.user_template).toContain('SITUATION');
   });
 
   it('has no stuck document: the hint ladder replaced it', () => {

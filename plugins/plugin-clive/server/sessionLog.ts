@@ -14,8 +14,10 @@
  * session-logs page is the one reader
  * (`plugins/plugin-clive/windows/CLiveLogs.window.svelte`), and it shows them to
  * instructors; anything that reads these rows into a student-facing page must
- * leave these fields out. The one server reader is {@link latestSubmitRecord},
- * which an escalation builds from, and it hands the page none of them.
+ * leave these fields out. The server's own readers are {@link latestSubmitRecord} and
+ * {@link latestCodeFeedbackRecord}, which escalations build from, and
+ * {@link submissionEscalated}, which allows one escalation per submission; none of
+ * them hands the page any of these fields.
  */
 import { randomUUID } from 'node:crypto';
 import type { JsonValue } from '@zenstackhq/orm';
@@ -28,7 +30,7 @@ import type { LlmCall } from './llmCalls';
 /** The entry types the server writes. The page writes the rest (`CLIVE_PROBLEM_LOAD`, `CLIVE_PHASE_OPEN`, …). */
 export const SESSION_LOG_TYPES = {
   submit: 'CLIVE_SUBMIT',
-  /** "I'm stuck" on a failed submit: the nudge's requirement raised to a prompt. */
+  /** "I'm stuck": a failed submit's requirement, or a failed run's situation (`phase_id: 'implement'`), as a prompt. */
   escalate: 'CLIVE_ESCALATE',
   /** No longer written (the hint ladder replaced the stuck ask); sessions recorded before it still hold these. */
   stuck: 'CLIVE_STUCK',
@@ -149,6 +151,97 @@ export async function latestSubmitRecord(
     if (data && data.phase_id === phaseId && (data.step ?? null) === step) return data;
   }
   return null;
+}
+
+/**
+ * Whether the newest `CLIVE_SUBMIT` for `phaseId` and `step` was already escalated:
+ * a `CLIVE_ESCALATE` on the same phase, step and attempt, written after it. "I'm
+ * stuck" gives one prompt per submission; a later submission may be escalated again.
+ */
+export async function submissionEscalated(
+  sessionId: string,
+  phaseId: string,
+  step: string | null,
+  attempt: number
+): Promise<boolean> {
+  const rows = await db.sessionHistoryEntry.findMany({
+    where: {
+      practice_session_id: sessionId,
+      type: { in: [SESSION_LOG_TYPES.submit, SESSION_LOG_TYPES.escalate] }
+    },
+    orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+    select: { type: true, data: true }
+  });
+  for (const row of rows) {
+    const data = row.data as Record<string, unknown> | null;
+    if (!data || data.phase_id !== phaseId || (data.step ?? null) !== step) continue;
+    // Reached the submission itself: nothing after it escalated it.
+    if (row.type === SESSION_LOG_TYPES.submit) return false;
+    if (data.attempt === attempt) return true;
+  }
+  return false;
+}
+
+/** AnimoRank's own record of each Run and Submit (`src/lib/telemetry/hooks/execution.ts`), stamped by the page. */
+const RUN_ATTEMPT = 'RUN_ATTEMPT';
+
+/** The newest code feedback, and what has happened to the run it answered since. */
+export interface CodeFeedbackStanding {
+  /** The newest `CLIVE_CODE_FEEDBACK` record: the code, the run, and the hint it gave. */
+  record: Record<string, unknown>;
+  /** Whether an Implement `CLIVE_ESCALATE` on the same attempt was written after it. */
+  escalated: boolean;
+  /** Whether a Run or Submit after the one it answered passed every test. */
+  passedSince: boolean;
+}
+
+/**
+ * The newest `CLIVE_CODE_FEEDBACK` this practice session holds, or null when it holds
+ * none: what "I'm stuck" in Implement builds its prompt from, never from code or
+ * results the page sends.
+ *
+ * Whether a later run passed is read from AnimoRank's `RUN_ATTEMPT` entries, which
+ * the page stamps with its own clock. So they are ordered among themselves, never
+ * against the server's records: newest first, a run that passed every test counts
+ * when it comes before the failing run whose code the feedback was about. A history
+ * that does not hold that run yet counts nothing as passed.
+ */
+export async function latestCodeFeedbackRecord(sessionId: string): Promise<CodeFeedbackStanding | null> {
+  const [newest] = await db.sessionHistoryEntry.findMany({
+    where: { practice_session_id: sessionId, type: SESSION_LOG_TYPES.codeFeedback },
+    orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+    take: 1,
+    select: { data: true, timestamp: true }
+  });
+  const record = newest?.data as Record<string, unknown> | null | undefined;
+  if (!newest || !record) return null;
+
+  const escalations = await db.sessionHistoryEntry.findMany({
+    where: { practice_session_id: sessionId, type: SESSION_LOG_TYPES.escalate, timestamp: { gt: newest.timestamp } },
+    select: { data: true }
+  });
+  const escalated = escalations.some((row) => {
+    const data = row.data as Record<string, unknown> | null;
+    return data?.phase_id === 'implement' && data.attempt === record.attempt;
+  });
+
+  const runs = await db.sessionHistoryEntry.findMany({
+    where: { practice_session_id: sessionId, type: RUN_ATTEMPT },
+    orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+    select: { data: true }
+  });
+  let passed = false;
+  for (const row of runs) {
+    const run = (row.data ?? {}) as { runType?: unknown; submittedCode?: unknown; generalTestResults?: unknown };
+    const results = Array.isArray(run.generalTestResults) ? run.generalTestResults : [];
+    const allPassed = results.length > 0 && results.every((r) => r === true);
+    if (allPassed) {
+      passed = true;
+    } else if (run.submittedCode === record.code && run.runType === record.run_type) {
+      return { record, escalated, passedSince: passed };
+    }
+  }
+  return { record, escalated, passedSince: false };
 }
 
 /** Write `entries` into the practice session's history, in one statement. */

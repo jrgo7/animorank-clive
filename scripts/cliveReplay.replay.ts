@@ -12,7 +12,8 @@
  *   or submit has the situations it may be read as, and a full run fails when more than
  *   `allowed_misses` of them come out otherwise. Raise `allowed_misses` only for a
  *   disagreement you have read and accept; the model is not deterministic, so run it
- *   twice before trusting a new baseline.
+ *   twice before trusting a new baseline. Each run is answered at both levels too: its
+ *   hint, then the prompt "I'm stuck" would bring, on the hint's situation and place.
  *
  *   npx vitest run --config vitest.replay.config.ts
  *   REPLAY_ONLY=avril-cases REPLAY_DRY=1 REPLAY_OUT=/tmp/replay.md npx vitest run --config vitest.replay.config.ts
@@ -36,7 +37,7 @@ import type { HistoryTurn, NudgeLevel } from '../plugins/plugin-clive/server/con
 import { failingGates } from '../plugins/plugin-clive/server/criteria';
 import { judgeWithChecks } from '../plugins/plugin-clive/server/referenceCheck';
 import { nudge, pickFocus } from '../plugins/plugin-clive/server/nudge';
-import { codeNudge, type CodeRun } from '../plugins/plugin-clive/server/codeNudge';
+import { codeNudge, type CodeFeedbackTurn, type CodeRun } from '../plugins/plugin-clive/server/codeNudge';
 import { compareCase, cut, isPerStep } from '../plugins/plugin-clive/server/steps';
 import { loadCLiveProblem } from '../plugins/plugin-clive/server/problem';
 import { toCodeRun } from '../plugins/plugin-clive/windows/codeFeedback';
@@ -321,7 +322,8 @@ it('replays past submissions through the current prompts', async () => {
     lines.push(`## ${spec.tag} (${selected.length} items)`, '');
     /** Earlier nudges in this case, one history per level, as a student kept at that level would have them. */
     const judgedHistory: Record<NudgeLevel, HistoryTurn[]> = { hint: [], prompt: [] };
-    const codeHistory: { situation: string; focus: string; nudge: string }[] = [];
+    /** Earlier hints about the code, as a student who never pressed "I'm stuck" would have them. */
+    const codeHistory: CodeFeedbackTurn[] = [];
 
     for (const [index, e] of selected.entries()) {
       const prior = priorFor(events, e.phase, e.ts, isPort ? '' : (spec.problem ?? ''));
@@ -345,10 +347,31 @@ it('replays past submissions through the current prompts', async () => {
       const t0 = performance.now();
       try {
         if (e.kind === 'run' || e.phase === 'implement') {
-          const r = await codeNudge(problem, e.code, e.run as CodeRun, prior, codeHistory.slice(-5), index + 1);
-          situation = r.situation;
-          replies.push({ label: 'code feedback', text: r.nudge });
-          codeHistory.push({ situation: r.situation, focus: r.focus, nudge: r.nudge });
+          // A failed run's hint, then the prompt "I'm stuck" under it would bring.
+          const asked = { problem, code: e.code, run: e.run as CodeRun, priorArtifacts: prior, attempt: index + 1 };
+          const hint = await codeNudge({ ...asked, history: codeHistory.slice(-5), level: 'hint' });
+          const hintTurn: CodeFeedbackTurn = {
+            level: 'hint',
+            situation: hint.situation,
+            focus: hint.focus,
+            nudge: hint.nudge
+          };
+          const prompt = await codeNudge({
+            ...asked,
+            history: [...codeHistory, hintTurn].slice(-5),
+            level: 'prompt',
+            fixed: { situation: hint.situation, focus: hint.focus }
+          });
+          situation = hint.situation;
+          for (const r of [hint, prompt]) {
+            const leak = r.leak_blocked
+              ? ' — held back by the leak check'
+              : r.leaks.length
+                ? ' — asked again after a leak'
+                : '';
+            replies.push({ label: `${r.level}${leak}`, text: r.nudge });
+          }
+          codeHistory.push(hintTurn);
         } else {
           const whole = phaseDoc(e.phase);
           const rubric = rubricDoc(e.phase).criteria;

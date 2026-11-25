@@ -1,7 +1,12 @@
 /**
  * The plugin's HTTP surface: `POST /submit`, `POST /escalate`, `POST /code-feedback`,
- * `POST /log-check` and `GET /boot`, served under `/plugin-api/clive` (the plugin's
- * id; see `src/lib/server/index.ts`).
+ * `POST /code-feedback/escalate`, `POST /log-check` and `GET /boot`, served under
+ * `/plugin-api/clive` (the plugin's id; see `src/lib/server/index.ts`).
+ *
+ * `/submit` judges Problem, Cases and Design. Implement has no judge: AnimoRank's own
+ * tests decide it, and a failed Run or Submit there is answered by `/code-feedback`
+ * with a hint, and by `/code-feedback/escalate` ("I'm stuck") with a prompt on the
+ * same situation and place, built from the server's own record of that run.
  *
  * `/submit` is the counterpart of the prototype's `/api/student/submit` in
  * `clive-userflow/src/clive/studio/student.py`. The rubric reaches the browser
@@ -9,11 +14,11 @@
  * the reference's own output) is never put in a response, and a nudge's reason —
  * which often names the answer — goes to the session log instead.
  *
- * The hint ladder: a failed `/submit` answers with a nudge on the first failing
- * gate in rubric order, at the level its history says (`hint` until the student
- * escalates that requirement, `prompt` after). `/escalate` is the "I'm stuck"
- * button: it raises the last failed submit's requirement to a prompt, built from
- * the server's own record of that submit, never from verdicts the page sends.
+ * The hint ladder: a failed `/submit` always answers with a hint on the first
+ * failing gate in rubric order. `/escalate` is the "I'm stuck" button: a prompt on
+ * that requirement for the last failed submit, once per submission, built from the
+ * server's own record of that submit, never from verdicts the page sends. The model
+ * is shown the earlier hints and prompts on the requirement either way.
  *
  * Each submit and escalation is recorded in the practice session's history, as
  * the prototype's `_logged` recorded it in the participant's file: one entry per
@@ -28,24 +33,26 @@ import { JudgeError } from './content/errors';
 import { phaseDoc, rubricDoc, type CriterionDoc, type PhaseDoc } from './content/load';
 import type { HistoryTurn, ProblemForPrompt } from './content/templates';
 import { failingGates, type FailingCriterion } from './criteria';
-import { judge, type JudgeOutcome, type Verdict } from './judge';
+import type { Verdict } from './judge';
 import { liveTable } from './live';
 import { captureLlmCalls } from './llmCalls';
-import { codeNudge } from './codeNudge';
+import { codeNudge, type CodeFeedback } from './codeNudge';
 import { eventsAfter, watching } from './liveFeed';
 import { livePage } from './livePage';
-import { levelFor, nudge, pickFocus, type NudgeLevel, type NudgeOutcome } from './nudge';
+import { nudge, pickFocus, type NudgeLevel, type NudgeOutcome } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
 import { judgeWithChecks, type CheckResult } from './referenceCheck';
 import {
   checkSessionLog,
+  latestCodeFeedbackRecord,
   latestSubmitRecord,
   ownsAnyPracticeSession,
   ownsPracticeSession,
   requestEntries,
   SESSION_LOG_TYPES,
   startNextSession,
+  submissionEscalated,
   tagParticipant,
   writeSessionLog,
   type RequestKind,
@@ -88,8 +95,7 @@ const submitSchema = z.object({
   attempt: z.number().int().positive().default(1),
   priorArtifacts: priorArtifactsSchema.default([]),
   step: z.string().optional(),
-  code: z.string().optional(),
-  /** Every earlier nudge in this phase (or step): the level is read from all of them, the model sees a few. */
+  /** Every earlier nudge in this phase (or step), hints and prompts: the model sees the last few on its requirement. */
   history: historySchema
 });
 
@@ -112,6 +118,33 @@ const escalateSchema = z.object({
 /** The most earlier replies a feedback call is shown: enough to notice a repeat. */
 const HISTORY_KEPT = 5;
 
+/**
+ * Earlier replies about the code, oldest first, hints and prompts. A reply saved
+ * before Implement joined the hint ladder has no level, and reads as a hint.
+ */
+const codeHistorySchema = z
+  .array(
+    z.object({
+      level: z.enum(['hint', 'prompt']).default('hint'),
+      situation: z.string(),
+      focus: z.string(),
+      nudge: z.string()
+    })
+  )
+  .max(50)
+  .default([]);
+
+// Public cases only: there is no field a hidden case's input or output could arrive in.
+const codeRunSchema = z.object({
+  compiled: z.boolean(),
+  compilerOutput: z.string().max(20000).default(''),
+  cases: z
+    .array(z.object({ input: z.string(), expected: z.string(), actual: z.string(), passed: z.boolean() }))
+    .max(50)
+    .default([]),
+  hiddenFailed: z.number().int().min(0).default(0)
+});
+
 const codeFeedbackSchema = z.object({
   /** The practice session the request is recorded in; it must be the caller's. */
   sessionId: z.uuid(),
@@ -120,20 +153,23 @@ const codeFeedbackSchema = z.object({
   runType: z.enum(['run', 'submit']),
   attempt: z.number().int().positive().default(1),
   priorArtifacts: priorArtifactsSchema.default([]),
-  history: z
-    .array(z.object({ situation: z.string(), focus: z.string(), nudge: z.string() }))
-    .max(50)
-    .default([]),
-  // Public cases only: there is no field a hidden case's input or output could arrive in.
-  run: z.object({
-    compiled: z.boolean(),
-    compilerOutput: z.string().max(20000).default(''),
-    cases: z
-      .array(z.object({ input: z.string(), expected: z.string(), actual: z.string(), passed: z.boolean() }))
-      .max(50)
-      .default([]),
-    hiddenFailed: z.number().int().min(0).default(0)
-  })
+  history: codeHistorySchema,
+  run: codeRunSchema
+});
+
+/**
+ * "I'm stuck" under a failed run's hint. No code and no results: the server reads
+ * both, and the hint, from its own record of that run, and drops anything else the
+ * page sends unread.
+ */
+const codeEscalateSchema = z.object({
+  /** The practice session the request is recorded in; it must be the caller's. */
+  sessionId: z.uuid(),
+  problemId: z.string(),
+  /** The run whose reply is escalated, as the page numbers it: for an error record only. */
+  attempt: z.number().int().positive().default(1),
+  priorArtifacts: priorArtifactsSchema.default([]),
+  history: codeHistorySchema
 });
 
 /** The live reasoning window reads the model's thinking: only from the machine the app runs on. */
@@ -210,9 +246,10 @@ function recordedNudge(n: NudgeOutcome, applied: CriterionDoc[]) {
 }
 
 /**
- * Where a failed submit stands on the ladder: its focus (the first failing gate in
- * rubric order), every failing gate, the focus's level read from the whole history,
- * and the few turns on that focus the model is shown. Null when nothing gating failed.
+ * What a nudge on a failed submit is about: its focus (the first failing gate in
+ * rubric order), every failing gate, and the few earlier turns on that focus the
+ * model is shown, hints and prompts alike, so it does not repeat them. Null when
+ * nothing gating failed. The level is the caller's: a submit hints, "I'm stuck" prompts.
  */
 function ladderFor(applied: CriterionDoc[], verdicts: Verdict[], history: HistoryTurn[]) {
   const focus = pickFocus(applied, verdicts);
@@ -220,8 +257,6 @@ function ladderFor(applied: CriterionDoc[], verdicts: Verdict[], history: Histor
   return {
     focus,
     failing: failingGates(applied, verdicts),
-    // From every turn, before the window below: an escalation must never fall out of it.
-    level: levelFor(history, focus.id),
     turns: history.filter((t) => t.focus_id === focus.id).slice(-HISTORY_KEPT)
   };
 }
@@ -279,20 +314,6 @@ export function toResponseVerdicts(verdicts: Verdict[], criteria: CriterionDoc[]
 }
 
 /**
- * The student's work a submit is about: for Implement the code from AnimoRank's
- * editor, sent beside the artifact (the artifact's own copy can be stale, or never
- * filled in), the artifact otherwise.
- */
-function studentWork(body: {
-  phase: string;
-  artifact: Record<string, unknown>;
-  code?: string;
-}): Record<string, unknown> {
-  if (body.phase !== 'implement') return body.artifact;
-  return { code: body.code ?? (typeof body.artifact.code === 'string' ? body.artifact.code : '') };
-}
-
-/**
  * Judge one submission. Returns the page's response and, beside it, the record
  * the session log keeps: the same response with each verdict's evidence, plus
  * the work judged and the reference check, none of which the page receives.
@@ -307,15 +328,9 @@ async function submit(
   let criteria = rubricDoc(body.phase).criteria;
   let artifact: Record<string, unknown> = body.artifact;
   let phaseForJudge = phase;
-  let referenceCheck: CheckResult | null = null;
   let caseOne: CaseRow | undefined;
 
-  if (phase.phase === 'implement') {
-    // The compiler gate is AnimoRank's own Submit flow; by the time the client
-    // enables this button the code already passes, so the judge only reviews it
-    // against the plan, and every Implement criterion is advisory.
-    artifact = studentWork(body);
-  } else if (isPerStep(phase)) {
+  if (isPerStep(phase)) {
     if (!body.step) {
       throw new JudgeError(`Phase '${phase.phase}' is judged one step at a time; a step is required.`);
     }
@@ -327,27 +342,19 @@ async function submit(
     criteria = cutPhase.criteria;
   }
 
-  let outcome: JudgeOutcome;
-  let applied: CriterionDoc[];
-  if (phase.phase === 'implement') {
-    outcome = await judge(phaseForJudge, problem, artifact, criteria, body.attempt, body.priorArtifacts);
-    applied = criteria;
-  } else {
-    const withChecks = await judgeWithChecks(
-      phaseForJudge,
-      problem,
-      artifact,
-      criteria,
-      body.attempt,
-      body.priorArtifacts,
-      undefined,
-      undefined,
-      caseOne
-    );
-    outcome = withChecks;
-    applied = withChecks.criteria;
-    referenceCheck = withChecks.referenceCheck;
-  }
+  const outcome = await judgeWithChecks(
+    phaseForJudge,
+    problem,
+    artifact,
+    criteria,
+    body.attempt,
+    body.priorArtifacts,
+    undefined,
+    undefined,
+    caseOne
+  );
+  const applied = outcome.criteria;
+  const referenceCheck = outcome.referenceCheck;
 
   const verdicts = toResponseVerdicts(outcome.verdicts, applied);
   const blocking = verdicts.filter((v) => v.verdict === 'FAIL' && v.gate !== 'advisory');
@@ -367,7 +374,7 @@ async function submit(
     // that fails is reported beside verdicts that stand on their own.
     try {
       const asJudged = { phase: phaseForJudge, problem, artifact, applied, verdicts: outcome.verdicts, referenceCheck };
-      const n = await nudgeFor(asJudged, ladder, ladder.level, body.attempt, body.priorArtifacts);
+      const n = await nudgeFor(asJudged, ladder, 'hint', body.attempt, body.priorArtifacts);
       response.nudge = pageNudge(n, applied);
       recorded = recordedNudge(n, applied);
     } catch (error) {
@@ -382,7 +389,7 @@ async function submit(
     problem_id: body.problemId,
     attempt: body.attempt,
     step: body.step ?? null,
-    artifact: studentWork(body),
+    artifact: body.artifact,
     reference_check: referenceCheck,
     response: {
       ...response,
@@ -421,11 +428,107 @@ function recordedVerdicts(record: Record<string, unknown>): (Verdict & { gate?: 
   }));
 }
 
+/** A reply about the code as the page receives it, at either level: no leak detail. */
+interface PageCodeFeedback {
+  level: NudgeLevel;
+  situation: string;
+  summary: string;
+  focus: string;
+  nudge: string;
+}
+
+function pageCodeFeedback(feedback: CodeFeedback): PageCodeFeedback {
+  const { level, situation, summary, focus, nudge } = feedback;
+  return { level, situation, summary, focus, nudge };
+}
+
+/**
+ * The prompt for the newest code feedback's run, built from the server's own record
+ * of it: its code, its run and its hint, with the hint's situation and place fixed.
+ * Throws {@link Conflict} when there is no feedback to go further from, it was already
+ * escalated (one prompt per run), or a later Run or Submit has passed every test.
+ */
+async function escalateCode(
+  body: z.infer<typeof codeEscalateSchema>
+): Promise<{ response: PageCodeFeedback; record: Record<string, unknown> }> {
+  const standing = await latestCodeFeedbackRecord(body.sessionId);
+  if (!standing) throw new Conflict('There is no feedback on your code to get more help on. Run your code first.');
+  if (standing.escalated) {
+    throw new Conflict(
+      'You already have the more specific help for this run. Change your code and run it again for a new hint.'
+    );
+  }
+  if (standing.passedSince) {
+    throw new Conflict('Your code has passed since that feedback, so there is nothing to get more help on.');
+  }
+  const { record } = standing;
+  const run = codeRunSchema.safeParse(record.run);
+  if (!run.success) throw new Conflict('The run that feedback was about could not be read. Run your code again.');
+
+  const hint = (record.response ?? {}) as Record<string, unknown>;
+  const situation = typeof hint.situation === 'string' ? hint.situation : 'other';
+  const focus = typeof hint.focus === 'string' ? hint.focus : '';
+  const hintTurn = {
+    level: 'hint' as const,
+    situation,
+    focus,
+    nudge: typeof hint.nudge === 'string' ? hint.nudge : ''
+  };
+  // The page's earlier turns, then the recorded hint this prompt goes further from, once.
+  const earlier = body.history.filter((t) => !(t.level === 'hint' && t.nudge === hintTurn.nudge));
+  const history = [...earlier, hintTurn].slice(-HISTORY_KEPT);
+  const attempt = typeof record.attempt === 'number' ? record.attempt : body.attempt;
+
+  const feedback = await codeNudge({
+    problem: await loadCLiveProblem(body.problemId),
+    code: typeof record.code === 'string' ? record.code : '',
+    run: run.data,
+    priorArtifacts: body.priorArtifacts,
+    history,
+    attempt,
+    level: 'prompt',
+    fixed: { situation, focus }
+  });
+  return {
+    response: pageCodeFeedback(feedback),
+    record: {
+      phase_id: 'implement',
+      problem_id: body.problemId,
+      step: null,
+      attempt,
+      run_type: record.run_type ?? null,
+      level: feedback.level,
+      situation,
+      focus,
+      history,
+      response: feedback
+    }
+  };
+}
+
+/**
+ * Whether this submission (phase, step and attempt) was already escalated. The
+ * server's own records decide; the history the page sends is read only when they
+ * cannot be, where an escalation is a prompt turn on the same attempt.
+ */
+async function alreadyEscalated(
+  body: z.infer<typeof escalateSchema>,
+  step: string | null,
+  attempt: number
+): Promise<boolean> {
+  try {
+    return await submissionEscalated(body.sessionId, body.phase, step, attempt);
+  } catch {
+    return body.history.some((t) => t.attempt === attempt && t.level === 'prompt');
+  }
+}
+
 /**
  * The prompt for the last failed submit's requirement, built from the server's own
  * record of that submit: its work, its verdicts and its reference check, with the
  * phase cut to its step as it was judged. Throws {@link Conflict} when there is no
- * failed submit to escalate, or its requirement is already at prompt.
+ * failed submit to escalate, or that submission was already escalated: one prompt
+ * per submission, and a later submission may be escalated again.
  */
 async function escalate(
   body: z.infer<typeof escalateSchema>
@@ -460,9 +563,13 @@ async function escalate(
 
   const ladder = ladderFor(applied, verdicts, body.history);
   if (!ladder) throw new Conflict('Your last submission here has nothing left to fix.');
-  if (ladder.level === 'prompt') throw new Conflict('You already have the most specific help for this one.');
 
   const attempt = typeof record.attempt === 'number' ? record.attempt : body.attempt;
+  if (await alreadyEscalated(body, step, attempt)) {
+    throw new Conflict(
+      'You already have the more specific help for this submission. Change your work and submit again for a new hint.'
+    );
+  }
   const judged = {
     phase: phaseForJudge,
     problem,
@@ -608,6 +715,14 @@ class CLiveAPI extends ServerAPI {
         const parsed = submitSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
         const body = parsed.data;
+        // AnimoRank's tests alone decide Implement: there is no judge for it.
+        if (body.phase === 'implement') {
+          return sendError(
+            reply,
+            'Implement is not checked here: Run and Submit in the Code Editor window decide it.',
+            400
+          );
+        }
         try {
           const refused = await refusal(request, body);
           if (refused) return sendError(reply, refused.message, refused.code);
@@ -622,7 +737,7 @@ class CLiveAPI extends ServerAPI {
             problem_id: body.problemId,
             attempt: body.attempt,
             step: body.step ?? null,
-            artifact: studentWork(body)
+            artifact: body.artifact
           };
           await keep(
             request,
@@ -640,8 +755,8 @@ class CLiveAPI extends ServerAPI {
         return reply.send(response);
       });
 
-      // After a Run or Submit that did not pass: which situation the student is in,
-      // and one thing to do next. The page asks for it on its own.
+      // After a Run or Submit that did not pass: which situation the student is in, and
+      // where to look, as a hint. The page asks for it on its own.
       app.post('/code-feedback', async (request, reply) => {
         const parsed = codeFeedbackSchema.safeParse(request.body);
         if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
@@ -662,14 +777,15 @@ class CLiveAPI extends ServerAPI {
         };
         const { calls, result } = await captureLlmCalls(async () =>
           watching(body.sessionId, async () =>
-            codeNudge(
-              await loadCLiveProblem(body.problemId),
-              body.code,
-              body.run,
-              body.priorArtifacts,
-              body.history.slice(-HISTORY_KEPT),
-              body.attempt
-            )
+            codeNudge({
+              problem: await loadCLiveProblem(body.problemId),
+              code: body.code,
+              run: body.run,
+              priorArtifacts: body.priorArtifacts,
+              history: body.history.slice(-HISTORY_KEPT),
+              attempt: body.attempt,
+              level: 'hint'
+            })
           )
         );
         if (!result.ok) {
@@ -680,15 +796,55 @@ class CLiveAPI extends ServerAPI {
           );
           return handle(reply, result.error);
         }
+        // The leak check's findings go to the session log, never to the page.
         await keep(
           request,
           body.sessionId,
           requestEntries('code-feedback', calls, {
             type: SESSION_LOG_TYPES.codeFeedback,
-            data: { ...asked, response: result.value }
+            data: { ...asked, level: result.value.level, response: result.value }
           })
         );
-        return reply.send(result.value);
+        return reply.send(pageCodeFeedback(result.value));
+      });
+
+      // "I'm stuck" under a failed run's hint: the same situation and place, as a prompt.
+      app.post('/code-feedback/escalate', async (request, reply) => {
+        const parsed = codeEscalateSchema.safeParse(request.body);
+        if (!parsed.success) return sendError(reply, 'Could not read the request.', 400);
+        const body = parsed.data;
+        try {
+          const refused = await refusal(request, body);
+          if (refused) return sendError(reply, refused.message, refused.code);
+        } catch (error) {
+          return handle(reply, error);
+        }
+
+        const { calls, result } = await captureLlmCalls(() => watching(body.sessionId, () => escalateCode(body)));
+        if (!result.ok) {
+          // A refusal is the page asking at the wrong moment, not a failed request: nothing to record.
+          if (result.error instanceof Conflict) return sendError(reply, result.error.message, 409);
+          const asked = {
+            phase_id: 'implement',
+            problem_id: body.problemId,
+            step: null,
+            attempt: body.attempt,
+            history: body.history
+          };
+          await keep(
+            request,
+            body.sessionId,
+            requestEntries('escalate', calls, errorRecord('escalate', asked, result.error))
+          );
+          return handle(reply, result.error);
+        }
+        const { response, record } = result.value;
+        await keep(
+          request,
+          body.sessionId,
+          requestEntries('escalate', calls, { type: SESSION_LOG_TYPES.escalate, data: record })
+        );
+        return reply.send(response);
       });
 
       // "I'm stuck" on a failed submit: the same requirement, one rung up, as a prompt.

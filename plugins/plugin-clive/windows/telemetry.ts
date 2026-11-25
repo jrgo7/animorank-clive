@@ -9,8 +9,13 @@
  * (see `../server/sessionLog.ts`): `CLIVE_SUBMIT` (the work judged, the
  * reference check, every verdict with its evidence, the nudge with its level and
  * reason), `CLIVE_ESCALATE` ("I'm stuck" on a failed submit: the requirement, its
- * prompt, the reason and the leak check), `CLIVE_LLM_CALL` (one per model call)
- * and `CLIVE_ERROR` (a submit or escalation that failed). Sessions recorded before
+ * prompt, the reason and the leak check; in Implement, `phase_id: 'implement'` with
+ * the run's situation, focus and prompt), `CLIVE_CODE_FEEDBACK` (a failed Run or
+ * Submit's hint: the code, the run, the situation, the level and the leak check),
+ * `CLIVE_LLM_CALL` (one per model call) and `CLIVE_ERROR` (a request that failed).
+ * Sessions recorded before Implement joined the hint ladder hold Implement
+ * `CLIVE_SUBMIT`s from "Check against your plan", and code feedback with no level.
+ * Sessions recorded before
  * the hint ladder also hold `CLIVE_STUCK` (an ask, its diagnosis and the reply),
  * which is no longer written. `CLIVE_LOG_CHECK` is
  * written by the server too: one entry with a fresh nonce, read back to prove
@@ -48,6 +53,10 @@
  *   student put back the version that last passed; `step` is the case's field id
  *   in Cases, `null` in Problem and Design, which go back whole. The version put
  *   back is the artifact of the last passing `CLIVE_SUBMIT` for that phase or case.
+ * - `CLIVE_PHASE_PASSED` — `{ phase, attempt, run_type }`: a Submit passed every
+ *   test, which passes Implement (AnimoRank's tests alone decide it); `attempt` is
+ *   Implement's, which counts every Run and Submit. The other phases' passes are
+ *   their passing `CLIVE_SUBMIT`s.
  * - `CLIVE_LOG_CHECK` — `{ nonce }`: written by the server's log check, then
  *   read back; the entry being there is the proof the history accepts writes.
  */
@@ -65,5 +74,6 @@ export const CLIVE_EVENT = {
   liveRawToggle: 'CLIVE_LIVE_RAW_TOGGLE',
   researcherOverride: 'CLIVE_RESEARCHER_OVERRIDE',
   restorePassed: 'CLIVE_RESTORE_PASSED',
+  phasePassed: 'CLIVE_PHASE_PASSED',
   logCheck: 'CLIVE_LOG_CHECK'
 } as const;
