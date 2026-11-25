@@ -3,7 +3,6 @@ import { Language } from '$lib/zenstack/models';
 import type { Problem as ProblemModel } from '$lib/zenstack/models';
 import type { User } from '@auth/sveltekit';
 import { Problem } from '.';
-import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export interface FindByProblemSetOptions {
   problemSetId: string;
@@ -49,18 +48,16 @@ export interface CreateOptions {
  * Every read in this service composes this one clause, so a lookup added later
  * cannot accidentally hand back a problem that skipped the check.
  */
-const readableByUser = (userId: string) =>
-  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every problem, hidden ones included.
-  unlessDevBypass({
-    problem_set: {
-      OR: [
-        { is_global: true },
-        { collaborators: { some: { collaborator_id: userId } } },
-        { subscriptions: { some: { student_id: userId } } }
-      ]
-    },
-    OR: [{ visible: true }, { problem_set: { collaborators: { some: { collaborator_id: userId } } } }]
-  });
+const readableByUser = (userId: string) => ({
+  problem_set: {
+    OR: [
+      { is_global: true },
+      { collaborators: { some: { collaborator_id: userId } } },
+      { subscriptions: { some: { student_id: userId } } }
+    ]
+  },
+  OR: [{ visible: true }, { problem_set: { collaborators: { some: { collaborator_id: userId } } } }]
+});
 
 /**
  * The order problems take within their set. The set listing and the solve

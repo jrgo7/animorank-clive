@@ -5,7 +5,6 @@ import { db } from '$lib/zenstack';
 import { ServerRegistryProvider } from '$lib/registry/server';
 import { ProblemSetService } from '$lib/problemSet/problemSetService';
 import { TestCaseService } from '$lib/testCase/testCaseService';
-import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
   const session = await locals.auth();
@@ -22,18 +21,13 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 
   if (!problemSet) return error(404, 'Not found');
 
-  // Query with the specific includes needed for this endpoint
+  // The payload below is the authoring one — test cases with their expected
+  // values, collaborators, teachers — so it is served to a collaborator only.
+  // Reading the set as a student is a different question with a different answer.
   const fullProblemSet = await db.problemSet.findUnique({
     where: {
       id: params.id,
-      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every set is readable.
-      ...unlessDevBypass({
-        OR: [
-          { is_global: true },
-          { subscriptions: { some: { student_id: session.user.id } } },
-          { collaborators: { some: { collaborator_id: session.user.id } } }
-        ]
-      })
+      collaborators: { some: { collaborator_id: session.user.id } }
     },
     include: {
       problems: true,

@@ -3,7 +3,6 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import Google from '@auth/sveltekit/providers/google';
 import { env } from '$env/dynamic/private';
 import { db } from './zenstack';
-import { DEV_ACCESS_BYPASS } from './devAccessBypass';
 
 declare module '@auth/sveltekit' {
   interface Session {
@@ -11,6 +10,8 @@ declare module '@auth/sveltekit' {
       userId: string;
       type?: 'student' | 'teacher';
       hasAcceptedTOS: boolean;
+      /** Operator flag: teachers only, and only the analytics pages read it. */
+      admin: boolean;
       /**
        * By default, TypeScript merges new interface properties and overwrites existing ones.
        * In this case, the default session user properties will be overwritten,
@@ -75,6 +76,7 @@ export const { handle } = SvelteKitAuth({
       }
 
       session.user.hasAcceptedTOS = dbUser.hasAcceptedTOS;
+      session.user.admin = dbUser.admin;
 
       return session;
     },
@@ -101,10 +103,9 @@ export const { handle } = SvelteKitAuth({
       if (!user.email || !user.id) return;
       const teacher = await db.teacherList.findUnique({ where: { email: user.email } });
       const obj = { id: user.id };
+      await db.student.upsert({ create: obj, update: {}, where: obj });
       if (teacher) {
         await db.teacher.upsert({ create: obj, update: {}, where: obj });
-      } else {
-        await db.student.upsert({ create: obj, update: {}, where: obj });
       }
     }
   },

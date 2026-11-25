@@ -5,7 +5,6 @@ import { ServerRegistryProvider } from '$lib/registry/server';
 import { TagService } from '$lib/tag';
 import { groupBy } from '$lib/utils/groupBy';
 import { readUuidParam } from '$lib/utils/params';
-import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   const session = await locals.auth();
@@ -14,8 +13,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const problemSet = await db.problemSet.findUnique({
     where: {
       id: readUuidParam(params.id),
-      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every set opens in the editor.
-      ...unlessDevBypass({ collaborators: { some: { collaborator_id: session.user.id } } })
+      collaborators: { some: { collaborator_id: session.user.id } }
     },
     include: {
       problems: {
@@ -28,6 +26,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
             include: { user: true }
           }
         }
+      },
+      subscriptions: {
+        include: { student: { include: { user: true } } }
       },
       difficulty: true,
       subject: true,
@@ -88,7 +89,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
         ...p,
         topics: p.topics.map((topic) => topic.tag_id)
       })),
-      collaboratorIds: problemSet.collaborators.map((c) => c.collaborator.user.id)
+      collaborators: problemSet.collaborators
+        .map((c) => ({
+          id: c.collaborator.user.id,
+          name: c.collaborator.user.name,
+          email: c.collaborator.user.email
+        }))
+        .sort((a, b) => a.email.localeCompare(b.email)),
+      subscribers: problemSet.subscriptions
+        .map((subscription) => ({
+          id: subscription.student.user.id,
+          name: subscription.student.user.name,
+          email: subscription.student.user.email
+        }))
+        .sort((a, b) => a.email.localeCompare(b.email))
     },
     tags: tags.map((tag) => tag.model),
     globalProblemSolvers,

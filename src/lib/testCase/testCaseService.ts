@@ -7,7 +7,6 @@ import { ServerRegistryProvider } from '$lib/registry/server';
 import { ServerTestCaseRegistry } from './testCaseRegistry.server';
 import type { ServerTestCase } from './testCase.server';
 import { validateFunctionTestCaseKeys } from './builtin/functionTestCase/types.server';
-import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export interface FindByProblemOptions {
   problemId: string;
@@ -39,12 +38,9 @@ export class TestCaseService {
     return db.problemTestCase.findUnique({
       where: {
         id,
-        // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every test case is editable.
-        ...unlessDevBypass({
-          problem: {
-            problem_set: { collaborators: { some: { collaborator_id: user.id || '' } } }
-          }
-        })
+        problem: {
+          problem_set: { collaborators: { some: { collaborator_id: user.id || '' } } }
+        }
       }
     });
   }
@@ -53,10 +49,7 @@ export class TestCaseService {
     const problem = await db.problem.findUnique({
       where: {
         id: options.problemId,
-        // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: test cases can be added to any problem.
-        ...unlessDevBypass({
-          problem_set: { collaborators: { some: { collaborator_id: options.user.id || '' } } }
-        })
+        problem_set: { collaborators: { some: { collaborator_id: options.user.id || '' } } }
       }
     });
 
@@ -90,18 +83,43 @@ export class TestCaseService {
     const models = await db.problemTestCase.findMany({
       where: {
         problem_id: options.problemId,
-        // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every problem's test cases are readable.
-        ...unlessDevBypass({
-          problem: {
-            problem_set: {
-              OR: [
-                { collaborators: { some: { collaborator_id: options.user.id || '' } } },
-                { is_global: true },
-                { subscriptions: { some: { student_id: options.user.id || '' } } }
-              ]
-            }
+        problem: {
+          problem_set: {
+            OR: [
+              { collaborators: { some: { collaborator_id: options.user.id || '' } } },
+              { is_global: true },
+              { subscriptions: { some: { student_id: options.user.id || '' } } }
+            ]
           }
-        })
+        }
+      },
+      orderBy: { created_at: 'asc' }
+    });
+
+    return { problem: new Problem(problemModel), models };
+  }
+
+  /**
+   * The editor's fetch: the problem and its test case models, for a collaborator
+   * of the problem's set only.
+   *
+   * `fetchByProblem` filters by who may *read* the set, which includes the
+   * students subscribed to it — and a hydrated test case carries its expected
+   * values. The edit page hands those to the browser, so it cannot share that
+   * rule: what a student may run is not what they may see.
+   */
+  private async fetchByProblemForEdit(
+    options: FindByProblemOptions
+  ): Promise<{ problem: Problem; models: ProblemTestCase[] } | null> {
+    const problemModel = await db.problem.findUnique({ where: { id: options.problemId } });
+    if (!problemModel) return null;
+
+    const models = await db.problemTestCase.findMany({
+      where: {
+        problem_id: options.problemId,
+        problem: {
+          problem_set: { collaborators: { some: { collaborator_id: options.user.id || '' } } }
+        }
       },
       orderBy: { created_at: 'asc' }
     });
@@ -130,7 +148,7 @@ export class TestCaseService {
    * creating such rows in the first place.
    */
   public async findByProblemForEdit(options: FindByProblemOptions): Promise<ServerTestCase[]> {
-    const fetched = await this.fetchByProblem(options);
+    const fetched = await this.fetchByProblemForEdit(options);
     if (!fetched) return [];
 
     const result: ServerTestCase[] = [];

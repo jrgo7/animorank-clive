@@ -5,7 +5,6 @@ import { error } from '@sveltejs/kit';
 import { successObject } from '$lib/response';
 import { Language } from '$lib/zenstack/models';
 import type { JsonValue } from '@zenstackhq/orm';
-import { DEV_ACCESS_BYPASS, unlessDevBypass } from '$lib/devAccessBypass';
 
 const extensionDataValidator = z
   .unknown()
@@ -30,8 +29,7 @@ const updateValidator = z.object({
 export const PUT: RequestHandler = async ({ locals, request, params }) => {
   const session = await locals.auth();
   if (!session || !session.user.id) return error(403, 'Unauthorized');
-  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: students may edit problems too.
-  if (session.user.type != 'teacher' && !DEV_ACCESS_BYPASS) return error(403, 'Unauthorized');
+  if (session.user.type != 'teacher') return error(403, 'Unauthorized');
 
   const { success, error: zodError, data } = await updateValidator.safeParseAsync(await request.json());
   if (!success) return error(400, zodError);
@@ -41,8 +39,7 @@ export const PUT: RequestHandler = async ({ locals, request, params }) => {
   const existing = await db.problem.findUnique({
     where: {
       id: params.id,
-      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: any problem is editable.
-      ...unlessDevBypass({ problem_set: { collaborators: { some: { collaborator_id: session.user.id } } } })
+      problem_set: { collaborators: { some: { collaborator_id: session.user.id } } }
     },
     select: { extension_data: true }
   });
@@ -82,14 +79,12 @@ export const PUT: RequestHandler = async ({ locals, request, params }) => {
 export const DELETE: RequestHandler = async ({ locals, params }) => {
   const session = await locals.auth();
   if (!session || !session.user.id) return error(403, 'Unauthorized');
-  // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: students may delete problems too.
-  if (session.user.type != 'teacher' && !DEV_ACCESS_BYPASS) return error(403, 'Unauthorized');
+  if (session.user.type != 'teacher') return error(403, 'Unauthorized');
 
   await db.problem.delete({
     where: {
       id: params.id,
-      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: any problem is deletable.
-      ...unlessDevBypass({ problem_set: { collaborators: { some: { collaborator_id: session.user.id } } } })
+      problem_set: { collaborators: { some: { collaborator_id: session.user.id } } }
     }
   });
 

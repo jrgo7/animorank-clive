@@ -8,28 +8,26 @@ import { ProblemService } from '$lib/problem/problemService';
 import { Problem, toProblemLink } from '$lib/problem';
 import { toJsonValue } from '$lib/types/utils';
 import { readUuidParam } from '$lib/utils/params';
-import { unlessDevBypass } from '$lib/devAccessBypass';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   const session = await locals.auth();
 
   if (!session || !session.user.id) return redirect(302, '/');
 
+  // Authoring is a collaborator's page: being subscribed to the set, or the set
+  // being global, makes a problem *solvable*, not editable — and this load hands
+  // out the test cases, expected values included. A student who reached it could
+  // read every answer while the write endpoints refused them.
+  if (session.user.type !== 'teacher') return redirect(302, '/');
+
   const registryProvider = ServerRegistryProvider.instance();
 
   const problemResult = await db.problem.findUnique({
     where: {
       id: readUuidParam(params.slug),
-      // DEV_ACCESS_BYPASS — temporary, DO NOT PUSH TO PROD: every problem is reachable.
-      ...unlessDevBypass({
-        problem_set: {
-          OR: [
-            { collaborators: { some: { collaborator_id: session.user.id } } },
-            { subscriptions: { some: { student_id: session.user.id } } },
-            { is_global: true }
-          ]
-        }
-      })
+      problem_set: {
+        collaborators: { some: { collaborator_id: session.user.id } }
+      }
     },
     include: {
       topics: true

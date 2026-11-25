@@ -5,7 +5,15 @@
   import { colorOf, typeColors } from '$lib/analytics/sessionLogColors';
   import { formatLogTimestamp } from '$lib/analytics/sessionLogTime';
   import type { SessionLogsViewContext } from '../../../routes/instructor/analytics/session-logs/context.svelte';
-  import { replayTexts, slotAt, textDeltas } from './replay';
+  import {
+    codeSnapshots,
+    legacyLineEndings,
+    replayBase,
+    replaySteps,
+    slotAt,
+    textDeltas,
+    type LineEndings
+  } from './replay';
   import {
     MAX_SPEED,
     MIN_SPEED,
@@ -31,7 +39,20 @@
   // edits, and how many of them each frame has behind it.
   const document = $derived(context.document);
   const deltas = $derived(textDeltas(entries));
-  const texts = $derived(replayTexts(document?.baseCode ?? '', deltas));
+  /**
+   * The frame to assume for entries recorded before the recorder tagged one.
+   * Every new delta carries its own, so this is only the fallback; it is
+   * re-derived per recording and the toggle overrides it.
+   */
+  let lineEndings = $state<LineEndings>('lf');
+  // A recording whose deltas all name their frame is not affected by the
+  // fallback, so the override is only offered where it could change something.
+  const hasLegacyDeltas = $derived(deltas.some((delta) => delta.lineEndings === undefined));
+  // A run or submit logs the whole document it graded, which is the one state a
+  // recording proves exactly; the replay restarts from each so a reconstruction
+  // that drifted cannot carry its error past a known-good point.
+  const snapshots = $derived(codeSnapshots(entries));
+  const steps = $derived(replaySteps(replayBase(document), deltas, lineEndings, snapshots));
   const editsAt = $derived(textEditCounts(frames));
   // One colour per type of entry this session recorded, in first-appearance
   // order; the legend under the timeline is what names them.
@@ -41,7 +62,20 @@
   const position = $derived(Math.min(rawPosition, lastPosition));
   const frame = $derived(frames[position] ?? null);
   const editStep = $derived(editsAt[position] ?? 0);
-  const code = $derived(texts[editStep] ?? '');
+  const code = $derived(steps[editStep]?.text ?? '');
+  /**
+   * Whether the code pane is the document the editor held. A recording can lose
+   * the span of an edit — the recorder logged a backspace without the text it
+   * removed — and no replay can invent it, so say so instead of showing the
+   * guess as fact.
+   */
+  const approximate = $derived(steps[editStep]?.approximate ?? false);
+  /**
+   * How many times the log proves the whole document — one per run, submit, or
+   * periodic checkpoint, the points the replay restarts from. Between them a
+   * lost span is unrecoverable.
+   */
+  const provedSteps = $derived(snapshots.length);
   const totalMs = $derived(frames.at(-1)?.elapsedMs ?? 0);
   const slices = $derived(timelineSlices(frames));
   const playheadPercent = $derived(
@@ -50,7 +84,9 @@
 
   // The edit the code pane is showing, for the slot badge beside it.
   const slotLabel = $derived(
-    editStep > 0 && document ? slotAt(document.slots, texts[editStep - 1], deltas[editStep - 1].offset) : null
+    editStep > 0 && document
+      ? slotAt(document.slots, steps[editStep - 1]?.text ?? '', steps[editStep - 1]?.offset ?? 0)
+      : null
   );
   // A reload mid-session re-seeds the editor, so the replayed code can end
   // somewhere other than the code the session saved; say so instead of hiding it.
@@ -58,7 +94,7 @@
     position === lastPosition &&
       editStep === deltas.length &&
       document !== null &&
-      texts[editStep] !== document.savedCode
+      steps[editStep]?.text !== document.savedCode
   );
 
   // The multiplier playback uses, what the menu shows (a preset, or `custom`),
@@ -81,6 +117,9 @@
     shownTape = identity;
     rawPosition = 0;
     playing = false;
+    // Another recording can come from another machine or another recorder
+    // build, so the fallback is re-derived rather than carried over.
+    lineEndings = legacyLineEndings(deltas);
   });
 
   $effect(() => {
@@ -215,11 +254,12 @@
     </div>
 
     <div class="flex flex-col gap-1">
-      <!-- The timeline: one slice per entry, as wide as the time it covers and
-         coloured by the kind of entry it is. Width carries time, so the events
-         stand taller while text edits sit in a thin lane along the bottom —
+      <!-- The timeline: one slice per entry, coloured by the kind of entry it
+         is. Width carries time on a log-compressed scale — every entry keeps a
+         readable slice and a long idle gap just widens its own — so the events
+         stand taller while text edits sit in a thin lane along the bottom:
          height is the one dimension that can mark them without lying about
-         when they happened. -->
+         when they happened. Exact times are in the clock and the labels. -->
       <div
         class="relative h-7 w-full overflow-hidden rounded-sm"
         data-testid="replay-timeline"
@@ -283,12 +323,54 @@
           {#if slotLabel}
             <Badge class="badge-neutral">{slotLabel}</Badge>
           {/if}
+          {#if hasLegacyDeltas}
+            <!-- The frame legacy entries' offsets were counted in: the toggle
+                 only affects the entries that recorded none. A recording that
+                 tagged every delta has no such entry, so the control is hidden
+                 rather than shown doing nothing. -->
+            <div
+              class="ml-auto flex items-center gap-1"
+              role="group"
+              aria-label="Assumed line endings for entries recorded without one"
+              title="Assumed line endings for entries recorded without one"
+            >
+              <span class="text-xs text-base-content/60">Line endings</span>
+              <Button
+                class="btn-xs {lineEndings === 'lf' ? 'btn-primary' : ''}"
+                aria-pressed={lineEndings === 'lf'}
+                title="Count a newline as one character"
+                onclick={() => (lineEndings = 'lf')}>LF</Button
+              >
+              <Button
+                class="btn-xs {lineEndings === 'crlf' ? 'btn-primary' : ''}"
+                aria-pressed={lineEndings === 'crlf'}
+                title="Count a newline as two characters"
+                onclick={() => (lineEndings = 'crlf')}>CRLF</Button
+              >
+            </div>
+          {/if}
         </div>
         <pre
           data-testid="replay-code"
           class="max-h-[28rem] overflow-auto rounded-box bg-base-200 p-3 text-xs">{code}</pre>
         {#if deltas.length === 0}
           <p class="text-xs text-base-content/60">This session has no text edits; the code is its starting document.</p>
+        {:else if approximate}
+          <!-- The log is missing spans or frames, so the pane is a guess here.
+               Say which part of it is proved: everything from the first run or
+               submit on. -->
+          <p
+            class="text-xs text-base-content/60"
+            data-testid="replay-approximate"
+          >
+            Reconstructed as closely as the log allows: some edits did not record the text they replaced or the frame
+            their offsets counted.
+            {#if provedSteps > 0}
+              Exact at the {provedSteps} checkpoint{provedSteps === 1 ? '' : 's'} that logged the whole code.
+            {:else}
+              No run logged the whole code, so none of it is exact.
+            {/if}
+          </p>
         {:else if diverged}
           <p class="text-xs text-base-content/60">
             The replayed code ends where this session saved a different document (an editor reload can do that).
