@@ -349,16 +349,6 @@
           nudge.nudge
         )}</pre>
     {/if}
-    {#if nudge.leak_blocked === true}
-      <p class="mt-1 rounded-box bg-warning/10 p-2 text-xs text-warning">
-        The leak check held this nudge back; the student saw only {nudge.focus_not_met !== undefined || !nudge.focus
-          ? "the requirement's line"
-          : 'the summary and where to look'}.
-      </p>
-    {/if}
-    {#if Array.isArray(nudge.leaks) && nudge.leaks.length > 0}
-      <p class="mt-1 text-xs text-base-content/60">Leak check found: {nudge.leaks.join('; ')}</p>
-    {/if}
     {@render preField('Reason (not shown to the student)', nudge.reason)}
   </div>
 {/snippet}

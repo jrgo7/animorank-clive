@@ -86,7 +86,7 @@ interface EscalateContext {
  * `escalate` is the hint ladder's "I'm stuck": a prompt on the requirement the
  * last failed submit's hint was about. `codeFeedback` answers a failed Run or Submit
  * with a hint, and `escalateCode` is "I'm stuck" under it. No reply carries the
- * model's reason or the leak check's findings, which go to the server's log.
+ * model's reason, which goes to the server's log.
  */
 /** A failing Run or Submit, as the code-feedback call may see it (`./codeFeedback.ts`). */
 export interface CodeRun {
@@ -102,7 +102,7 @@ export interface CodeFeedbackReply {
   situation: string;
   summary: string;
   focus: string;
-  /** What the student reads; empty when the server held back a reply that wrote their code. */
+  /** What the student reads. */
   nudge: string;
 }
 

@@ -2,7 +2,7 @@
  * The engine's behavior, with a fake provider and a fake executor — no network,
  * no Judge0. Ported contract-by-contract from the prototype's `judge.py`,
  * `nudge.py`, `reference_check.py`, `grade.py` and `steps.py`; the hint ladder
- * (`pickFocus`, the leak check) is this plugin's own.
+ * (`pickFocus`) is this plugin's own.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { CodeExecutor } from '$lib/executor';
@@ -12,18 +12,10 @@ import { JudgeError } from './content/errors';
 import { failingGates } from './criteria';
 import { judge } from './judge';
 import * as nudgeModule from './nudge';
-import { findLeak, nudge, pickFocus } from './nudge';
-import { codeNudge, findCodeLeak, type CodeNudgeRequest, type CodeRun } from './codeNudge';
+import { nudge, pickFocus } from './nudge';
+import { codeNudge, type CodeNudgeRequest, type CodeRun } from './codeNudge';
 import type { Provider } from './providers';
-import {
-  caseStdin,
-  check,
-  functionArgs,
-  functionHarness,
-  judgeWithChecks,
-  outputsMatch,
-  type CheckResult
-} from './referenceCheck';
+import { caseStdin, check, functionArgs, functionHarness, judgeWithChecks, outputsMatch } from './referenceCheck';
 import { cut, isPerStep } from './steps';
 import type { ProblemForPrompt } from './content/templates';
 
@@ -220,9 +212,7 @@ describe('nudge', () => {
       focus_text: criteria.find((c) => c.id === 'work_is_shown')?.text,
       focus_not_met: criteria.find((c) => c.id === 'work_is_shown')?.not_met,
       reason: 'Restates the answer.',
-      nudge: 'Which numbers did you multiply?',
-      leak_blocked: false,
-      leaks: []
+      nudge: 'Which numbers did you multiply?'
     });
     // The advisory failure is never in `failing`; the model chose nothing.
     expect(result.failing.map((f) => f.id)).toEqual(['work_is_shown', 'outputs_are_correct']);
@@ -245,106 +235,11 @@ describe('nudge', () => {
   });
 });
 
-describe('the leak check', () => {
-  const phase = phaseDoc('case_design');
-  const criteria = rubricDoc('case_design').criteria;
-  const failing = failingGates(criteria, [verdict('outputs_are_correct', 'FAIL', 'Case 1')]);
-  /** A reference check that ran Case 1 and printed `actual`; the student claimed `claimed`. */
-  const checked = (actual: string, claimed = '25'): CheckResult => ({
-    status: 'checked',
-    verdict: claimed === actual ? 'PASS' : 'FAIL',
-    wrong: claimed === actual ? [] : ['Case 1'],
-    outside: [],
-    rows: [
-      { label: 'Case 1', input: '4 6', claimed, actual: `${actual}\n`, outcome: claimed === actual ? 'right' : 'wrong' }
-    ]
-  });
-  const request = (provider: Provider, referenceCheck: CheckResult | null) => ({
-    phase,
-    problem: PROBLEM,
-    artifact: CASES_ARTIFACT,
-    focus: failing[0],
-    failing,
-    level: 'prompt' as const,
-    provider,
-    referenceCheck
-  });
-
-  it('asks once more when a reply gives away the reference output, then blocks it', async () => {
-    const { provider, users } = scripted(
-      { reason: 'r', nudge: 'Is it 24?' },
-      { reason: 'r', nudge: 'Check it: 4 times 6 is 24.' }
-    );
-    const result = await nudge(request(provider, checked('24')));
-
-    expect(users).toHaveLength(2);
-    // The second ask names what was given away, without repeating the value itself.
-    const note = users[1].slice(users[0].length);
-    expect(note).toContain('expected output');
-    expect(note).not.toContain('24');
-    expect(result.nudge).toBe('');
-    expect(result.leak_blocked).toBe(true);
-    expect(result.leaks).toHaveLength(2);
-  });
-
-  it('keeps the second reply when it no longer gives anything away', async () => {
-    const { provider, users } = scripted(
-      { reason: 'r', nudge: 'Is it 24?' },
-      { reason: 'r', nudge: 'What is 4 groups of 6?' }
-    );
-    const result = await nudge(request(provider, checked('24')));
-    expect(users).toHaveLength(2);
-    expect(result).toMatchObject({ nudge: 'What is 4 groups of 6?', leak_blocked: false });
-    expect(result.leaks).toHaveLength(1);
-  });
-
-  it('does not check a single-character output', async () => {
-    const { provider, users } = scripted({ reason: 'r', nudge: 'Is it 7?' });
-    const result = await nudge(request(provider, checked('7')));
-    expect(users).toHaveLength(1);
-    expect(result).toMatchObject({ nudge: 'Is it 7?', leak_blocked: false, leaks: [] });
-  });
-
-  it('matches the output as a whole token only', () => {
-    expect(findLeak('case_design', 'Is it 24?', checked('24'))).not.toBeNull();
-    expect(findLeak('case_design', 'What about 240, or 1.24, or 24.5?', checked('24'))).toBeNull();
-    expect(findLeak('case_design', 'Would it print yes?', checked('YES'))).not.toBeNull();
-  });
-
-  it('never counts a value the student already wrote and got right', () => {
-    expect(findLeak('case_design', 'How did you get 24?', checked('24', '24'))).toBeNull();
-  });
-
-  it('catches C code in a Problem or Design nudge', () => {
-    for (const text of [
-      'Try printf("%d", n)?',
-      'Would scanf (" %c", &c) read it?',
-      'What does int total = 0 do?',
-      'Set total to 0;',
-      'Is it for (i = 0; ...)?',
-      'What about while (n > 0)?',
-      'What if (n < 0) holds?',
-      'Wrap it in { }?'
-    ]) {
-      expect(findLeak('algorithm_design', text, null), text).not.toBeNull();
-      expect(findLeak('problem_definition', text, null), text).not.toBeNull();
-    }
-    for (const text of [
-      'Which C type can hold a number like 87.5?',
-      'What is the total before the first score is added?\nWhich step gives it that value?',
-      'Section 1: _ + _ + _ = _'
-    ]) {
-      expect(findLeak('algorithm_design', text, null), text).toBeNull();
-    }
-  });
-
-  it('asks again when a Design nudge holds code', async () => {
+describe('the nudge reply', () => {
+  it('reaches the student as the model wrote it, from one call', async () => {
     const design = rubricDoc('algorithm_design').criteria;
-    const designFailing = failingGates(design, [verdict('values_are_tracked', 'FAIL'), verdict('not_c_code', 'FAIL')]);
-    const { provider, users } = scripted(
-      { reason: 'r', nudge: 'Start with int total = 0?' },
-      { reason: 'r', nudge: 'What is the total before anything is added?' }
-    );
+    const designFailing = failingGates(design, [verdict('not_c_code', 'FAIL')]);
+    const { provider, users } = scripted({ reason: 'r', nudge: 'Start with int total = 0?' });
     const result = await nudge({
       phase: phaseDoc('algorithm_design'),
       problem: PROBLEM,
@@ -354,9 +249,8 @@ describe('the leak check', () => {
       level: 'hint',
       provider
     });
-    expect(users).toHaveLength(2);
-    expect(users[1].slice(users[0].length)).toContain('C code');
-    expect(result.nudge).toBe('What is the total before anything is added?');
+    expect(users).toHaveLength(1);
+    expect(result.nudge).toBe('Start with int total = 0?');
   });
 });
 
@@ -619,14 +513,9 @@ describe('code nudge', () => {
       ...overrides
     });
 
-  it('returns the situation and feedback the model chose, at the level asked, with nothing leaked', async () => {
+  it('returns the situation and feedback the model chose, at the level asked', async () => {
     const { provider, users } = capturing(REPLY);
-    expect(await ask(provider, { code: 'int main(void){}' })).toEqual({
-      ...REPLY,
-      level: 'hint',
-      leaks: [],
-      leak_blocked: false
-    });
+    expect(await ask(provider, { code: 'int main(void){}' })).toEqual({ ...REPLY, level: 'hint' });
     expect(users[0]).toContain('LEVEL\nhint');
     expect(users[0]).not.toContain('SITUATION\n');
   });
@@ -724,77 +613,10 @@ describe('code nudge', () => {
     expect(users[0]).toContain('int checkSecretCode(int nAlice, int nGuest)');
   });
 
-  describe('leak check', () => {
-    const CODE =
-      'int sum(int n)\n{\n    int nSum = 0;\n    for (int i = 0; i < n; i++)\n        nSum = nSum + i;\n    return nSum;\n}';
-
-    /** Code feedback replies with these lines, in turn. */
-    const scriptedCode = (...nudges: string[]) =>
-      scripted(...nudges.map((nudge) => ({ ...REPLY, situation: 'departs_from_plan', nudge })));
-
-    it('catches C the student did not write, and lets plain words through', () => {
-      for (const text of [
-        'Add total = 0;',
-        'Try for (i = 0; i < 3; i++) instead.',
-        'What about while (n > 0)?',
-        'Is it if (digit > 5)?',
-        'Use printf("%d", total) at the end.',
-        'Read it with scanf(" %c", &c).',
-        'Print it with %.2f.'
-      ]) {
-        expect(findCodeLeak(text, CODE), text).not.toBeNull();
-      }
-      for (const text of [
-        'Which step of your plan starts the sum?',
-        'If you follow section two through your plan, what should it start at?',
-        'For each digit, what does your loop add?',
-        'About 50% of the examples pass.',
-        'Look at `nSum` inside your loop.'
-      ]) {
-        expect(findCodeLeak(text, CODE), text).toBeNull();
-      }
-    });
-
-    it('lets a reply quote one of the student’s own lines exactly', () => {
-      expect(findCodeLeak('Look at `nSum = nSum + i;` inside your loop.', CODE)).toBeNull();
-      expect(findCodeLeak('Your loop starts with `for (int i = 0; i < n; i++)`.', CODE)).toBeNull();
-      expect(findCodeLeak('This line runs every time:\nnSum = nSum + i;', CODE)).toBeNull();
-      // Quoted, but not what they wrote.
-      expect(findCodeLeak('Change it to `nSum = nSum + 2 * i;`.', CODE)).not.toBeNull();
-    });
-
-    it('asks again when a reply writes C, naming it, at either level', async () => {
-      for (const level of ['hint', 'prompt'] as const) {
-        const { provider, users } = scriptedCode('Write nSum = 0;', 'Where does nSum get its first value?');
-        const result = await ask(provider, {
-          code: CODE,
-          level,
-          fixed: level === 'prompt' ? { situation: 'departs_from_plan', focus: 'the loop' } : undefined
-        });
-
-        expect(users, level).toHaveLength(2);
-        expect(users[1].slice(users[0].length), level).toContain('C code');
-        expect(result, level).toMatchObject({
-          nudge: 'Where does nSum get its first value?',
-          leaks: ['C code: a line ending in a semicolon'],
-          leak_blocked: false
-        });
-      }
-    });
-
-    it('gives no reply text when both replies write C, keeping the summary and the focus', async () => {
-      const { provider } = scriptedCode('Write nSum = 0;', 'Use printf("%d", nSum).');
-      const result = await ask(provider, { code: CODE });
-
-      expect(result).toMatchObject({ nudge: '', leak_blocked: true, summary: REPLY.summary, focus: REPLY.focus });
-      expect(result.leaks).toHaveLength(2);
-    });
-
-    it('does not ask again for a reply that quotes the student’s own line', async () => {
-      const { provider, users } = scriptedCode('Look at `nSum = nSum + i;`: which value does it add?');
-      const result = await ask(provider, { code: CODE });
-      expect(users).toHaveLength(1);
-      expect(result.leaks).toEqual([]);
-    });
+  it('passes the reply on as written, from one call, even when it holds C', async () => {
+    const { provider, users } = scripted({ ...REPLY, situation: 'departs_from_plan', nudge: 'Write nSum = 0;' });
+    const result = await ask(provider, { code: 'int main(void){}' });
+    expect(users).toHaveLength(1);
+    expect(result.nudge).toBe('Write nSum = 0;');
   });
 });

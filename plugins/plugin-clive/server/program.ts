@@ -3,8 +3,7 @@
  * through the executor the platform is configured with (Judge0).
  *
  * Used by the reference check (the problem's own solution), so it compiles with
- * the same flags as the app's own C test case; the nudge's leak check reads its
- * output through {@link normaliseOutput} the same way.
+ * the same flags as the app's own C test case.
  */
 import { CodeExecutor } from '$lib/executor';
 import { ServerRegistryProvider } from '$lib/registry/server';

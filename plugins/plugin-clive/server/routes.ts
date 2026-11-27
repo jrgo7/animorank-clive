@@ -42,7 +42,7 @@ import { livePage } from './livePage';
 import { nudge, pickFocus, type NudgeLevel, type NudgeOutcome } from './nudge';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
-import { judgeWithChecks, type CheckResult } from './referenceCheck';
+import { judgeWithChecks } from './referenceCheck';
 import {
   checkSessionLog,
   latestCodeFeedbackRecord,
@@ -206,7 +206,7 @@ interface ResponseVerdict {
   fields: string[];
 }
 
-/** A nudge as the page receives it, from `/submit` and `/escalate` alike: no reason, no leak detail. */
+/** A nudge as the page receives it, from `/submit` and `/escalate` alike: no reason. */
 interface PageNudge {
   level: NudgeLevel;
   nudge: string;
@@ -242,7 +242,7 @@ function pageNudge(n: NudgeOutcome, applied: CriterionDoc[]): PageNudge {
 
 /** The record's nudge: the page's, with what only the researcher reads. */
 function recordedNudge(n: NudgeOutcome, applied: CriterionDoc[]) {
-  return { ...pageNudge(n, applied), reason: n.reason, leaks: n.leaks, leak_blocked: n.leak_blocked };
+  return { ...pageNudge(n, applied), reason: n.reason };
 }
 
 /**
@@ -268,7 +268,6 @@ interface Judged {
   artifact: Record<string, unknown>;
   applied: CriterionDoc[];
   verdicts: Verdict[];
-  referenceCheck: CheckResult | null;
 }
 
 /** The nudge for a ladder rung, with the arguments both routes share. */
@@ -290,7 +289,6 @@ function nudgeFor(
     attempt,
     priorArtifacts,
     history: ladder.turns,
-    referenceCheck: judged.referenceCheck,
     liveLabel
   });
 }
@@ -373,7 +371,7 @@ async function submit(
     // In the same call, so no page can show a failure without its guidance. A nudge
     // that fails is reported beside verdicts that stand on their own.
     try {
-      const asJudged = { phase: phaseForJudge, problem, artifact, applied, verdicts: outcome.verdicts, referenceCheck };
+      const asJudged = { phase: phaseForJudge, problem, artifact, applied, verdicts: outcome.verdicts };
       const n = await nudgeFor(asJudged, ladder, 'hint', body.attempt, body.priorArtifacts);
       response.nudge = pageNudge(n, applied);
       recorded = recordedNudge(n, applied);
@@ -428,7 +426,7 @@ function recordedVerdicts(record: Record<string, unknown>): (Verdict & { gate?: 
   }));
 }
 
-/** A reply about the code as the page receives it, at either level: no leak detail. */
+/** A reply about the code as the page receives it, at either level. */
 interface PageCodeFeedback {
   level: NudgeLevel;
   situation: string;
@@ -570,14 +568,7 @@ async function escalate(
       'You already have the more specific help for this submission. Change your work and submit again for a new hint.'
     );
   }
-  const judged = {
-    phase: phaseForJudge,
-    problem,
-    artifact,
-    applied,
-    verdicts,
-    referenceCheck: (record.reference_check ?? null) as CheckResult | null
-  };
+  const judged = { phase: phaseForJudge, problem, artifact, applied, verdicts };
   const n = await nudgeFor(judged, ladder, 'prompt', attempt, body.priorArtifacts, 'escalation · prompt');
   return {
     response: pageNudge(n, applied),
@@ -796,7 +787,6 @@ class CLiveAPI extends ServerAPI {
           );
           return handle(reply, result.error);
         }
-        // The leak check's findings go to the session log, never to the page.
         await keep(
           request,
           body.sessionId,

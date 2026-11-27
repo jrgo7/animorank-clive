@@ -159,8 +159,7 @@ describe('CLive logs view', () => {
           level: 'prompt',
           nudge: 'Which two numbers would you give it?',
           reason: 'Still describes the input.',
-          focus_not_met: 'Give a real input',
-          leak_blocked: false
+          focus_not_met: 'Give a real input'
         }
       }),
       entry('CLIVE_LLM_CALL', '2026-10-21T10:00:59.000Z', {
@@ -216,9 +215,7 @@ describe('CLive logs view', () => {
           situation: 'departs_from_plan',
           summary: '2 of 4 examples fail.',
           focus: 'step 2',
-          nudge: 'Where does nSum get its starting value?',
-          leaks: ['C code: a line ending in a semicolon'],
-          leak_blocked: false
+          nudge: 'Where does nSum get its starting value?'
         }
       }),
       entry('CLIVE_CODE_FEEDBACK', '2026-10-21T10:01:00.000Z', {
@@ -233,9 +230,7 @@ describe('CLive logs view', () => {
           situation: 'departs_from_plan',
           summary: '2 of 4 examples fail.',
           focus: 'step 2',
-          nudge: 'Follow section two through your plan.',
-          leaks: [],
-          leak_blocked: false
+          nudge: 'Follow section two through your plan.'
         }
       }),
       // Recorded before the ladder: no level.
@@ -257,22 +252,27 @@ describe('CLive logs view', () => {
     expect(text).toContain('Escalation · implement · problem-1 · attempt 2');
     expect(text).toContain('Level: prompt');
     expect(text).toContain('Where does nSum get its starting value?');
-    expect(text).toContain('Leak check found: C code: a line ending in a semicolon');
     expect(text).toContain('2 code feedback replies');
     expect(text).toContain('1 escalation');
     expect(text).toContain('Phase passed');
   });
 
-  it('says when the leak check held a nudge back', () => {
+  it('renders a record from before the leak check was removed, without its fields', () => {
     const text = render([
       entry('CLIVE_ESCALATE', '2026-10-21T10:01:00.000Z', {
         phase_id: 'case_design',
         level: 'prompt',
-        response: { level: 'prompt', nudge: '', leak_blocked: true, leaks: ['Case 1 expected output "24"'] }
+        response: {
+          level: 'prompt',
+          nudge: 'Which two numbers would you give it?',
+          leak_blocked: false,
+          leaks: ['Case 1 expected output "24"']
+        }
       })
     ]);
-    expect(text).toContain('The leak check held this nudge back');
-    expect(text).toContain('Case 1 expected output "24"');
+    expect(text).toContain('Which two numbers would you give it?');
+    // Its fields stay in the raw entry; the view no longer reports on them.
+    expect(text).not.toContain('Leak check');
   });
 
   it('still renders a session recorded before the ladder: stuck asks, situations and summaries', () => {

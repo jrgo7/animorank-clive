@@ -363,14 +363,7 @@ it('replays past submissions through the current prompts', async () => {
             fixed: { situation: hint.situation, focus: hint.focus }
           });
           situation = hint.situation;
-          for (const r of [hint, prompt]) {
-            const leak = r.leak_blocked
-              ? ' — held back by the leak check'
-              : r.leaks.length
-                ? ' — asked again after a leak'
-                : '';
-            replies.push({ label: `${r.level}${leak}`, text: r.nudge });
-          }
+          for (const r of [hint, prompt]) replies.push({ label: r.level, text: r.nudge });
           codeHistory.push(hintTurn);
         } else {
           const whole = phaseDoc(e.phase);
@@ -442,15 +435,9 @@ it('replays past submissions through the current prompts', async () => {
                 level,
                 attempt: e.attempt,
                 priorArtifacts: prior,
-                history: turns,
-                referenceCheck: judged.referenceCheck
+                history: turns
               });
-              const leak = n.leak_blocked
-                ? ' — held back by the leak check'
-                : n.leaks.length
-                  ? ' — asked again after a leak'
-                  : '';
-              replies.push({ label: `${level}${leak}`, text: n.nudge });
+              replies.push({ label: level, text: n.nudge });
               judgedHistory[level].push({ attempt: e.attempt, level, focus_id: n.focus_id, nudge: n.nudge });
             }
             break;
