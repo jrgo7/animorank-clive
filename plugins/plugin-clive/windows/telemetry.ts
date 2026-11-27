@@ -9,12 +9,14 @@
  * (see `../server/sessionLog.ts`): `CLIVE_SUBMIT` (the work judged, the
  * reference check, every verdict with its evidence, the nudge with its level and
  * reason), `CLIVE_ESCALATE` ("I'm stuck" on a failed submit: the requirement, its
- * prompt, the reason and the leak check; in Implement, `phase_id: 'implement'` with
- * the run's situation, focus and prompt), `CLIVE_CODE_FEEDBACK` (a failed Run or
- * Submit's hint: the code, the run, the situation, the level and the leak check),
- * `CLIVE_LLM_CALL` (one per model call) and `CLIVE_ERROR` (a request that failed).
+ * prompt and the reason; in Implement, `phase_id: 'implement'` with the run's
+ * situation, focus and prompt), `CLIVE_CODE_FEEDBACK` (a failed Run or Submit's
+ * hint: the code, the run, the situation and the level), `CLIVE_LLM_CALL` (one per
+ * model call) and `CLIVE_ERROR` (a request that failed).
  * Sessions recorded before Implement joined the hint ladder hold Implement
  * `CLIVE_SUBMIT`s from "Check against your plan", and code feedback with no level.
+ * Sessions recorded before the leak check was removed (2026-11-28) also hold
+ * `leaks` and `leak_blocked` on each nudge and code reply.
  * Sessions recorded before
  * the hint ladder also hold `CLIVE_STUCK` (an ask, its diagnosis and the reply),
  * which is no longer written. `CLIVE_LOG_CHECK` is

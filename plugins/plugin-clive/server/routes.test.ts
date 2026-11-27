@@ -211,7 +211,7 @@ type SubmitRecord = Record<string, unknown> & {
   response: {
     passed: boolean;
     verdicts: { criterion_id: string; evidence: string; evidence_found: boolean | null; confidence: string | null }[];
-    nudge?: { focus_id: string; level: string; reason: string; leaks: string[]; leak_blocked: boolean };
+    nudge?: { focus_id: string; level: string; reason: string };
   };
 };
 
@@ -420,7 +420,7 @@ describe('CLive plugin routes', () => {
     expect(state.users[1]).not.toContain('not_a_case');
   });
 
-  it('keeps the reason and the leak check in the record', async () => {
+  it('keeps the reason in the record', async () => {
     state.queue = [{ verdicts: failingOn('case_is_concrete') }, NUDGE];
     await post('/submit', casesBody());
 
@@ -428,9 +428,7 @@ describe('CLive plugin routes', () => {
     expect(record.response.nudge).toMatchObject({
       level: 'hint',
       focus_id: 'case_is_concrete',
-      reason: NUDGE.reason,
-      leaks: [],
-      leak_blocked: false
+      reason: NUDGE.reason
     });
   });
 
@@ -630,7 +628,7 @@ describe('CLive plugin routes', () => {
       level: 'prompt',
       focus_id: 'case_is_concrete',
       history: escalateBody().history,
-      response: { level: 'prompt', nudge: PROMPT.nudge, reason: PROMPT.reason, leak_blocked: false }
+      response: { level: 'prompt', nudge: PROMPT.nudge, reason: PROMPT.reason }
     });
   });
 
@@ -750,7 +748,7 @@ describe('CLive plugin routes', () => {
     expect(state.users[0]).toContain('LEVEL\nhint');
   });
 
-  it('writes the code-feedback call, then its record with the level and the leak check', async () => {
+  it('writes the code-feedback call, then its record with the level', async () => {
     state.queue = [CODE_REPLY];
     await post('/code-feedback', codeBody());
     expect(types()).toEqual(['CLIVE_LLM_CALL', 'CLIVE_CODE_FEEDBACK']);
@@ -761,7 +759,7 @@ describe('CLive plugin routes', () => {
       attempt: 1,
       level: 'hint',
       code: 'int main(void) { return 0; }',
-      response: { ...CODE_REPLY, level: 'hint', leaks: [], leak_blocked: false }
+      response: { ...CODE_REPLY, level: 'hint' }
     });
   });
 
@@ -841,7 +839,7 @@ describe('CLive plugin routes', () => {
         level: 'prompt',
         situation: 'departs_from_plan',
         focus: 'step 2',
-        response: { level: 'prompt', nudge: CODE_PROMPT.nudge, leaks: [], leak_blocked: false }
+        response: { level: 'prompt', nudge: CODE_PROMPT.nudge }
       });
     });
 

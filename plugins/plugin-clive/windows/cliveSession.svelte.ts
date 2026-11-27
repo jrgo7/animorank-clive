@@ -63,7 +63,7 @@ export interface Verdict {
  */
 export interface NudgeResult {
   level?: NudgeLevel;
-  /** What the student reads; empty when the server held back a reply that gave the answer away. */
+  /** What the student reads (empty in sessions from before 2026-11-28 whose reply the leak check held back). */
   nudge: string;
   focus_id: string;
   /** The focused requirement's own text, for a requirement with no `not_met` line. */
@@ -169,10 +169,10 @@ export interface CodeFeedbackEntry {
   runType: 'run' | 'submit';
   level?: NudgeLevel;
   situation: string;
-  /** What happened, in one line: shown on its own when the reply was held back. */
+  /** What happened, in one line: shown on its own when the reply has no text. */
   summary?: string;
   focus: string;
-  /** What the student reads; empty when the server held back a reply that wrote their code. */
+  /** What the student reads (empty in sessions from before 2026-11-28 whose reply the leak check held back). */
   nudge: string;
   escalation?: CodeEscalation;
   /** Set when a later Run or Submit passed every test: the reply is no longer about the code. */

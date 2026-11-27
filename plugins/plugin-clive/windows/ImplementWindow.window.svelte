@@ -71,7 +71,7 @@
   /** The Design outline, as the Design phase holds it; blank before the student writes one. */
   const designSteps = $derived((session.phases[2].artifact.steps ?? []) as OutlineRow[]);
 
-  /** A reply's lines; one the server held back gives what happened and where to look instead. */
+  /** A reply's lines; an empty one (or one recorded before 2026-11-28 and held back) gives what happened and where to look instead. */
   function linesOf(reply: CodeFeedbackEntry | CodeEscalation): string[] {
     if (reply.nudge.trim()) return reply.nudge.split('\n').filter((line) => line.trim());
     return [reply.summary ?? '', reply.focus ? `Look at ${reply.focus}.` : ''].filter((line) => line.trim());
