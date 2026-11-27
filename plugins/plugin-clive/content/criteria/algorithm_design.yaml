@@ -35,10 +35,16 @@
 #       that one step works out and a later step uses only vaguely ("their sums", "the result"),
 #       including a value worked out once; such a value still needs no starting value, but it
 #       needs a name (real data R101).
+#
+#   v12 (2026-11-26, after the 25 Nov one-failure run): `termination_is_clear` needs each
+#       repeat to state when it stops (a count, a range, a condition, or every item of something
+#       the step names), even when the stop could be assumed from the problem. "The length of a
+#       collection" is gone: CLive read an ID's 8 digits as the bound of a repeat that never said
+#       where it stopped (P2-termination_is_clear, caught 2 of 5).
 
 id: criteria.algorithm_design
 phase: algorithm_design
-version: 11
+version: 12
 
 criteria:
   - id: not_c_code
@@ -114,6 +120,7 @@ criteria:
     explain: >-
       For every iteration statement, state a termination condition.
     guidance: |
-      PASS if each repeated step states its bound: a count read from input, the length of a collection, or a condition that the steps themselves make false.
-      FAIL if a step repeats 'until done' or 'for each' with nothing establishing what done means or what is being walked.
+      PASS if each repeated step states when it stops. This can be like a count ("for 1 up to n"), a range ("from 1 to 8"), or until a condition is false or true ("as long as meals x 30 is at most the budget"), or every item of something the step names ("for each digit of id", "for each of the 3 sections").
+      FAIL iterative statements that don't explicitly state their termination condition, even when it could be assumed from the problem.
+      FAIL if a step repeats 'until done' or 'for each' with nothing clearly establishing the termination condition.
       PASS if the design does not indicate any repetition statement at all.
