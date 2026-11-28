@@ -29,7 +29,8 @@ export const NudgeSchema = z.object({
 });
 
 export const CodeNudgeSchema = z.object({
-  situation: z.string().default('other'),
+  /** A missing situation is read as an unlisted one (`situations.ts`). */
+  situation: z.string().default(''),
   summary: z.string(),
   focus: z.string(),
   nudge: z.string()

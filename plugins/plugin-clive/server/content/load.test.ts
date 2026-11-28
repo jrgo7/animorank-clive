@@ -59,12 +59,16 @@ describe('CLive content loading', () => {
     expect(NUDGE_DOC.system_prompt).not.toContain('Decide the situation first');
   });
 
-  it('reads the code nudge at v8: two levels, the five situations, a fixed situation for a prompt', () => {
-    expect(NUDGE_CODE_DOC.version).toBe(8);
+  it('reads the code nudge at v9: two levels, the four situations, a fixed situation for a prompt', () => {
+    expect(NUDGE_CODE_DOC.version).toBe(9);
     expect(NUDGE_CODE_DOC.system_prompt).toContain('## Levels');
-    for (const id of ['syntax_following_plan', 'departs_from_plan', 'plan_is_wrong', 'far_from_plan', 'other']) {
+    for (const id of ['syntax_following_plan', 'departs_from_plan', 'plan_is_wrong', 'far_from_plan']) {
       expect(NUDGE_CODE_DOC.system_prompt, id).toContain(`\`${id}\``);
     }
+    expect(NUDGE_CODE_DOC.system_prompt).not.toContain('`other`');
+    // v9: a hint and a prompt are both one to three lines, as "How to write it" says.
+    expect(NUDGE_CODE_DOC.system_prompt).not.toMatch(/one or two lines/i);
+    expect(NUDGE_CODE_DOC.system_prompt.match(/^- `(hint|prompt)` — .*One to three lines\./gm)).toHaveLength(2);
     expect(NUDGE_CODE_DOC.system_prompt).toContain("does one of the plan's steps differently from what it says");
     expect(NUDGE_CODE_DOC.user_template).toContain('LEVEL');
     expect(NUDGE_CODE_DOC.user_template).toContain('SITUATION');
