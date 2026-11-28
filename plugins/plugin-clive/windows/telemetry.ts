@@ -19,15 +19,17 @@
  * `leaks` and `leak_blocked` on each nudge and code reply.
  * Sessions recorded before
  * the hint ladder also hold `CLIVE_STUCK` (an ask, its diagnosis and the reply),
- * which is no longer written. `CLIVE_LOG_CHECK` is
- * written by the server too: one entry with a fresh nonce, read back to prove
+ * which is no longer written. Sessions recorded before live C diagnostics were
+ * removed (2026-11-28) also hold `CLIVE_LIVE_CHECK_READY`,
+ * `CLIVE_LIVE_CHECK_FAILED`, `CLIVE_LIVE_CHECK` and `CLIVE_LIVE_RAW_TOGGLE`,
+ * which are no longer written; the logs view still renders them. `CLIVE_LOG_CHECK`
+ * is written by the server too: one entry with a fresh nonce, read back to prove
  * the session's history still accepts writes. What each page entry's `data`
  * holds:
  *
- * - `CLIVE_SESSION_START` — `{ problem, new_session, live }`: the solve page
- *   opened for a sitting; `new_session` says no saved CLive work was found, and
- *   `live` is the live-checking mode resolved for it (`on`, `off` or
- *   `unavailable`). One per page load, recorded once that mode is known.
+ * - `CLIVE_SESSION_START` — `{ problem, new_session }`: the solve page opened
+ *   for a sitting; `new_session` says no saved CLive work was found. One per page
+ *   load.
  * - `CLIVE_PROBLEM_LOAD` — `{ problem, restored, phase }`: the solve page opened
  *   for a problem, whether saved CLive work was found for it, and the phase it
  *   resumed in. One per page load, so it also marks where each sitting starts.
@@ -40,15 +42,6 @@
  *   the run's own `RUN_ATTEMPT` entry, so this record carries only the outcome.
  * - `CLIVE_CASE_ADDED`, `CLIVE_CASE_REMOVED` — `{ phase, cases }`: the number of
  *   cases then in play.
- * - `CLIVE_LIVE_CHECK_READY` — `{ load_ms }`: clangd in the student's browser
- *   answered its handshake, and how long it took; `CLIVE_LIVE_CHECK_FAILED` —
- *   `{ reason }`: it could not start, or gave up after three unanswered checks.
- *   A session with neither never ran live checking (the switch, or no vendored
- *   clangd on the machine serving the plugin).
- * - `CLIVE_LIVE_CHECK` — `{ problem, diagnostics }`: the set of squiggles
- *   changed, as `[{ line, kind }]` — never the code, which the next run or
- *   submit already records.
- * - `CLIVE_LIVE_RAW_TOGGLE` — `{ on }`: the "show the compiler's own words" box.
  * - `CLIVE_RESEARCHER_OVERRIDE` — `{ from_phase, to_phase, attempt, reason }`: a researcher
  *   moved the student on without a pass (Ctrl+Shift+Y).
  * - `CLIVE_RESTORE_PASSED` — `{ phase, step }`: after a failed resubmit, the
@@ -70,10 +63,6 @@ export const CLIVE_EVENT = {
   run: 'CLIVE_RUN',
   caseAdded: 'CLIVE_CASE_ADDED',
   caseRemoved: 'CLIVE_CASE_REMOVED',
-  liveCheckReady: 'CLIVE_LIVE_CHECK_READY',
-  liveCheckFailed: 'CLIVE_LIVE_CHECK_FAILED',
-  liveCheck: 'CLIVE_LIVE_CHECK',
-  liveRawToggle: 'CLIVE_LIVE_RAW_TOGGLE',
   researcherOverride: 'CLIVE_RESEARCHER_OVERRIDE',
   restorePassed: 'CLIVE_RESTORE_PASSED',
   phasePassed: 'CLIVE_PHASE_PASSED',

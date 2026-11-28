@@ -16,7 +16,6 @@ import caseDesignCriteriaYaml from '../../content/criteria/case_design.yaml?raw'
 import algorithmDesignCriteriaYaml from '../../content/criteria/algorithm_design.yaml?raw';
 import nudgeYaml from '../../content/base/nudge.yaml?raw';
 import nudgeCodeYaml from '../../content/base/nudge_code.yaml?raw';
-import diagnosticsYaml from '../../content/base/diagnostics.yaml?raw';
 import outputSchemaRaw from '../../content/base/output_schema.json?raw';
 import { JudgeError } from './errors';
 
@@ -61,28 +60,6 @@ export interface PromptDoc {
   model?: { effort?: string; max_output_tokens?: number };
   system_prompt: string;
   user_template: string;
-}
-
-/** One row of the compiler wording table (`prompts/base/diagnostics.yaml`). */
-export interface DiagnosticEntry {
-  id: string;
-  /**
-   * gcc's message, as a pattern. This port never reads gcc's output -- the run
-   * and submit path is AnimoRank's own -- so only {@link DiagnosticEntry.clang}
-   * is used here; the rest is carried so the table stays the prototype's file.
-   */
-  match: string;
-  say: string;
-  /** The clangd diagnostic codes this entry also describes (live checking). */
-  clang?: string[];
-}
-
-/** The compiler wording table: what Implement says beside a compiler's complaint. */
-export interface DiagnosticsDoc {
-  id: string;
-  version: number;
-  fallback: string;
-  entries: DiagnosticEntry[];
 }
 
 /** One rubric criterion (`criteria/<phase>.yaml`). */
@@ -185,61 +162,10 @@ function normalisePrompt(doc: PromptDoc, name: string): PromptDoc {
   return doc;
 }
 
-/**
- * The wording table's own checks, mirroring `prompts.load_diagnostics` in the
- * prototype: a missing fallback, a blank field, a repeated id, a pattern that is
- * not a regular expression, or a clang code claimed by two entries all fail here
- * — naming the file — rather than halfway through a student's session.
- *
- * `match` is compiled but never matched against anything in this port: gcc's
- * output is AnimoRank's own run and submit flow, and the prototype's reader for
- * it is not ported. Compiling it keeps the file honest for whoever compares the
- * two.
- */
-function normaliseDiagnostics(doc: DiagnosticsDoc, name: string): DiagnosticsDoc {
-  if (!String(doc?.fallback ?? '').trim()) {
-    throw new JudgeError(`CLive content ${name} has no fallback.`);
-  }
-  const entries = Array.isArray(doc.entries) ? doc.entries : [];
-  const seen = new Set<string>();
-  const codes = new Map<string, string>();
-  entries.forEach((entry, index) => {
-    const at = `CLive content ${name} entry ${index + 1}`;
-    const missing = (['id', 'match', 'say'] as const).find((key) => !String(entry?.[key] ?? '').trim());
-    if (missing) throw new JudgeError(`${at} has no ${missing}.`);
-    if (seen.has(entry.id)) throw new JudgeError(`${at} repeats the id '${entry.id}'.`);
-    seen.add(entry.id);
-    try {
-      new RegExp(entry.match);
-    } catch (cause) {
-      throw new JudgeError(`${at} has a bad match: ${cause instanceof Error ? cause.message : String(cause)}`);
-    }
-    if (entry.clang === undefined) return;
-    if (!Array.isArray(entry.clang) || entry.clang.some((code) => typeof code !== 'string' || !code.trim())) {
-      throw new JudgeError(`${at} has a bad clang list: it must be a list of clang diagnostic codes.`);
-    }
-    for (const code of entry.clang) {
-      const owner = codes.get(code);
-      if (owner) {
-        throw new JudgeError(
-          `CLive content ${name}: the clang code '${code}' is under both '${owner}' and '${entry.id}'.`
-        );
-      }
-      codes.set(code, entry.id);
-    }
-  });
-  return { ...doc, entries };
-}
-
 export const NUDGE_DOC: PromptDoc = normalisePrompt(parseFile(nudgeYaml, 'base/nudge.yaml'), 'base/nudge.yaml');
 export const NUDGE_CODE_DOC: PromptDoc = normalisePrompt(
   parseFile(nudgeCodeYaml, 'base/nudge_code.yaml'),
   'base/nudge_code.yaml'
-);
-
-export const DIAGNOSTICS_DOC: DiagnosticsDoc = normaliseDiagnostics(
-  parseFile(diagnosticsYaml, 'base/diagnostics.yaml'),
-  'base/diagnostics.yaml'
 );
 
 /** The judge output JSON Schema, as shipped, for the provider that is told its shape. */

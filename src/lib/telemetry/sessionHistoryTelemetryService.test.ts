@@ -144,15 +144,17 @@ describe('SessionHistoryTelemetryService', () => {
 
   it('sends the buffer with keepalive when the page is hidden', () => {
     const service = build();
+    // Checkpoints are covered separately; suppress them so this test stays about keepalive.
+    service.code = undefined;
     const page = fakeWindow();
     service.attachWindow(page.window);
 
-    service.record('CLIVE_LIVE_RAW_TOGGLE', { on: true });
+    service.record('CLIVE_PHASE_OPEN', { phase: 'implement' });
     page.hide();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((fetchMock.mock.calls[0][1] as RequestInit).keepalive).toBe(true);
-    expect(postedEvents(fetchMock)).toMatchObject([{ type: 'CLIVE_LIVE_RAW_TOGGLE', data: { on: true } }]);
+    expect(postedEvents(fetchMock)).toMatchObject([{ type: 'CLIVE_PHASE_OPEN', data: { phase: 'implement' } }]);
   });
 
   it('sends the buffer with keepalive when the page is left', () => {
@@ -180,6 +182,8 @@ describe('SessionHistoryTelemetryService', () => {
 
   it('sends a batch too large for keepalive without it', () => {
     const service = build();
+    // Checkpoints are covered separately; suppress them so this test stays about keepalive.
+    service.code = undefined;
     const page = fakeWindow();
     service.attachWindow(page.window);
 

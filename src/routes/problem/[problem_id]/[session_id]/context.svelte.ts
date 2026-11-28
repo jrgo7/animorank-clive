@@ -1,7 +1,6 @@
 import { AutoSave, type AutoSaveState } from '$lib/utils/autosave.svelte';
 import { ClientRegistryProvider } from '$lib/registry/client';
 import { TelemetryService } from '$lib/telemetry/telemetryService';
-import type { monaco } from '$lib/monaco';
 import type { Problem, Slot } from '$lib/problem';
 import type { ClientPracticeSession } from '$lib/practiceSession/clientPracticeSession';
 import {
@@ -63,16 +62,6 @@ export class SolveEditorState {
   public code: string = $state('');
   public codeSections: Record<string, string> = $state({});
   public locked: boolean = $state(false);
-  /**
-   * The Monaco model the Code Editor currently holds, or undefined while it is
-   * still loading. Published here so an extension can attach its own view of the
-   * code without the editor having to know about it: the CLive plugin draws
-   * clangd's live diagnostics on this model under its own marker owner.
-   *
-   * Reset Code swaps in a fresh model, and this follows the swap, so a marker
-   * owner reads it as reactive state rather than holding on to a disposed model.
-   */
-  public model: monaco.editor.ITextModel | undefined = $state(undefined);
 
   constructor(initial: { code: string; sections: Record<string, string> }) {
     this.code = initial.code;

@@ -13,7 +13,6 @@ import { AlgorithmDesignWindow } from './windows/AlgorithmDesignWindow.window';
 import { ImplementWindow } from './windows/ImplementWindow.window';
 import { ReferenceSolutionWindow } from './windows/ReferenceSolutionWindow.window';
 import { CLiveLogsWindow } from './windows/CLiveLogs.window';
-import { live } from './windows/live.svelte';
 import { cliveSessionFor } from './windows/cliveSession.svelte';
 import { PHASE_PLACEMENT_REFERENCE, PHASE_TRACK_SIZING, PHASES, PROBLEM_INFO_WINDOW_KEY } from './windows/phase';
 import { showPhaseWindows } from './windows/phaseWindows';
@@ -95,7 +94,6 @@ export default class CLivePlugin extends ClientPlugin {
     });
 
     // Prove the session's history accepts writes before the student settles in.
-    // Independent of clangd, so a slow handshake cannot delay it.
     void checkLog(context.practiceSession.id, context.problem.id)
       .then((answer) => {
         session.logging = { ok: answer.ok, reason: answer.error };
@@ -108,26 +106,10 @@ export default class CLivePlugin extends ClientPlugin {
         console.warn('CLive could not check the session log', error);
       });
 
-    // Live C diagnostics start now rather than when Implement opens, so clangd
-    // has the whole session to load in (13 MB, and a second or two to start) --
-    // and deliberately not awaited by the page: its handshake is not something
-    // the windows above should wait on. `attach` itself resolves once the mode
-    // is known, which is what `CLIVE_SESSION_START` records. See
-    // `windows/live.svelte.ts`.
-    void (async () => {
-      try {
-        await live.attach(context);
-      } catch {
-        // `attach` degrades to 'unavailable' on its own; a failure there must
-        // not cost the session its start record.
-      }
-      context.telemetry.record(CLIVE_EVENT.sessionStart, {
-        problem: context.problem.id,
-        new_session: !session.restored,
-        live: live.mode,
-        live_reason: live.reason
-      });
-    })();
+    context.telemetry.record(CLIVE_EVENT.sessionStart, {
+      problem: context.problem.id,
+      new_session: !session.restored
+    });
 
     // `openWindow` is async (`DockviewWindowManager.ensureWindow` awaits the
     // window registry), so firing these without awaiting lets them land in

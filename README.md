@@ -99,16 +99,6 @@ Insert email addresses into the `TeacherList` table (model `TeacherList { email 
 
 Sign-in is restricted to two groups: the addresses named in `WHITELISTED_EMAILS`, and teachers. Anyone else is refused at the Google callback, so no account is created for them — with the variable unset, only teachers can sign in. A whitelisted address that is not on `TeacherList` signs in as a **student**.
 
-### 6. Optional: clangd, for live C diagnostics in the CLive plugin
-
-The CLive plugin marks compile problems in the code editor while the student types, using clangd compiled to WebAssembly and run in the student's browser. It needs two files (about 126 MB raw) that are too big for git, so fetch them once per machine:
-
-```bash
-npm run scripts:fetchClangd
-```
-
-Without them, everything else works and the solve page is simply without squiggles while typing. The files land in `vendor/clangd/` (gitignored) and are downloaded from a pinned, hash-checked source; `CLIVE_CLANGD_DIR` moves the folder if it should live elsewhere. The solve page is served cross-origin isolated for this feature; every other page is unaffected.
-
 ## Development
 
 ```bash

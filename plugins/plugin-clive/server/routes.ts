@@ -34,7 +34,6 @@ import { phaseDoc, rubricDoc, type CriterionDoc, type PhaseDoc } from './content
 import type { HistoryTurn, ProblemForPrompt } from './content/templates';
 import { failingGates, type FailingCriterion } from './criteria';
 import type { Verdict } from './judge';
-import { liveTable } from './live';
 import { captureLlmCalls } from './llmCalls';
 import { codeNudge, type CodeFeedback } from './codeNudge';
 import { eventsAfter, watching } from './liveFeed';
@@ -633,9 +632,7 @@ async function keep(request: FastifyRequest, sessionId: string, entries: Session
 class CLiveAPI extends ServerAPI {
   public async fastifyPlugin(): Promise<FastifyPluginCallback> {
     return (app) => {
-      app.get('/boot', async (_request, reply) =>
-        reply.send({ hasApiKey: getProvider().hasApiKey(), live_check: liveTable() })
-      );
+      app.get('/boot', async (_request, reply) => reply.send({ hasApiKey: getProvider().hasApiKey() }));
 
       // The live reasoning window (Ctrl+Shift+L) and the events it polls. Loopback
       // only: the reasoning weighs requirements the student has not been shown.

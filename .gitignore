@@ -28,9 +28,6 @@ skills-lock.json
 /.idea
 backups/
 
-# clangd (WebAssembly), for the CLive plugin's live C diagnostics: 126 MB, and
-# fetched once per machine by scripts/fetchClangd.ts.
-/vendor
 *storybook.log
 storybook-static
 /.scannerwork

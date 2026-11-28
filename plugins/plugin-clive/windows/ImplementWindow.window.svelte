@@ -1,6 +1,5 @@
 <script lang="ts">
   import Alert from '$lib/components/ui/alerts/Alert.svelte';
-  import Checkbox from '$lib/components/ui/checkboxes/Checkbox.svelte';
   import DesignPanel from './DesignPanel.svelte';
   import StuckButton from './StuckButton.svelte';
   import { isFunctionProblem } from './problemKind';
@@ -8,7 +7,6 @@
   import { PHASES, type OutlineRow } from './phase';
   import { canEscalateCode } from './codeFeedback';
   import { CLIVE_EVENT } from './telemetry';
-  import { live } from './live.svelte';
   import type { SolveWindowContext } from '../../../src/routes/problem/[problem_id]/[session_id]/context.svelte';
 
   // `phaseIndex` is fixed per window file rather than taken as a prop: `Window`
@@ -34,9 +32,6 @@
   /** Where the code actually lives, and what checks it. */
   const CODE_NOTE =
     'Edited in the Code Editor window. Run and Submit there check it against the examples and the hidden cases.';
-
-  /** clangd marks compile problems in the Code Editor while the student types; this is the box. */
-  const LIVE_BOX = "Show the compiler's own words";
 
   let session = $derived(cliveSessionFor(context));
   let functionProblem = $derived(isFunctionProblem(context.problem.extension_data));
@@ -159,25 +154,6 @@
         >
           {CODE_NOTE}
         </div>
-
-        <!-- Live checking: a note while clangd is still loading, and the box that shows
-             the compiler's own words. Nothing at all when it is off, unavailable on this
-             machine, or dead (see `live.svelte.ts`). -->
-        {#if live.mode === 'on' && !live.dead}
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-base-content/50">
-            {#if !live.ready}
-              <span>Checking as you type will start in a moment.</span>
-            {/if}
-            <Checkbox
-              class="checkbox-xs"
-              labelClass="gap-1.5 text-xs"
-              checked={live.raw}
-              onchange={(event) => live.setRaw(event.currentTarget.checked)}
-            >
-              {LIVE_BOX}
-            </Checkbox>
-          </div>
-        {/if}
       </div>
 
       {#if session.codeFeedbackBusy}
