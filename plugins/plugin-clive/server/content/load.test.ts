@@ -33,7 +33,11 @@ describe('CLive content loading', () => {
   it('reads the three rubrics, defaulting an omitted gate to gating', () => {
     const cases = rubricDoc('case_design');
     expect(cases.criteria).toHaveLength(4);
-    expect(cases.criteria.find((c) => c.id === 'outputs_are_correct')?.check).toBe('reference');
+    // Since criteria v15 the model judges outputs_are_correct, as a required criterion; nothing is computed.
+    const outputs = cases.criteria.find((c) => c.id === 'outputs_are_correct');
+    expect(outputs).toMatchObject({ gate: 'gating' });
+    expect(outputs?.check).toBeUndefined();
+    expect(cases.criteria.some((c) => c.check === 'reference')).toBe(false);
     // Every Cases criterion is judged on Case 1 but `worked_out_differently`, which compares Case 2 with it.
     const compared = cases.criteria.find((c) => c.id === 'worked_out_differently');
     expect(compared).toMatchObject({ gate: 'advisory', fields: ['edge_cases'] });

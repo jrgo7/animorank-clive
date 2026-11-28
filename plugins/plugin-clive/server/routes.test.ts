@@ -697,7 +697,8 @@ describe('CLive plugin routes', () => {
       step: 'normal_cases',
       artifact: casesBody().artifact
     });
-    expect(record.reference_check).toHaveProperty('status');
+    // No Cases criterion is computed since criteria v15, so there is no reference check to keep.
+    expect(record.reference_check).toBeNull();
     expect(record.response.passed).toBe(true);
     const shown = record.response.verdicts.find((v) => v.criterion_id === 'work_is_shown');
     expect(shown).toMatchObject({ evidence: '4 * 6 = 24.', evidence_found: true, confidence: 'high' });
