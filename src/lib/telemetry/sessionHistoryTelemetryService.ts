@@ -37,7 +37,7 @@ export const FLUSH_INTERVAL_SECONDS = 1;
  * of typing leaves hundreds of frames with nothing to anchor a reconstruction
  * that drifted. One snapshot every 50 frames bounds that.
  */
-export const SNAPSHOT_INTERVAL_FRAMES = 50;
+export const SNAPSHOT_INTERVAL_FRAMES = 1;
 
 /**
  * Records telemetry entries into the practice session's history
