@@ -82,6 +82,8 @@ describe('SessionHistoryTelemetryService', () => {
 
   it('buffers entries until flush posts them to the session history in one batch', async () => {
     const service = build();
+    // Checkpoints are covered separately; suppress them so this test stays about buffering.
+    service.code = undefined;
 
     service.record('TEXT_MODIFIED', { new: 'a' });
     service.record('RUN_ATTEMPT', { success: false });
@@ -114,6 +116,8 @@ describe('SessionHistoryTelemetryService', () => {
 
   it('posts entries that arrive after a flush on the next flush', async () => {
     const service = build();
+    // Checkpoints are covered separately; suppress them so this test stays about buffering.
+    service.code = undefined;
 
     service.record('PING', {});
     await service.flush();
@@ -205,6 +209,8 @@ describe('SessionHistoryTelemetryService', () => {
   it('posts the buffered entries by itself once the interval elapses', async () => {
     vi.useFakeTimers();
     const service = build();
+    // Checkpoints are covered separately; suppress them so this test stays about buffering.
+    service.code = undefined;
 
     service.emit({ type: 'TEXT_MODIFIED', data: { new: 'a' } });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -236,6 +242,8 @@ describe('SessionHistoryTelemetryService', () => {
         })
     );
     const service = build();
+    // Checkpoints are covered separately; suppress them so this test stays about buffering.
+    service.code = undefined;
 
     service.emit({ type: 'PING', data: { first: true } });
     await vi.advanceTimersByTimeAsync(INTERVAL_MS);
@@ -266,20 +274,22 @@ describe('SessionHistoryTelemetryService', () => {
   it('writes a full-code checkpoint after every interval of frames', async () => {
     const service = build();
 
-    for (let i = 0; i < SNAPSHOT_INTERVAL_FRAMES - 1; i += 1) service.emit({ type: 'PING', data: { i } });
+    // The interval is one frame, so each emitted frame reaches the boundary and
+    // its checkpoint follows immediately.
+    service.emit({ type: 'PING', data: {} });
     await service.flush();
 
-    const batch = postedEvents(fetchMock) as { type: string; data: unknown }[];
-    expect(batch).toHaveLength(SNAPSHOT_INTERVAL_FRAMES);
-    expect(batch.at(-1)).toMatchObject({ type: 'CODE_SNAPSHOT', data: { submittedCode: 'code' } });
+    expect(postedEvents(fetchMock)).toMatchObject([
+      { session_id: SESSION_ID, type: 'PING' },
+      { session_id: SESSION_ID, type: 'CODE_SNAPSHOT', data: { submittedCode: 'code' } }
+    ]);
 
-    // The counter restarted: the next group ends with its own checkpoint.
-    for (let i = 0; i < SNAPSHOT_INTERVAL_FRAMES - 1; i += 1) service.emit({ type: 'PING', data: { i } });
+    // The counter restarted: the next frame also ends with its own checkpoint.
+    service.emit({ type: 'PING', data: {} });
     await service.flush();
 
-    const second = eventsOfCall(fetchMock, 1) as { type: string; data: unknown }[];
-    expect(second).toHaveLength(SNAPSHOT_INTERVAL_FRAMES);
-    expect(second.at(-1)).toMatchObject({ type: 'CODE_SNAPSHOT', data: { submittedCode: 'code' } });
+    const second = eventsOfCall(fetchMock, 1) as { type: string }[];
+    expect(second.map((event) => event.type)).toEqual(['PING', 'CODE_SNAPSHOT']);
   });
 
   it('defers the checkpoint to the first frame the editor can prove', async () => {
