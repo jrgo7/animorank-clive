@@ -39,6 +39,7 @@ import { codeNudge, type CodeFeedback } from './codeNudge';
 import { eventsAfter, watching } from './liveFeed';
 import { livePage } from './livePage';
 import { nudge, pickFocus, type NudgeLevel, type NudgeOutcome } from './nudge';
+import { situationOr } from './situations';
 import { loadCLiveProblem } from './problem';
 import { getProvider } from './providers';
 import { judgeWithChecks } from './referenceCheck';
@@ -463,7 +464,8 @@ async function escalateCode(
   if (!run.success) throw new Conflict('The run that feedback was about could not be read. Run your code again.');
 
   const hint = (record.response ?? {}) as Record<string, unknown>;
-  const situation = typeof hint.situation === 'string' ? hint.situation : 'other';
+  // A hint recorded before nudge_code v9 may say `other`, which the prompt no longer knows.
+  const situation = situationOr('implement', typeof hint.situation === 'string' ? hint.situation : '');
   const focus = typeof hint.focus === 'string' ? hint.focus : '';
   const hintTurn = {
     level: 'hint' as const,

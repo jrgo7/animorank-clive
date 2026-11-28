@@ -16,7 +16,9 @@
  * Sessions recorded before Implement joined the hint ladder hold Implement
  * `CLIVE_SUBMIT`s from "Check against your plan", and code feedback with no level.
  * Sessions recorded before the leak check was removed (2026-11-28) also hold
- * `leaks` and `leak_blocked` on each nudge and code reply.
+ * `leaks` and `leak_blocked` on each nudge and code reply. Since Cases criteria v15
+ * (2026-11-28) the model judges `outputs_are_correct`, so a Cases `CLIVE_SUBMIT`'s
+ * `reference_check` is null; earlier ones hold the reference's run of each case.
  * Sessions recorded before
  * the hint ladder also hold `CLIVE_STUCK` (an ask, its diagnosis and the reply),
  * which is no longer written. Sessions recorded before live C diagnostics were

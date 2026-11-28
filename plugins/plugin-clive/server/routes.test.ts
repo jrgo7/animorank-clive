@@ -689,7 +689,8 @@ describe('CLive plugin routes', () => {
       step: 'normal_cases',
       artifact: casesBody().artifact
     });
-    expect(record.reference_check).toHaveProperty('status');
+    // No Cases criterion is computed since criteria v15, so there is no reference check to keep.
+    expect(record.reference_check).toBeNull();
     expect(record.response.passed).toBe(true);
     const shown = record.response.verdicts.find((v) => v.criterion_id === 'work_is_shown');
     expect(shown).toMatchObject({ evidence: '4 * 6 = 24.', evidence_found: true, confidence: 'high' });
@@ -813,6 +814,21 @@ describe('CLive plugin routes', () => {
       expect(user).not.toContain('CLIENT_INPUT');
       // The hint it goes further from is in its history, once.
       expect(user.split('- hint, [departs_from_plan] at step 2: Look at step 2.')).toHaveLength(2);
+    });
+
+    it('writes a prompt on a hint recorded as other (before nudge_code v9) as departs_from_plan', async () => {
+      await failedRun();
+      const recorded = log.written.findLast((e) => e.type === 'CLIVE_CODE_FEEDBACK')!.data as {
+        response: { situation: string };
+      };
+      recorded.response.situation = 'other';
+      state.queue = [CODE_PROMPT];
+      const response = await post('/code-feedback/escalate', codeEscalateBody());
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().situation).toBe('departs_from_plan');
+      expect(state.users[1]).toContain('SITUATION\ndeparts_from_plan');
+      expect(state.users[1]).not.toContain('SITUATION\nother');
     });
 
     it('logs the escalation: its model call, then its record', async () => {

@@ -255,6 +255,15 @@ describe('the nudge reply', () => {
 });
 
 describe('reference check', () => {
+  /**
+   * The Cases rubric with `check: reference` put back on outputs_are_correct. No criterion
+   * uses it since criteria v15 (the model judges the outputs), but the check still works.
+   */
+  const referenceCriteria = () =>
+    rubricDoc('case_design').criteria.map((c) =>
+      c.id === 'outputs_are_correct' ? { ...c, check: 'reference' as const } : c
+    );
+
   it('compares values, rounding to the coarser precision', () => {
     expect(outputsMatch('63.3', '63.33')).toBe(true);
     expect(outputsMatch('63.4', '63.33')).toBe(false);
@@ -385,7 +394,7 @@ describe('reference check', () => {
       functions: [SUM, two]
     };
     const phase = phaseDoc('case_design');
-    const criteria = rubricDoc('case_design').criteria;
+    const criteria = referenceCriteria();
     const verdicts = criteria
       .filter((c) => c.check !== 'reference')
       .map((c) => ({ criterion_id: c.id, verdict: 'PASS', evidence: '', confidence: 'high' }));
@@ -400,7 +409,7 @@ describe('reference check', () => {
 
   it('downgrades a reference criterion to advisory when the reference cannot run', async () => {
     const phase = phaseDoc('case_design');
-    const criteria = rubricDoc('case_design').criteria;
+    const criteria = referenceCriteria();
     const provider = fakeProvider({
       verdicts: [
         { criterion_id: 'case_is_concrete', verdict: 'FAIL', evidence: '', confidence: 'low' },
@@ -417,9 +426,51 @@ describe('reference check', () => {
     expect(result.verdicts.find((v) => v.criterion_id === 'case_is_concrete')?.verdict).toBe('FAIL');
   });
 
+  it('leaves outputs_are_correct to the model, as required, and never runs the reference (criteria v15)', async () => {
+    const step = cut(phaseDoc('case_design'), CASES_ARTIFACT, rubricDoc('case_design').criteria, 'normal_cases');
+    let prompt = '';
+    const provider: Provider = {
+      ...fakeProvider(null),
+      judgeJson: async (options) => {
+        prompt = options.user;
+        const reply = {
+          verdicts: [
+            { criterion_id: 'case_is_concrete', verdict: 'PASS', evidence: '', confidence: 'high' },
+            { criterion_id: 'work_is_shown', verdict: 'PASS', evidence: '', confidence: 'high' },
+            { criterion_id: 'outputs_are_correct', verdict: 'FAIL', evidence: '24', confidence: 'high' }
+          ]
+        };
+        return { parsed: options.schema.parse(reply), model: 'fake-model', inputTokens: 3, outputTokens: 5 };
+      }
+    };
+    let ran = false;
+    const result = await judgeWithChecks(
+      step.phase,
+      { ...PROBLEM, reference_solution: 'int main(void){return 0;}' },
+      step.artifact,
+      step.criteria,
+      1,
+      [],
+      provider,
+      new FakeExecutor(() => {
+        ran = true;
+        return execution(0, 0, '24\n');
+      })
+    );
+
+    expect(ran).toBe(false);
+    expect(result.referenceCheck).toBeNull();
+    expect(prompt).toContain('- [outputs_are_correct] ');
+    expect(result.criteria.find((c) => c.id === 'outputs_are_correct')?.gate).toBe('gating');
+    expect(result.verdicts.find((v) => v.criterion_id === 'outputs_are_correct')).toMatchObject({
+      verdict: 'FAIL',
+      evidence: '24'
+    });
+  });
+
   it('computes the reference verdict, in rubric order, when it can run', async () => {
     const phase = phaseDoc('case_design');
-    const criteria = rubricDoc('case_design').criteria;
+    const criteria = referenceCriteria();
     const provider = fakeProvider({
       verdicts: [
         { criterion_id: 'case_is_concrete', verdict: 'PASS', evidence: '', confidence: 'high' },
@@ -549,16 +600,33 @@ describe('code nudge', () => {
     expect(users[0]).toContain('- prompt, [departs_from_plan] at step 2: Where does nSum start?');
   });
 
-  it('reads a reply with no situation as other', async () => {
+  // nudge_code v9 has no `other`: an answer outside the list is read as the commonest situation.
+  it('reads a reply with no situation as departs_from_plan', async () => {
     const noSituation: Partial<typeof REPLY> = { ...REPLY };
     delete noSituation.situation;
     const { provider } = capturing(noSituation);
-    expect((await ask(provider)).situation).toBe('other');
+    expect((await ask(provider)).situation).toBe('departs_from_plan');
   });
 
-  it('turns a situation the Implement phase does not list into other', async () => {
-    const { provider } = capturing({ ...REPLY, situation: 'banana' });
-    expect((await ask(provider)).situation).toBe('other');
+  it('turns a situation the Implement phase does not list, other included, into departs_from_plan', async () => {
+    for (const situation of ['banana', 'other']) {
+      const { provider } = capturing({ ...REPLY, situation });
+      expect((await ask(provider)).situation).toBe('departs_from_plan');
+    }
+  });
+
+  it('never offers the model an other situation', async () => {
+    const { provider } = capturing(REPLY);
+    let system = '';
+    await ask({
+      ...provider,
+      judgeJson: async (options) => {
+        system = options.system;
+        return provider.judgeJson(options);
+      }
+    });
+    expect(system).toContain('`far_from_plan`');
+    expect(system).not.toContain('`other`');
   });
 
   it('calls a failing case’s result what the program gave, not what it printed', async () => {

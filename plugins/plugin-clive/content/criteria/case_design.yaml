@@ -12,10 +12,10 @@
 #         Keep advisory criteria genuinely optional: anything the next phase cannot
 #         be attempted without belongs in `gating`, not here.
 #
-#   check `reference` means the criterion is computed, not judged: `outputs_are_correct`
-#         runs each case row through the problem's `reference_solution` (see
-#         src/clive/reference_check.py). Its guidance is only read when a problem has no
-#         reference or it cannot run -- and then the judge rules on it as advisory.
+#   check `reference` would make a criterion computed, not judged: each case row is run
+#         through the problem's `reference_solution` (server/referenceCheck.ts), and the
+#         guidance is read only when the reference cannot run, with the judge ruling on it
+#         as advisory. No criterion uses it since v15.
 #
 #   fields  The step(s) a criterion is judged on. This phase is judged one case at a
 #           time (`judge: per_step`): submitting a step judges only the criteria that
@@ -47,10 +47,17 @@
 #       working reaches the student's own expected output; whether that output is right is
 #       outputs_are_correct's job (the mirror of outputs_are_correct's note). Working that
 #       misquotes the problem's rule still fails (real data R086).
+#
+#   v15 (2026-11-28): `outputs_are_correct` is judged by the model, as a required criterion, from
+#       its guidance and the problem statement; `check: reference` is off it. The reference check
+#       could not read many inputs as students write them (labels, one value for a two-argument
+#       function), and then the criterion went optional. On all 38 Cases submissions on hand
+#       (golden, one-failure, real), the model alone agreed with the reference on all 32 it could
+#       compute, by majority of 5 runs; 157 of 160 single runs (clive-cases-model-only-2026-11-28).
 
 id: criteria.case_design
 phase: case_design
-version: 14
+version: 15
 
 criteria:
   - id: case_is_concrete
@@ -84,7 +91,6 @@ criteria:
   - id: outputs_are_correct
     text: The expected output is right for the input.
     gate: gating
-    check: reference
     fields: [normal_cases, edge_cases, case_3, case_4, case_5]
     not_met: "Work out the expected output for this input again."
     explain: >-
