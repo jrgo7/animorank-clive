@@ -600,16 +600,33 @@ describe('code nudge', () => {
     expect(users[0]).toContain('- prompt, [departs_from_plan] at step 2: Where does nSum start?');
   });
 
-  it('reads a reply with no situation as other', async () => {
+  // nudge_code v9 has no `other`: an answer outside the list is read as the commonest situation.
+  it('reads a reply with no situation as departs_from_plan', async () => {
     const noSituation: Partial<typeof REPLY> = { ...REPLY };
     delete noSituation.situation;
     const { provider } = capturing(noSituation);
-    expect((await ask(provider)).situation).toBe('other');
+    expect((await ask(provider)).situation).toBe('departs_from_plan');
   });
 
-  it('turns a situation the Implement phase does not list into other', async () => {
-    const { provider } = capturing({ ...REPLY, situation: 'banana' });
-    expect((await ask(provider)).situation).toBe('other');
+  it('turns a situation the Implement phase does not list, other included, into departs_from_plan', async () => {
+    for (const situation of ['banana', 'other']) {
+      const { provider } = capturing({ ...REPLY, situation });
+      expect((await ask(provider)).situation).toBe('departs_from_plan');
+    }
+  });
+
+  it('never offers the model an other situation', async () => {
+    const { provider } = capturing(REPLY);
+    let system = '';
+    await ask({
+      ...provider,
+      judgeJson: async (options) => {
+        system = options.system;
+        return provider.judgeJson(options);
+      }
+    });
+    expect(system).toContain('`far_from_plan`');
+    expect(system).not.toContain('`other`');
   });
 
   it('calls a failing case’s result what the program gave, not what it printed', async () => {

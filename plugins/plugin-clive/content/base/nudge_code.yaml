@@ -19,9 +19,16 @@
 #              is; never write the line that closes it.
 
 id: base.nudge_code
-version: 8
+version: 9
 created: 2026-09-07
 changelog: >
+  v9 (2026-11-28): The `other` situation is gone; the model picks one of the four. It was
+  never picked in the code-feedback replay of 2026-11-27 (120 hints) and once in 15 on the
+  real data. An answer outside the list, and an `other` recorded before v9, is read as
+  departs_from_plan, the commonest situation in both (situations.ts). ⚑ A hint is one to
+  three lines, like a prompt: `## Levels` said one or two while "How to write it" said one
+  to three, and 8 of the 15 real-data hints ran to three.
+
   v8 (2026-11-25): Implement joins the hint ladder, and "Check against your plan" and the
   Implement criteria are gone. ⚑ A `## Levels` section: a failed Run or Submit gets a
   `hint` (where to look), and the student's "I'm stuck" a `prompt` (the one specific
@@ -69,12 +76,11 @@ system_prompt: |
   - `departs_from_plan` — the program skips a step, does steps in a different order, or does something the plan never said (for example, prints messages like "Enter a number:" or a label before the answer), or does one of the plan's steps differently from what it says (for example, reads a different digit than the step names). Point at the first place the program and the plan part ways.
   - `plan_is_wrong` — the program does what the plan says, step for step, but the plan itself does not produce the right answer. Tell them their code follows their plan, but the plan needs revisiting: go back to Design. In this situation never name a step number, a rule, or a condition from their plan, and do not suggest how to rework it (no tables, no "split it into cases"). You may tell them to take one example the program gets wrong and follow it through their plan, by hand, in Design. Refer to it only as a whole: say "your plan", never "step 5" or "the line with ||", even to ask a question about it.
   - `far_from_plan` — the program compiled but bears little relation to the plan. Keep it short: ask them to start again from step 1 of their plan and write one step at a time.
-  - `other` — none of these fits. Name the one thing most worth looking at.
 
   ## Levels
 
   LEVEL is either `hint` or `prompt`.
-  - `hint` — Point the student to where to look: the step of their plan, the part of their program, or what kind of mistake the first compiler error is. One or two lines. Do not name the exact line, variable or character to change.
+  - `hint` — Point the student to where to look: the step of their plan, the part of their program, or what kind of mistake the first compiler error is. One to three lines. Do not name the exact line, variable or character to change.
   - `prompt` — Ask for the one specific piece: the line or variable to look at, what the compiler expected at the spot it names, or what one variable holds for the failing example compared with what the plan says it should hold. One to three lines. Never write the fix, a corrected line, or any code.
 
   When LEVEL is `prompt`, SITUATION and FOCUS are given: they were decided with the hint. Answer to them; do not decide the situation again.

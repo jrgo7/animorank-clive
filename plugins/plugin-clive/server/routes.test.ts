@@ -824,6 +824,21 @@ describe('CLive plugin routes', () => {
       expect(user.split('- hint, [departs_from_plan] at step 2: Look at step 2.')).toHaveLength(2);
     });
 
+    it('writes a prompt on a hint recorded as other (before nudge_code v9) as departs_from_plan', async () => {
+      await failedRun();
+      const recorded = log.written.findLast((e) => e.type === 'CLIVE_CODE_FEEDBACK')!.data as {
+        response: { situation: string };
+      };
+      recorded.response.situation = 'other';
+      state.queue = [CODE_PROMPT];
+      const response = await post('/code-feedback/escalate', codeEscalateBody());
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().situation).toBe('departs_from_plan');
+      expect(state.users[1]).toContain('SITUATION\ndeparts_from_plan');
+      expect(state.users[1]).not.toContain('SITUATION\nother');
+    });
+
     it('logs the escalation: its model call, then its record', async () => {
       await failedRun();
       state.queue = [CODE_PROMPT];
